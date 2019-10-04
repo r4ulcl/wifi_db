@@ -57,6 +57,7 @@ def parse_netxml(name, database, verbose):
     '''Function to parse the .kismet.netxml files'''
 
     exists = os.path.isfile(name+".kismet.netxml")
+    errors=0
     try:
         cursor = database.cursor()
         if exists:
@@ -79,6 +80,7 @@ def parse_netxml(name, database, verbose):
                         cursor.execute('''INSERT INTO client VALUES(?,?,?,?,?,?)''',
                                        (bssid, '', manuf, 'W', packets_total, 'Misc'))
                     except sqlite3.IntegrityError as error:
+                        errors += 1
                         try:
                             cursor.execute(
                                 "UPDATE client SET packetsTotal = packetsTotal \
@@ -96,6 +98,7 @@ def parse_netxml(name, database, verbose):
                                 cursor.execute('''INSERT INTO Probe VALUES(?,?,?)''',
                                                (bssid, ssid.find("ssid").text, 0))
                             except sqlite3.IntegrityError as error:
+                                errors += 1
                                 if verbose:
                                     print(error)
 
@@ -125,6 +128,7 @@ def parse_netxml(name, database, verbose):
                                        (bssid, essid, manuf, channel, freqmhz, carrier,
                                         encryption, packets_total, 0, 0))
                     except sqlite3.IntegrityError as error:
+                        errors += 1
                         try:
                             cursor.execute(
                                 "UPDATE AP SET packetsTotal = packetsTotal + %s WHERE bssid = '%s'"\
@@ -144,6 +148,7 @@ def parse_netxml(name, database, verbose):
                             cursor.execute('''INSERT INTO client VALUES(?,?,?,?,?,?)''',
                                            (client_mac, '', manuf, 'W', packets_total, 'Misc'))
                         except sqlite3.IntegrityError as error:
+                            errors += 1
                             try:
                                 cursor.execute(
                                     "UPDATE client SET packetsTotal = packetsTotal + %s \
@@ -156,6 +161,7 @@ def parse_netxml(name, database, verbose):
                             cursor.execute(
                                 '''INSERT INTO connected VALUES(?,?)''', (bssid, client_mac))
                         except sqlite3.IntegrityError as error:
+                            errors += 1
                             try:
                                 cursor.execute(
                                     "UPDATE client SET packetsTotal = packetsTotal + %s \
@@ -163,7 +169,11 @@ def parse_netxml(name, database, verbose):
                             except sqlite3.IntegrityError as error:
                                 print(error)
             database.commit()
-            print(".kismet.netxml OK")
+            if verbose:
+                print(".kismet.netxml OK, lines with errors or duplicates:", errors)
+            else:
+                print(".kismet.netxml OK")
+
         else:
             print(".kismet.netxml not exists")
     except Exception as error:
@@ -173,6 +183,7 @@ def parse_netxml(name, database, verbose):
 def parse_kismet_csv(name, database, verbose):
     '''Function to parse the .kismet.csv files'''
     exists = os.path.isfile(name+".kismet.csv")
+    errors = 0
     try:
         cursor = database.cursor()
         if exists:
@@ -198,6 +209,7 @@ def parse_kismet_csv(name, database, verbose):
                                 encrypt, packets_total, lat, lon))
                             # manuf y carrier implementar
                         except sqlite3.IntegrityError as error:
+                            errors += 1
                             if verbose:
                                 print(error)
                             try:
@@ -207,7 +219,10 @@ def parse_kismet_csv(name, database, verbose):
                             except sqlite3.IntegrityError:
                                 print(error)
             database.commit()
-            print(".kismet.csv OK")
+            if verbose:
+                print(".kismet.csv OK, lines with errors or duplicates:", errors)
+            else:
+                print(".kismet.csv OK")
         else:
             print(".kismet.csv not exists")
     except Exception as error:
@@ -217,6 +232,7 @@ def parse_kismet_csv(name, database, verbose):
 def parse_csv(name, database, verbose):
     '''Function to parse the .csv files'''
     exists = os.path.isfile(name+".csv")
+    errors = 0
     try:
         cursor = database.cursor()
         if exists:
@@ -235,6 +251,7 @@ def parse_csv(name, database, verbose):
                                            (mac, '', 'Unknown', 'W', packets, 'Misc'))
                             # manuf implementar
                         except sqlite3.IntegrityError as error:
+                            errors += 1
                             try:
                                 cursor.execute(
                                     "UPDATE client SET packetsTotal = packetsTotal + %s \
@@ -250,6 +267,7 @@ def parse_csv(name, database, verbose):
                                     '''INSERT INTO connected VALUES(?,?)''',
                                     (row[5].replace(' ', ''), row[0]))
                             except sqlite3.IntegrityError as error:
+                                errors += 1
                                 if verbose:
                                     print(error)
 
@@ -260,11 +278,15 @@ def parse_csv(name, database, verbose):
                                     '''INSERT INTO Probe VALUES(?,?,?)''',
                                     (row[0], row[contador], 0))
                             except sqlite3.IntegrityError as error:
+                                errors += 1
                                 if verbose:
                                     print(error)
                             contador += 1
             database.commit()
-            print(".csv OK")
+            if verbose:
+                print(".csv OK, lines with errors or duplicates:", errors)
+            else:
+                print(".csv OK")
         else:
             print(".csv not exists")
     except Exception as error:
@@ -274,6 +296,7 @@ def parse_csv(name, database, verbose):
 def parse_log_csv(name, database, verbose):
     ''' Parse .log.csv file from Aircrack-ng to the database '''
     exists = os.path.isfile(name+".log.csv")
+    errors = 0
     try:
         cursor = database.cursor()
         if exists:
@@ -296,6 +319,7 @@ def parse_log_csv(name, database, verbose):
                                                    (row[3], row[0], 'aircrack-ng',
                                                     row[4], row[6], row[7], '0.0'))
                             except sqlite3.IntegrityError as error:
+                                errors += 1
                                 if verbose:
                                     print(error)
 
@@ -314,10 +338,14 @@ def parse_log_csv(name, database, verbose):
                                                (row[3], row[0], 'aircrack-ng',
                                                 row[4], row[6], row[7], '0.0', 0))
                             except sqlite3.IntegrityError as error:
+                                errors += 1
                                 if verbose:
                                     print(error)
             database.commit()
-            print(".log.csv OK")
+            if verbose:
+                print(".log.csv OK, lines with errors or duplicates:", errors)
+            else:
+                print(".log.csv OK")
         else:
             print(".log.csv not exists")
     except Exception as error:
