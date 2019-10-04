@@ -24,7 +24,11 @@ TODO
 
 - [ ] install 
 
+- [ ] parse all files in folder -f --folder
+
 - [ ] Fix Extended errors, tildes, etc
+
+---------
 
 This program is a continuation of a part of: https://github.com/T1GR3S/airo-heat
 
