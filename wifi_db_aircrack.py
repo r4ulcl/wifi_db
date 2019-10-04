@@ -19,87 +19,17 @@ def connect_database(name, verbose):
 
 def create_database(database, verbose):
     '''Function to create the tables in the database'''
+    path = 'database.sql'
+    views_file = open(path, 'r')
+    views = views_file.read()
     try:
         cursor = database.cursor()
-        cursor.execute('''
-    CREATE TABLE IF NOT EXISTS AP
-    (
-    bssid TEXT NOT NULL,
-    ssid TEXT,
-    manuf TEXT,
-    channel int,
-    frequency int,
-    carrier TEXT,
-    encryption TEXT,
-    packetsTotal int,
-    lat_t REAL,
-    lon_t REAL,
-    CONSTRAINT Key1 PRIMARY KEY (bssid)
-    );
-        ''')
-        cursor.execute('''
-    CREATE TABLE IF NOT EXISTS Client
-    (
-    mac TEXT NOT NULL,
-    ssid TEXT,
-    manuf TEXT,
-    type TEXT,
-    packetsTotal int,
-    device TEXT,
-    CONSTRAINT Key1 PRIMARY KEY (mac));
-        ''')
-        cursor.execute('''
-    CREATE TABLE IF NOT EXISTS SeenClient
-    (
-    mac TEXT NOT NULL,
-    time datetime NOT NULL,
-    tool TEXT,
-    signal_rssi int,
-    lat REAL,
-    lon REAL,
-    alt REAL,
-    CONSTRAINT Key3 PRIMARY KEY (time,mac),
-    CONSTRAINT SeenClients FOREIGN KEY (mac) REFERENCES Client (mac)
-    );
-        ''')
-        cursor.execute('''
-    CREATE TABLE IF NOT EXISTS Connected
-    (
-    bssid TEXT NOT NULL,
-    mac TEXT NOT NULL,
-    CONSTRAINT Key4 PRIMARY KEY (bssid,mac),
-    CONSTRAINT Relationship2 FOREIGN KEY (bssid) REFERENCES AP (bssid),
-    CONSTRAINT Relationship3 FOREIGN KEY (mac) REFERENCES Client (mac)
-    );
-        ''')
-        cursor.execute('''
-    CREATE TABLE IF NOT EXISTS SeenAp
-    (
-    bssid TEXT NOT NULL,
-    time datetime NOT NULL,
-    tool TEXT,
-    signal_rssi int,
-    lat REAL,
-    lon REAL,
-    alt REAL,
-    bsstimestamp timestamp,
-    CONSTRAINT Key3 PRIMARY KEY (time,bssid),
-    CONSTRAINT SeenAp FOREIGN KEY (bssid) REFERENCES AP (bssid)
-    );
-        ''')
-        cursor.execute('''
-    CREATE TABLE IF NOT EXISTS Probe
-    (
-    mac TEXT NOT NULL,
-    ssid TEXT NOT NULL,
-    time datetime,
-    CONSTRAINT Key5 PRIMARY KEY (mac,ssid),
-    CONSTRAINT ProbesSent FOREIGN KEY (mac) REFERENCES Client (mac)
-    );
-        ''')
+        for statement in views.split(';'):
+            if statement:
+                cursor.execute(statement + ';')
         database.commit()
         if verbose:
-            print("Databased created")
+            print("Database created")
     except sqlite3.IntegrityError as error:
         print(error)
 
