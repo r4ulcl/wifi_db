@@ -1,7 +1,16 @@
 # wifi_db
-Script to parse Aircrack-ng, Kismet and Wigle captures to a SQLite database
+Script to parse Aircrack-ng and Kismet captures to a SQLite database
 
-this program is a continuation of a part of: https://github.com/T1GR3S/airo-heat
+
+## Usage
+
+### Aircrack-ng
+
+python3 wifi_db.py database.sqlite capture-01
+
+### Kismet
+
+TODO
 
 ## TODO
 
@@ -16,3 +25,13 @@ this program is a continuation of a part of: https://github.com/T1GR3S/airo-heat
 - [ ] install 
 
 - [ ] Fix Extended errors, tildes, etc
+
+This program is a continuation of a part of: https://github.com/T1GR3S/airo-heat
+
+## Author
+
+- Raúl Calvo Laorden (@raulcalvolaorden)
+
+## License
+
+[GNU General Public License v3.0](https://github.com/RaulCalvoLaorden/wifi_db/blob/master/LICENSE)
