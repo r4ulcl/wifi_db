@@ -5,6 +5,7 @@
 import argparse
 import wifi_db_aircrack
 import os
+import oui
 
 def main():
     '''Function main. Parse argument and exec the functions '''
@@ -15,6 +16,9 @@ def main():
                         action="store_true")
     parser.add_argument("-f", "--folder", help="insert a folder",
                         action="store_true")
+    
+    parser.add_argument("-t", "--lat", default='', help="insert a fake lat in all database")
+    parser.add_argument("-n", "--lon", default='', help="insert a fake lat in all database")
 
     parser.add_argument('--source',
                         default='aircrack-ng',
@@ -36,6 +40,9 @@ def main():
     name = args.database
     capture = args.capture
     source = args.source
+    
+    fake_lat = args.lat
+    fake_lon = args.lon
 
     if verbose:
         print("verbosity turned on")
@@ -45,6 +52,8 @@ def main():
     wifi_db_aircrack.create_database(database, verbose)
     wifi_db_aircrack.create_views(database, verbose)
 
+    ouiMap = oui.load_vendors()
+    
     if source == "aircrack-ng":
         print("Parsing aircrack-ng capture")
         if folder:
@@ -63,21 +72,28 @@ def main():
                 name = os.path.splitext(os.path.splitext(base)[0])[0]
                 capture_aux = dirpath+"/"+capture+"/"+name
                 print(capture_aux)
-                wifi_db_aircrack.parse_netxml(capture_aux, database, verbose)
-                wifi_db_aircrack.parse_kismet_csv(capture_aux, database, verbose)
-                wifi_db_aircrack.parse_csv(capture_aux, database, verbose)
-                wifi_db_aircrack.parse_log_csv(capture_aux, database, verbose)
+                wifi_db_aircrack.parse_netxml(ouiMap, capture_aux, database, verbose)
+                wifi_db_aircrack.parse_kismet_csv(ouiMap, capture_aux, database, verbose)
+                wifi_db_aircrack.parse_csv(ouiMap, capture_aux, database, verbose)
+                wifi_db_aircrack.parse_log_csv(ouiMap, capture_aux, database, verbose)
         else:
-            wifi_db_aircrack.parse_netxml(capture, database, verbose)
-            wifi_db_aircrack.parse_kismet_csv(capture, database, verbose)
-            wifi_db_aircrack.parse_csv(capture, database, verbose)
-            wifi_db_aircrack.parse_log_csv(capture, database, verbose)
+            wifi_db_aircrack.parse_netxml(ouiMap, capture, database, verbose)
+            wifi_db_aircrack.parse_kismet_csv(ouiMap, capture, database, verbose)
+            wifi_db_aircrack.parse_csv(ouiMap, capture, database, verbose)
+            wifi_db_aircrack.parse_log_csv(ouiMap, capture, database, verbose)
+
+        if fake_lat != "":
+            print(fake_lat) 
+            wifi_db_aircrack.fake_lat(database, fake_lat)
+        if fake_lon != "": 
+            print(fake_lon) 
+            wifi_db_aircrack.fake_lon(database, fake_lon)
     elif source == "kismet":
         print("Parsing Kismet capture")
         # TO DO
     else:
         print("Parsing Wigle capture")
         # TO DO
-
+        
 if __name__ == "__main__":
     main()
