@@ -1,12 +1,13 @@
 #!/bin/python3
-''' Parse Aircrack, Kismet and Wigle output to a SQLite DB 
-# -*- coding: utf-8 -*-'''
+''' Parse Aircrack, Kismet and Wigle output to a SQLite DB '''
+# -*- coding: utf-8 -*-
 import csv
 import xml.etree.ElementTree as ET
 import sqlite3
 import os
 import re
 import argparse
+import oui
 import ftfy
 
 def connect_database(name, verbose):
@@ -55,7 +56,7 @@ def create_views(database, verbose):
         print(error)
 
 
-def parse_netxml(name, database, verbose):
+def parse_netxml(ouiMap, name, database, verbose):
     '''Function to parse the .kismet.netxml files'''
 
     exists = os.path.isfile(name+".kismet.netxml")
@@ -80,12 +81,12 @@ def parse_netxml(name, database, verbose):
             for wireless in raiz:
                 if wireless.get("type") == "probe":
                     bssid = wireless.find("BSSID").text
-                    manuf = wireless.find("manuf").text
+                    manuf = oui.get_vendor(ouiMap, bssid)
                     packets_total = wireless.find("packets").find("total").text
                     # print bssid, manuf, "W", packetsT
                     try:
-                        cursor.execute('''INSERT OR REPLACE INTO client VALUES(?,?,?,?,?,?)''',
-                                       (bssid, '', manuf, 'W', packets_total, 'Misc'))
+                        cursor.execute('''INSERT INTO client VALUES(?,?,?,?,?,?)''',
+                                       (bssid, '', manuf , 'W', packets_total, 'Misc'))
                     except sqlite3.IntegrityError as error:
                         errors += 1
                         try:
@@ -119,11 +120,13 @@ def parse_netxml(name, database, verbose):
                     else:
                         essid = ""
                     bssid = wireless.find("BSSID").text
-                    manuf = wireless.find("manuf").text
+                    # manuf = wireless.find("manuf").text
                     channel = wireless.find("channel").text
                     freqmhz = wireless.find("freqmhz").text.split()[0]
                     carrier = wireless.find("carrier").text
-                    manuf = wireless.find("manuf").text
+                    
+                    manuf = oui.get_vendor(ouiMap, bssid)
+
                     if wireless.find("SSID").find("encryption") is not None:
                         encryption = wireless.find("SSID").find("encryption").text
                     else:
@@ -161,11 +164,12 @@ def parse_netxml(name, database, verbose):
                     clients = wireless.findall("wireless-client")
                     for client in clients:
                         client_mac = client.find("client-mac").text
-                        manuf = client.find("client-manuf").text
+                        manuf = oui.get_vendor(ouiMap, bssid)
+                            
                         packets_total = client.find("packets").find("total").text
                         # print client_mac, manuf, "W", packetsT
                         try:
-                            cursor.execute('''INSERT OR REPLACE INTO client VALUES(?,?,?,?,?,?)''',
+                            cursor.execute('''INSERT INTO client VALUES(?,?,?,?,?,?)''',
                                            (client_mac, '', manuf, 'W', packets_total, 'Misc'))
                         except sqlite3.IntegrityError as error:
                             errors += 1
@@ -200,8 +204,9 @@ def parse_netxml(name, database, verbose):
         print(error)
         print("Error in kismet.netxml")
 
-def parse_kismet_csv(name, database, verbose):
-    '''Function to parse the .kismet.csv files'''
+def parse_kismet_csv(ouiMap, name, database, verbose):
+    '''Function to parse the .kismet.csv files'''    
+    
     exists = os.path.isfile(name+".kismet.csv")
     errors = 0
     try:
@@ -215,7 +220,9 @@ def parse_kismet_csv(name, database, verbose):
                         try:
                             bssid = row[3]
                             ssid = row[2]
-                            manuf = ""
+                            
+                            manuf = oui.get_vendor(ouiMap, bssid)
+                            
                             channel = row[5]
                             freq = 0
                             carrier = ""
@@ -255,8 +262,9 @@ def parse_kismet_csv(name, database, verbose):
         print(error)
         print("Error in kismet.csv")
 
-def parse_csv(name, database, verbose):
+def parse_csv(ouiMap, name, database, verbose):
     '''Function to parse the .csv files'''
+   
     exists = os.path.isfile(name+".csv")
     errors = 0
     try:
@@ -272,18 +280,19 @@ def parse_csv(name, database, verbose):
                             #insert AP de aqui tambien
                             bssid = row[0]
                             essid = row[13]
-                            manuf = ""
+                            manuf = oui.get_vendor(ouiMap, bssid)
                             channel = row[3]
                             freq = ""
                             carrier = ""
                             encrypt = row[5] + row[6] + row[7]
                             packets_total = row[10]
                             try:
-                                cursor.execute('''INSERT OR REPLACE INTO AP VALUES(?,?,?,?,?,?,?,?,?,?)''', (
+                                cursor.execute('''INSERT INTO AP VALUES(?,?,?,?,?,?,?,?,?,?)''', (
                                     bssid, essid[1:], manuf, channel, freq, carrier,
                                     encrypt, packets_total, 0, 0))
                             except sqlite3.IntegrityError as error:
-                                print(error)
+                                if verbose:
+                                    print(error)
                         
                         
                         if row  and row[0] == "Station MAC":
@@ -293,8 +302,8 @@ def parse_csv(name, database, verbose):
                             mac = row[0]
                             packets = row[4]
                             try:
-                                cursor.execute('''INSERT OR REPLACE INTO client VALUES(?,?,?,?,?,?)''',
-                                            (mac, '', 'Unknown', 'W', packets, 'Misc'))
+                                cursor.execute('''INSERT INTO client VALUES(?,?,?,?,?,?)''',
+                                            (mac, '', manuf, 'W', packets, 'Misc'))
                                 # manuf implementar
                             except sqlite3.IntegrityError as error:
                                 errors += 1
@@ -339,8 +348,9 @@ def parse_csv(name, database, verbose):
         print(error)
         print("Error in .csv")
 
-def parse_log_csv(name, database, verbose):
-    ''' Parse .log.csv file from Aircrack-ng to the database '''
+def parse_log_csv(ouiMap, name, database, verbose):
+    ''' Parse .log.csv file from Aircrack-ng to the database '''    
+    
     exists = os.path.isfile(name+".log.csv")
     errors = 0
     try:
@@ -352,8 +362,9 @@ def parse_log_csv(name, database, verbose):
                     if row[0] != "LocalTime":
                         if len(row) > 10 and row[10] == "Client":
                             try:
+                                manuf = oui.get_vendor(ouiMap, row[3])
                                 cursor.execute('''INSERT INTO client VALUES(?,?,?,?,?,?)''',
-                                               (row[3], '', 'Unknown', 'W', -1, 'Misc'))
+                                               (row[3], '', manuf, 'W', -1, 'Misc'))
                             except sqlite3.IntegrityError as error:
                                 if verbose:
                                     print(error)
@@ -372,8 +383,10 @@ def parse_log_csv(name, database, verbose):
                         if len(row) > 10 and row[10] == "AP":
 
                             try:
+                                manuf = oui.get_vendor(ouiMap, row[3])
+                                    
                                 cursor.execute('''INSERT INTO AP VALUES(?,?,?,?,?,?,?,?,?,?)''', (
-                                    row[3], row[2], '', 0, 0, '', '', 0, row[6], row[7]))
+                                    row[3], row[2], manuf, 0, 0, '', '', 0, row[6], row[7]))
                                 # manuf y carrier implementar
                             except sqlite3.IntegrityError as error:
                                 cursor.execute(
@@ -397,6 +410,7 @@ def parse_log_csv(name, database, verbose):
             database.commit()
             if verbose:
                 print(".log.csv OK, lines with errors or duplicates:", errors)
+                asdf = "Hola, {asdf}, bienvenido, {asdf}".format({'asdf': "Pablo"})
             else:
                 print(".log.csv OK")
         else:
@@ -405,6 +419,37 @@ def parse_log_csv(name, database, verbose):
         print(error)
         print("Error in log")
 
+def fake_lat(database, lat):
+    try:
+        cursor = database.cursor()
+            
+        sql = "UPDATE AP SET lat_t = " + lat
+        cursor.execute(sql)
+        sql = "UPDATE SeenAP SET lat = " + lat
+        cursor.execute(sql)
+        sql = "UPDATE SeenClient SET lat = " + lat
+        cursor.execute(sql)
+        
+        database.commit()
+    except sqlite3.IntegrityError as error:
+        print(error)
+                            
+def fake_lon(database, lon):
+    try:
+        cursor = database.cursor()
+            
+        sql = "UPDATE AP SET lon_t = " + lon
+        cursor.execute(sql)
+        sql = "UPDATE SeenAP SET lon = " + lon
+        cursor.execute(sql)
+        sql = "UPDATE SeenClient SET lon = " + lon
+        cursor.execute(sql)
+        
+        database.commit()
+    except sqlite3.IntegrityError as error:
+        print(error)
+
+      
 def main():
     '''Function main. Parse argument and exec the functions '''
     #args
@@ -413,6 +458,7 @@ def main():
                         action="store_true")
     parser.add_argument("-f", "--folder", help="insert a folder",
                         action="store_true")
+
     parser.add_argument("database", type=str,
                         help="output database, if exist append to the given database")
     parser.add_argument("capture", type=str,
@@ -434,13 +480,34 @@ def main():
     create_database(database, verbose)
     create_views(database, verbose)
     
+    
+    ouiMap = oui.load_vendors()
+    
     if folder:
-        print("folder")
+        files = []
+        dirpath = os.getcwd()
+        if verbose:
+            print(dirpath+"/"+capture)
+            print("current directory is : " + dirpath)
+        for r, d, f in os.walk(dirpath+"/"+capture):
+            for file in f:
+                if 'kismet.netxml' in file:
+                    files.append(os.path.join(r, file))
+
+        for f in files:
+            base = os.path.basename(f)
+            name = os.path.splitext(os.path.splitext(base)[0])[0]
+            capture_aux = dirpath+"/"+capture+"/"+name
+            print(capture_aux)
+            parse_netxml(ouiMap, capture_aux, database, verbose)
+            parse_kismet_csv(ouiMap, capture_aux, database, verbose)
+            parse_csv(ouiMap, capture_aux, database, verbose)
+            parse_log_csv(ouiMap, capture_aux, database, verbose)
     else:
-        parse_netxml(capture, database, verbose)
-        parse_kismet_csv(capture, database, verbose)
-        parse_csv(capture, database, verbose)
-        parse_log_csv(capture, database, verbose)
+        parse_netxml(ouiMap, capture, database, verbose)
+        parse_kismet_csv(ouiMap, capture, database, verbose)
+        parse_csv(ouiMap, capture, database, verbose)
+        parse_log_csv(ouiMap, capture, database, verbose)
 
 
 if __name__ == "__main__":
