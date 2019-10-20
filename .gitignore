@@ -4,3 +4,5 @@ capturas/*
 capturasRPI/*
 __pycache__/
 *.pyc
+
+.vscode/
