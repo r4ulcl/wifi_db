@@ -164,7 +164,7 @@ def parse_netxml(ouiMap, name, database, verbose):
                     clients = wireless.findall("wireless-client")
                     for client in clients:
                         client_mac = client.find("client-mac").text
-                        manuf = oui.get_vendor(ouiMap, bssid)
+                        manuf = oui.get_vendor(ouiMap, client_mac)
                             
                         packets_total = client.find("packets").find("total").text
                         # print client_mac, manuf, "W", packetsT
@@ -176,7 +176,7 @@ def parse_netxml(ouiMap, name, database, verbose):
                             try:
                                 cursor.execute(
                                     "UPDATE client SET packetsTotal = packetsTotal + %s \
-                                        WHERE mac = '%s'" % (packets_total, bssid))
+                                        WHERE mac = '%s'" % (packets_total, client_mac))
                             except sqlite3.IntegrityError as error:
                                 print(error)
                         # connected
