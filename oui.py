@@ -1,3 +1,5 @@
+#!/bin/python3
+# -*- coding: utf-8 -*-
 ''' Get macs vendor'''
 import json
 import requests
