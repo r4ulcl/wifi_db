@@ -83,7 +83,7 @@ def parse_netxml(ouiMap, name, database, verbose):
                     bssid = wireless.find("BSSID").text
                     manuf = oui.get_vendor(ouiMap, bssid)
                     packets_total = wireless.find("packets").find("total").text
-                    # print bssid, manuf, "W", packetsT
+                    # print (bssid, manuf, "W", packets_total)
                     try:
                         cursor.execute('''INSERT INTO client VALUES(?,?,?,?,?,?)''',
                                        (bssid, '', manuf , 'W', packets_total, 'Misc'))
@@ -167,7 +167,7 @@ def parse_netxml(ouiMap, name, database, verbose):
                         manuf = oui.get_vendor(ouiMap, client_mac)
                             
                         packets_total = client.find("packets").find("total").text
-                        # print client_mac, manuf, "W", packetsT
+                        # print (client_mac, manuf, "W", packets_total)
                         try:
                             cursor.execute('''INSERT INTO client VALUES(?,?,?,?,?,?)''',
                                            (client_mac, '', manuf, 'W', packets_total, 'Misc'))
@@ -300,7 +300,10 @@ def parse_csv(ouiMap, name, database, verbose):
                         elif row and client and len(row) > 5:
                             # print(row[0])
                             mac = row[0]
+                            manuf = oui.get_vendor(ouiMap, mac)
                             packets = row[4]
+                            # print(mac, manuf)
+
                             try:
                                 cursor.execute('''INSERT INTO client VALUES(?,?,?,?,?,?)''',
                                             (mac, '', manuf, 'W', packets, 'Misc'))
@@ -410,7 +413,6 @@ def parse_log_csv(ouiMap, name, database, verbose):
             database.commit()
             if verbose:
                 print(".log.csv OK, lines with errors or duplicates:", errors)
-                asdf = "Hola, {asdf}, bienvenido, {asdf}".format({'asdf': "Pablo"})
             else:
                 print(".log.csv OK")
         else:
