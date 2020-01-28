@@ -83,7 +83,8 @@ def parse_netxml(ouiMap, name, database, verbose):
                     bssid = wireless.find("BSSID").text
                     manuf = oui.get_vendor(ouiMap, bssid)
                     packets_total = wireless.find("packets").find("total").text
-                    # print (bssid, manuf, "W", packets_total)
+                    if verbose:
+                        print (bssid, manuf, "W", packets_total)
                     try:
                         cursor.execute('''INSERT INTO client VALUES(?,?,?,?,?,?)''',
                                        (bssid, '', manuf , 'W', packets_total, 'Misc'))
@@ -119,12 +120,14 @@ def parse_netxml(ouiMap, name, database, verbose):
                         # print(essid)
                     else:
                         essid = ""
+
                     bssid = wireless.find("BSSID").text
                     # manuf = wireless.find("manuf").text
                     channel = wireless.find("channel").text
                     freqmhz = wireless.find("freqmhz").text.split()[0]
                     carrier = wireless.find("carrier").text
                     
+
                     manuf = oui.get_vendor(ouiMap, bssid)
 
                     if wireless.find("SSID").find("encryption") is not None:
@@ -132,12 +135,17 @@ def parse_netxml(ouiMap, name, database, verbose):
                     else:
                         encryption = ""
                         
-                    if wireless.find("gps-info").find("max-lat") is not None:
-                        lat = wireless.find("gps-info").find("max-lat").text
-                        lon = wireless.find("gps-info").find("max-lon").text
-                    else:
-                        lat = "0.0"
-                        lon = "0.0"
+
+                    lat = "0.0"
+                    lon = "0.0"
+                    gps_info=wireless.find("gps-info")
+                    if gps_info is not None:
+                        if gps_info.find("max-lat") is not None:
+                            lat = gps_info.find("max-lat").text
+                            lon = gps_info.find("max-lon").text
+                        else:
+                            lat = "0.0"
+                            lon = "0.0"
 
                     packets_total = wireless[8].find("total").text
 
@@ -155,7 +163,7 @@ def parse_netxml(ouiMap, name, database, verbose):
                                 "UPDATE AP SET lat_t = CASE WHEN lat_t == 0.0 THEN ('%s') ELSE lat_t "\
                                     "END, lon_t = CASE WHEN lon_t == 0.0 THEN ('%s') ELSE lon_t END "\
                                         "WHERE bssid = '%s'" % (lat, lon, bssid))
-                            
+
                         except sqlite3.IntegrityError as error:
                             print("a"+error)
                     # print bssid, essid, manuf, channel,freqmhz, carrier, encryption, packetsT
@@ -165,7 +173,7 @@ def parse_netxml(ouiMap, name, database, verbose):
                     for client in clients:
                         client_mac = client.find("client-mac").text
                         manuf = oui.get_vendor(ouiMap, client_mac)
-                            
+
                         packets_total = client.find("packets").find("total").text
                         # print (client_mac, manuf, "W", packets_total)
                         try:

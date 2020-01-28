@@ -24,9 +24,11 @@ TODO
 
 - [ ] install 
 
-- [ ] parse all files in folder -f --folder
+- [X] parse all files in folder -f --folder
 
-- [ ] Fix Extended errors, tildes, etc
+- [X] Fix Extended errors, tildes, etc (fixed in aircrack-ng 1.6)
+
+- [ ] Support bash multi files: "capture*-1*"
 
 ---------
 
