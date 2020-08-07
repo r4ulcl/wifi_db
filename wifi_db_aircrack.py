@@ -85,7 +85,7 @@ def parse_netxml(ouiMap, name, database, verbose):
                     packets_total = wireless.find("packets").find("total").text
                     if verbose:
                         print (bssid, manuf, "W", packets_total)
-                    try:
+                    try: 
                         cursor.execute('''INSERT INTO client VALUES(?,?,?,?,?,?)''',
                                        (bssid, '', manuf , 'W', packets_total, 'Misc'))
                     except sqlite3.IntegrityError as error:
