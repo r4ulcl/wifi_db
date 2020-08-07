@@ -59,10 +59,14 @@ def main():
         if folder:
             files = []
             dirpath = os.getcwd()
+            if os.path.isabs(capture):
+                dir_capture=capture
+            else:
+                dir_capture=dirpath+"/"+capture
             if verbose:
-                print(dirpath+"/"+capture)
+                print(dir_capture)
                 print("current directory is : " + dirpath)
-            for r, d, f in os.walk(dirpath+"/"+capture):
+            for r, d, f in os.walk(dir_capture):
                 for file in f:
                     if 'kismet.netxml' in file:
                         files.append(os.path.join(r, file))
@@ -70,7 +74,7 @@ def main():
             for f in files:
                 base = os.path.basename(f)
                 name = os.path.splitext(os.path.splitext(base)[0])[0]
-                capture_aux = dirpath+"/"+capture+"/"+name
+                capture_aux = dir_capture+"/"+name
                 print(capture_aux)
                 wifi_db_aircrack.parse_netxml(ouiMap, capture_aux, database, verbose)
                 wifi_db_aircrack.parse_kismet_csv(ouiMap, capture_aux, database, verbose)
@@ -83,10 +87,10 @@ def main():
             wifi_db_aircrack.parse_log_csv(ouiMap, capture, database, verbose)
 
         if fake_lat != "":
-            print(fake_lat) 
+            print(fake_lat)
             wifi_db_aircrack.fake_lat(database, fake_lat)
-        if fake_lon != "": 
-            print(fake_lon) 
+        if fake_lon != "":
+            print(fake_lon)
             wifi_db_aircrack.fake_lon(database, fake_lon)
     elif source == "kismet":
         print("Parsing Kismet capture")

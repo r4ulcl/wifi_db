@@ -3,18 +3,21 @@
 ''' Get macs vendor'''
 import json
 import requests
-
+import os
 
 def load_vendors():
     '''Download and load vendors'''
     url = 'https://macaddress.io/database/macaddress.io-db.json'
+    file = "/tmp/macaddress.io-db.json"
 
-    with open('macaddress.io-db.json', "wb") as file:
-        response = requests.get(url)
-        file.write(response.content)
+    if not os.path.isfile(file):  #if file not exists in tmp...
+        with open('/tmp/macaddress.io-db.json', "wb") as file:
+            response = requests.get(url)
+            file.write(response.content)
+            # error control and copy local (old file)!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
     oui = {}
-    with open('macaddress.io-db.json', mode="r", encoding="utf-8") as file:
+    with open('/tmp/macaddress.io-db.json', mode="r", encoding="utf-8") as file:
         for line in file:
             data_json = json.loads(line)
             oui[data_json['oui'].replace(':', '')] = data_json['companyName']

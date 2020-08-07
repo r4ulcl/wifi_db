@@ -1,16 +1,39 @@
 # wifi_db
-Script to parse Aircrack-ng and Kismet captures to a SQLite database
+Script to parse Aircrack-ng captures to a SQLite database
 
+## Install
+
+``` bash
+
+git clone https://github.com/RaulCalvoLaorden/wifi_db
+
+cd wifi_db
+
+pip3 install -r requirements.txt 
+
+```
 
 ## Usage
 
+- --help to help
+
 ### Aircrack-ng
 
-python3 wifi_db.py database.sqlite capture-01
+- python3 wifi_db.py database.sqlite capture-01
+
+- python3 wifi_db.py database.sqlite -f capture-folder
 
 ### Kismet
 
 TODO
+
+## Views
+
+- 
+
+- 
+
+- 
 
 ## TODO
 
@@ -22,13 +45,17 @@ TODO
 
 - [ ] Wigle
 
-- [ ] install 
+- [X] install 
 
 - [X] parse all files in folder -f --folder
 
 - [X] Fix Extended errors, tildes, etc (fixed in aircrack-ng 1.6)
 
 - [ ] Support bash multi files: "capture*-1*"
+
+- [ ] Script to delete client or AP from DB (mac). 
+
+- [ ] Whitelist to dont add mac to DB (file whitelist.txt, add macs, create DB)
 
 ---------
 
