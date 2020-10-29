@@ -5,6 +5,8 @@ Script to parse Aircrack-ng captures to a SQLite database
 
 ``` bash
 
+sudo apt install python3-pip
+
 git clone https://github.com/RaulCalvoLaorden/wifi_db
 
 cd wifi_db
@@ -15,7 +17,8 @@ pip3 install -r requirements.txt
 
 ## Usage
 
-- --help to help
+- --help / -h to help
+- --folder / -f to process a folder
 
 ### Aircrack-ng
 
