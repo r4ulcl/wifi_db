@@ -1,5 +1,6 @@
 errores
 *.sqlite
+*.SQLITE
 capturas/*
 capturasRPI/*
 __pycache__/
