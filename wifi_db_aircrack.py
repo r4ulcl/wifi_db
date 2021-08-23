@@ -22,7 +22,7 @@ def connect_database(name, verbose):
 def create_database(database, verbose):
     '''Function to create the tables in the database'''
     script_path = os.path.dirname(os.path.abspath( __file__ ))
-    path = script_path+'/database.sql'
+    path = script_path+'/wifi_db_database.sql'
     views_file = open(path, 'r')
     views = views_file.read()
     try:
@@ -207,7 +207,7 @@ def parse_netxml(ouiMap, name, database, verbose):
                 print(".kismet.netxml OK")
 
         else:
-            print(".kismet.netxml not exists")
+            print(".kismet.netxml missing")
     except Exception as error:
         print(error)
         print("Error in kismet.netxml")
@@ -265,7 +265,7 @@ def parse_kismet_csv(ouiMap, name, database, verbose):
             else:
                 print(".kismet.csv OK")
         else:
-            print(".kismet.csv not exists")
+            print(".kismet.csv missing")
     except Exception as error:
         print(error)
         print("Error in kismet.csv")
@@ -354,7 +354,7 @@ def parse_csv(ouiMap, name, database, verbose):
             else:
                 print(".csv OK")
         else:
-            print(".csv not exists")
+            print(".csv missing")
     except Exception as error:
         print(error)
         print("Error in .csv")
@@ -424,7 +424,7 @@ def parse_log_csv(ouiMap, name, database, verbose):
             else:
                 print(".log.csv OK")
         else:
-            print(".log.csv not exists")
+            print(".log.csv missing")
     except Exception as error:
         print(error)
         print("Error in log")
