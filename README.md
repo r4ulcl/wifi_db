@@ -7,9 +7,11 @@ Script to parse Aircrack-ng captures to a SQLite database
 
 ``` bash
 git clone https://github.com/RaulCalvoLaorden/wifi_db
+
+docker build -t wifi_db .
 ```
 
-## Manual install
+## Manual installation
 
 ``` bash
 
@@ -38,7 +40,15 @@ sudo airodump-ng wlan0mon -w scan
 sudo airodump-ng wlan0mon -w scan --manufacturer --wps --gpsd
 ```
 
-### Create the SQLite database
+### Create the SQLite database using Docker
+
+``` bash
+CAPTURESFOLDER=/home/user/wifi #Folder with captures
+
+docker run -v $PWD/db.SQLITE:/db.SQLITE -v $CAPTURESFOLDER:/captures/ wifi_db
+```
+
+### Create the SQLite database using manual installation
 
 Once the capture is created, we can create the database by importing the capture. To do this, put the name of the capture without format.
 
