@@ -6,6 +6,8 @@ import argparse
 import wifi_db_aircrack
 import os
 import oui
+#import os.path
+from os import path
 
 def main():
     '''Function main. Parse argument and exec the functions '''
@@ -13,8 +15,6 @@ def main():
     #args
     parser = argparse.ArgumentParser()
     parser.add_argument("-v", "--verbose", help="increase output verbosity",
-                        action="store_true")
-    parser.add_argument("-f", "--folder", help="insert a folder",
                         action="store_true")
     
     parser.add_argument("-t", "--lat", default='', help="insert a fake lat in all database")
@@ -26,16 +26,16 @@ def main():
                         choices=['aircrack-ng', 'kismet', 'wigle'],
                         help='source from capture data (default: %(default)s)')
 
-    parser.add_argument("database", type=str,
-                        help="output database, if exist append to the given database")
+    parser.add_argument("-d", "--database", type=str, default='db.SQLITE',
+                        help="output database, if exist append to the given database (default name: %(default)s)")
+    
     parser.add_argument("capture", type=str,
-                        help="capture file (.csv,.kismet.csv, .kismet.netxml, .log.csv), \
+                        help="capture file (.csv, .kismet.csv, .kismet.netxml, .log.csv), \
                         if no extension add all")
     args = parser.parse_args()
 
     #vars
     verbose = args.verbose
-    folder = args.folder
 
     name = args.database
     capture = args.capture
@@ -44,9 +44,10 @@ def main():
     fake_lat = args.lat
     fake_lon = args.lon
 
+    print(capture)
+
     if verbose:
         print("verbosity turned on")
-
 
     database = wifi_db_aircrack.connect_database(name, verbose)
     wifi_db_aircrack.create_database(database, verbose)
@@ -56,7 +57,7 @@ def main():
     
     if source == "aircrack-ng":
         print("Parsing aircrack-ng capture")
-        if folder:
+        if path.isdir(capture):
             files = []
             dirpath = os.getcwd()
             if os.path.isabs(capture):
@@ -66,6 +67,7 @@ def main():
             if verbose:
                 print(dir_capture)
                 print("current directory is : " + dirpath)
+
             for r, d, f in os.walk(dir_capture):
                 for file in f:
                     if 'kismet.netxml' in file:
@@ -80,7 +82,7 @@ def main():
                 wifi_db_aircrack.parse_kismet_csv(ouiMap, capture_aux, database, verbose)
                 wifi_db_aircrack.parse_csv(ouiMap, capture_aux, database, verbose)
                 wifi_db_aircrack.parse_log_csv(ouiMap, capture_aux, database, verbose)
-        else:
+        else: #file
             wifi_db_aircrack.parse_netxml(ouiMap, capture, database, verbose)
             wifi_db_aircrack.parse_kismet_csv(ouiMap, capture, database, verbose)
             wifi_db_aircrack.parse_csv(ouiMap, capture, database, verbose)
