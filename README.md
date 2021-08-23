@@ -3,6 +3,14 @@ Script to parse Aircrack-ng captures to a SQLite database
 
 ## Install
 
+### Build Docker
+
+``` bash
+git clone https://github.com/RaulCalvoLaorden/wifi_db
+```
+
+## Manual install
+
 ``` bash
 
 sudo apt install python3-pip
@@ -17,26 +25,65 @@ pip3 install -r requirements.txt
 
 ## Usage
 
-- --help / -h to help
-- --folder / -f to process a folder
 
-### Aircrack-ng
+### Scan with airodump-ng
 
-- python3 wifi_db.py database.sqlite capture-01
+Run airodump-ng saving the output with -w:
 
-- python3 wifi_db.py database.sqlite -f capture-folder
+``` bash
+sudo airodump-ng wlan0mon -w scan
+```
+
+``` bash
+sudo airodump-ng wlan0mon -w scan --manufacturer --wps --gpsd
+```
+
+### Create the SQLite database
+
+Once the capture is created, we can create the database by importing the capture. To do this, put the name of the capture without format.
+
+``` bash
+python3 wifi_db.py database.sqlite scan-01
+```
+
+In the event that we have multiple captures we can load the folder in which they are directly.
+
+``` bash
+python3 wifi_db.py database.sqlite scan-folder
+```
+
+To open the database we can use sqlitebrowser:
+
+``` bash
+sqlitebrowser database.sqlite
+```
+
+### Optional arguments
+
+``` bash
+  -h, --help            show this help message and exit
+  -v, --verbose         increase output verbosity
+  -t LAT, --lat LAT     insert a fake lat in all database
+  -n LON, --lon LON     insert a fake lat in all database
+  --source [{aircrack-ng,kismet,wigle}]
+                        source from capture data (default: aircrack-ng) 
+```
 
 ### Kismet
 
 TODO
 
+### Wigle
+
+TODO
+
 ## Views
 
-- 
+- ProbeClients: Shows the complete information of the users with their probes
 
-- 
+- ConnectedAP: It shows the information of the clients connected to the APs. With this view you can easily filter by scope and check connected clients.
 
-- 
+- ProbeClientsConnected: Displays the list of poor users connected to WiFi networks. This is useful to check the problems of users connecting to networks in the scope.
 
 ## TODO
 
@@ -58,7 +105,9 @@ TODO
 
 - [ ] Script to delete client or AP from DB (mac). 
 
-- [ ] Whitelist to dont add mac to DB (file whitelist.txt, add macs, create DB)
+- [ ] Whitelist to don't add mac to DB (file whitelist.txt, add macs, create DB)
+
+- [ ] Overwrite if there is new info (old ESSID='', New ESSID='WIFI')
 
 ---------
 
