@@ -120,7 +120,7 @@ TODO
 
 - [X] Whitelist to don't add mac to DB (file whitelist.txt, add macs, create DB)
 
-- [ ] Overwrite if there is new info (old ESSID='', New ESSID='WIFI')
+- [ ] Overwrite if there is new info (old ESSID='', New ESSID='WIFI') (Work in progress)
 
 ---------
 
