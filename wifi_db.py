@@ -87,6 +87,10 @@ def main():
             wifi_db_aircrack.parse_kismet_csv(ouiMap, capture, database, verbose)
             wifi_db_aircrack.parse_csv(ouiMap, capture, database, verbose)
             wifi_db_aircrack.parse_log_csv(ouiMap, capture, database, verbose)
+        
+        # Cleat whitelist MACs
+        wifi_db_aircrack.clear_whitelist(database, 'whitelist.txt')
+
 
         if fake_lat != "":
             print(fake_lat)
