@@ -44,9 +44,12 @@ sudo airodump-ng wlan0mon -w scan --manufacturer --wps --gpsd
 
 ``` bash
 CAPTURESFOLDER=/home/user/wifi #Folder with captures
-
+touch db.SQLITE
 docker run -v $PWD/db.SQLITE:/db.SQLITE -v $CAPTURESFOLDER:/captures/ wifi_db
 ```
+
+- '-v $PWD/db.SQLITE:/db.SQLITE': To save de output in current folder db.SQLITE file
+- '-v $CAPTURESFOLDER:/captures/': To share the folder with the captures with the docker
 
 ### Create the SQLite database using manual installation
 
@@ -113,9 +116,9 @@ TODO
 
 - [ ] Support bash multi files: "capture*-1*"
 
-- [ ] Script to delete client or AP from DB (mac). 
+- [X] Script to delete client or AP from DB (mac). - (Whitelist)
 
-- [ ] Whitelist to don't add mac to DB (file whitelist.txt, add macs, create DB)
+- [X] Whitelist to don't add mac to DB (file whitelist.txt, add macs, create DB)
 
 - [ ] Overwrite if there is new info (old ESSID='', New ESSID='WIFI')
 
