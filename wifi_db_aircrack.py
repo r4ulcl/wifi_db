@@ -150,7 +150,7 @@ def parse_netxml(ouiMap, name, database, verbose):
                     packets_total = wireless[8].find("total").text
 
                     try:
-                        cursor.execute('''INSERT INTO AP VALUES(?,?,?,?,?,?,?,?,?,?)''',
+                        cursor.execute('''INSERT INTO AP VALUES(?,?,?,?,?,?,?,?,?,?) ''',
                                        (bssid, essid, manuf, channel, freqmhz, carrier,
                                         encryption, packets_total, lat, lon))
                     except sqlite3.IntegrityError as error:
@@ -159,13 +159,23 @@ def parse_netxml(ouiMap, name, database, verbose):
                             cursor.execute(
                                 "UPDATE AP SET packetsTotal = packetsTotal + %s WHERE bssid = '%s'"\
                                     % (packets_total, bssid))
+
                             cursor.execute(
                                 "UPDATE AP SET lat_t = CASE WHEN lat_t == 0.0 THEN ('%s') ELSE lat_t "\
                                     "END, lon_t = CASE WHEN lon_t == 0.0 THEN ('%s') ELSE lon_t END "\
                                         "WHERE bssid = '%s'" % (lat, lon, bssid))
 
+                            cursor.execute(
+                                "UPDATE AP SET ssid = CASE WHEN ssid=='' THEN ('%s') WHEN ssid IS NULL THEN ('%s') ELSE ssid END "\
+                                        "WHERE bssid = '%s'" % (ssid, ssid, bssid))
+
+                            cursor.execute(
+                                "UPDATE AP SET channel = CASE WHEN channel=='-1' THEN ('%s') ELSE channel END "\
+                                        "WHERE bssid = '%s'" % (channel, bssid))
                         except sqlite3.IntegrityError as error:
                             print("a"+error)
+
+                        
                     # print bssid, essid, manuf, channel,freqmhz, carrier, encryption, packetsT
 
                     # client
@@ -228,6 +238,8 @@ def parse_kismet_csv(ouiMap, name, database, verbose):
                         try:
                             bssid = row[3]
                             ssid = row[2]
+                            ssid = ssid.replace("'", "''")
+
                             
                             manuf = oui.get_vendor(ouiMap, bssid)
                             
@@ -239,26 +251,30 @@ def parse_kismet_csv(ouiMap, name, database, verbose):
                             lat = row[32]
                             lon = row [33]
 
-                            cursor.execute('''INSERT INTO AP VALUES(?,?,?,?,?,?,?,?,?,?)''', (
+                            cursor.execute('''INSERT INTO AP VALUES(?,?,?,?,?,?,?,?,?,?) ''', (
                                 bssid, ssid, manuf, channel, freq, carrier,
                                 encrypt, packets_total, lat, lon))
                             # manuf y carrier implementar
                         except sqlite3.IntegrityError as error:
                             errors += 1
                             if verbose:
-                                print(error)
+                                print("INSERT INTO AP error: ", error)
                             try:
                                 cursor.execute(
                                     "UPDATE AP SET packetsTotal = packetsTotal + %s \
                                         WHERE bssid = '%s'" % (packets_total, bssid))
-                                
                                 cursor.execute(
                                 "UPDATE AP SET lat_t = CASE WHEN lat_t == 0.0 THEN ('%s') ELSE lat_t "\
                                     "END, lon_t = CASE WHEN lon_t == 0.0 THEN ('%s') ELSE lon_t END "\
-                                        "WHERE bssid = '%s'"\
-                                    % (lat, lon, bssid))
+                                        "WHERE bssid = '%s'" % (lat, lon, bssid))
+      
+                                cursor.execute(
+                                "UPDATE AP SET ssid = CASE WHEN ssid=='' THEN ('%s') WHEN ssid IS NULL THEN ('%s') ELSE ssid END "\
+                                        "WHERE bssid = '%s'" % (ssid, ssid, bssid))
                             except sqlite3.IntegrityError:
-                                print(error)
+                                print("UPDATE DATA AFTER ERROR ERROR: ", error)
+                            except Exception as error:
+                                print ("Uncontrolled error: ", error)
             database.commit()
             if verbose:
                 print(".kismet.csv OK, lines with errors or duplicates:", errors)
@@ -288,6 +304,7 @@ def parse_csv(ouiMap, name, database, verbose):
                             #insert AP de aqui tambien
                             bssid = row[0]
                             essid = row[13]
+                            essid = essid.replace("'", "''")
                             manuf = oui.get_vendor(ouiMap, bssid)
                             channel = row[3]
                             freq = ""
@@ -295,12 +312,24 @@ def parse_csv(ouiMap, name, database, verbose):
                             encrypt = row[5] + row[6] + row[7]
                             packets_total = row[10]
                             try:
-                                cursor.execute('''INSERT INTO AP VALUES(?,?,?,?,?,?,?,?,?,?)''', (
+                                cursor.execute('''INSERT INTO AP VALUES(?,?,?,?,?,?,?,?,?,?) ''', (
                                     bssid, essid[1:], manuf, channel, freq, carrier,
                                     encrypt, packets_total, 0, 0))
                             except sqlite3.IntegrityError as error:
+                                errors += 1
                                 if verbose:
                                     print(error)
+                                try:
+                                    cursor.execute(
+                                        "UPDATE AP SET packetsTotal = packetsTotal + %s \
+                                            WHERE bssid = '%s'" % (packets_total, bssid))
+                                    cursor.execute(
+                                    "UPDATE AP SET ssid = CASE WHEN ssid=='' THEN ('%s') WHEN ssid IS NULL THEN ('%s') ELSE ssid END "\
+                                            "WHERE bssid = '%s'" % (essid, essid, bssid))
+                                except sqlite3.IntegrityError:
+                                    print(error)
+                                except Exception as error:
+                                    print ("Uncontrolled error: ", error)
                         
                         
                         if row  and row[0] == "Station MAC":
@@ -396,16 +425,32 @@ def parse_log_csv(ouiMap, name, database, verbose):
                             try:
                                 manuf = oui.get_vendor(ouiMap, row[3])
                                     
-                                cursor.execute('''INSERT INTO AP VALUES(?,?,?,?,?,?,?,?,?,?)''', (
+                                cursor.execute('''INSERT INTO AP VALUES(?,?,?,?,?,?,?,?,?,?) ''', (
                                     row[3], row[2], manuf, 0, 0, '', '', 0, row[6], row[7]))
                                 # manuf y carrier implementar
                             except sqlite3.IntegrityError as error:
-                                cursor.execute(
-                                "UPDATE AP SET lat_t = CASE WHEN lat_t == 0.0 THEN ('%s') ELSE lat_t "\
-                                    "END, lon_t = CASE WHEN lon_t == 0.0 THEN ('%s') ELSE lon_t END "\
-                                        "WHERE bssid = '%s'" % (row[6], row[7], row[3]))
+                                errors += 1
                                 if verbose:
                                     print(error)
+                                try:
+                                    cursor.execute(
+                                        "UPDATE AP SET packetsTotal = packetsTotal + %s \
+                                            WHERE bssid = '%s'" % (packets_total, bssid))
+                                    
+                                    cursor.execute(
+                                    "UPDATE AP SET lat_t = CASE WHEN lat_t == 0.0 THEN ('%s') ELSE lat_t "\
+                                        "END, lon_t = CASE WHEN lon_t == 0.0 THEN ('%s') ELSE lon_t END "\
+                                            "WHERE bssid = '%s'"\
+                                        % (lat, lon, bssid))
+                                    
+
+                                    cursor.execute(
+                                    "UPDATE AP SET ssid = CASE WHEN ssid=='' THEN ('%s') WHEN ssid IS NULL THEN ('%s') ELSE ssid END "\
+                                            "WHERE bssid = '%s'" % (ssid, ssid, bssid))
+                                except sqlite3.IntegrityError:
+                                    print(error)
+                                except Exception as error:
+                                    print ("Uncontrolled error: ", error)
 
                             # if row[6] != "0.000000":
                             try:
