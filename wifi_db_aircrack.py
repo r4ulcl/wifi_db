@@ -459,6 +459,31 @@ def fake_lon(database, lon):
     except sqlite3.IntegrityError as error:
         print(error)
 
+#exists = '11:22:33:44:55:77' in whitelist
+def clear_whitelist(database, whitelist):
+    with open(whitelist) as f:
+        whitelist = f.read().splitlines()
+    cursor = database.cursor()
+    for mac in whitelist:
+        try:
+            cursor.execute(
+                "DELETE from SeenAP where bssid='%s'" % (mac))
+            cursor.execute(
+                "DELETE from SeenClient where mac='%s'" % (mac))
+            cursor.execute(
+                "DELETE from Probe where mac='%s'" % (mac))
+            cursor.execute(
+                "DELETE from Connected where bssid='%s' OR mac='%s'" % (mac, mac))
+            cursor.execute(
+                "DELETE from AP where bssid='%s'" % (mac))
+            cursor.execute(
+                "DELETE from Client where mac='%s'" % (mac))
+            
+        except sqlite3.IntegrityError as error:
+            print(error)
+    print("CLEARED WHITELIST MACS")
+
+    
       
 def main():
     '''Function main. Parse argument and exec the functions '''
@@ -466,15 +491,16 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("-v", "--verbose", help="increase output verbosity",
                         action="store_true")
-    parser.add_argument("-f", "--folder", help="insert a folder",
-                        action="store_true")
+    
+    parser.add_argument("-t", "--lat", default='', help="insert a fake lat in all database")
+    parser.add_argument("-n", "--lon", default='', help="insert a fake lat in all database")
 
-    parser.add_argument("database", type=str,
-                        help="output database, if exist append to the given database")
+    parser.add_argument("-d", "--database", type=str, default='db.SQLITE',
+                        help="output database, if exist append to the given database (default name: %(default)s)")
+    
     parser.add_argument("capture", type=str,
-                        help="capture file (.csv,.kismet.csv, .kismet.netxml, .log.csv), \
+                        help="capture file (.csv, .kismet.csv, .kismet.netxml, .log.csv), \
                         if no extension add all")
-    args = parser.parse_args()
 
     #vars
     verbose = args.verbose
@@ -493,7 +519,7 @@ def main():
     
     ouiMap = oui.load_vendors()
     
-    if folder:
+    if path.isdir(capture):
         files = []
         dirpath = os.getcwd()
         if verbose:
