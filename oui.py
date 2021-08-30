@@ -4,6 +4,7 @@
 import json
 import requests
 import os
+from shutil import copyfile
 
 def load_vendors():
     '''Download and load vendors'''
@@ -12,9 +13,15 @@ def load_vendors():
 
     if not os.path.isfile(file):  #if file not exists in tmp...
         with open('/tmp/macaddress.io-db.json', "wb") as file:
-            response = requests.get(url)
-            file.write(response.content)
-            # error control and copy local (old file)!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+            try:
+                response = requests.get(url)
+                file.write(response.content)
+                # error control and copy local (old file)!!!!!!!!!!!!!!!!!!!!!!!!!!!!! TODO
+            except :
+                print("Copy local file")
+                src = "./macaddress.io-db.json"
+                dst = "/tmp/macaddress.io-db.json"
+                copyfile(src, dst)
 
     oui = {}
     with open('/tmp/macaddress.io-db.json', mode="r", encoding="utf-8") as file:
