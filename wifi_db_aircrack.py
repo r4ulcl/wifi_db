@@ -9,6 +9,7 @@ import re
 import argparse
 import oui
 import ftfy
+from os import path
 
 def connect_database(name, verbose):
     '''Function to connect to the database'''
@@ -167,7 +168,7 @@ def parse_netxml(ouiMap, name, database, verbose):
 
                             cursor.execute(
                                 "UPDATE AP SET ssid = CASE WHEN ssid=='' THEN ('%s') WHEN ssid IS NULL THEN ('%s') ELSE ssid END "\
-                                        "WHERE bssid = '%s'" % (ssid, ssid, bssid))
+                                        "WHERE bssid = '%s'" % (essid, essid, bssid))
 
                             cursor.execute(
                                 "UPDATE AP SET channel = CASE WHEN channel=='-1' THEN ('%s') ELSE channel END "\
@@ -237,8 +238,8 @@ def parse_kismet_csv(ouiMap, name, database, verbose):
                     if len(row)>35 and row[0] != "Network":
                         try:
                             bssid = row[3]
-                            ssid = row[2]
-                            ssid = ssid.replace("'", "''")
+                            essid = row[2]
+                            essid = essid.replace("'", "''")
 
                             
                             manuf = oui.get_vendor(ouiMap, bssid)
@@ -252,7 +253,7 @@ def parse_kismet_csv(ouiMap, name, database, verbose):
                             lon = row [33]
 
                             cursor.execute('''INSERT INTO AP VALUES(?,?,?,?,?,?,?,?,?,?) ''', (
-                                bssid, ssid, manuf, channel, freq, carrier,
+                                bssid, essid, manuf, channel, freq, carrier,
                                 encrypt, packets_total, lat, lon))
                             # manuf y carrier implementar
                         except sqlite3.IntegrityError as error:
@@ -270,11 +271,12 @@ def parse_kismet_csv(ouiMap, name, database, verbose):
       
                                 cursor.execute(
                                 "UPDATE AP SET ssid = CASE WHEN ssid=='' THEN ('%s') WHEN ssid IS NULL THEN ('%s') ELSE ssid END "\
-                                        "WHERE bssid = '%s'" % (ssid, ssid, bssid))
+                                        "WHERE bssid = '%s'" % (essid, essid, bssid))
                             except sqlite3.IntegrityError:
                                 print("UPDATE DATA AFTER ERROR ERROR: ", error)
                             except Exception as error:
-                                print ("Uncontrolled error: ", error)
+                                if verbose:
+                                    print ("Uncontrolled error UPDATE AP kismet csv: ", error)
             database.commit()
             if verbose:
                 print(".kismet.csv OK, lines with errors or duplicates:", errors)
@@ -329,7 +331,7 @@ def parse_csv(ouiMap, name, database, verbose):
                                 except sqlite3.IntegrityError:
                                     print(error)
                                 except Exception as error:
-                                    print ("Uncontrolled error: ", error)
+                                    print ("Uncontrolled error UPDATE csv : ", error)
                         
                         
                         if row  and row[0] == "Station MAC":
@@ -432,6 +434,8 @@ def parse_log_csv(ouiMap, name, database, verbose):
                                 errors += 1
                                 if verbose:
                                     print(error)
+                                """
+                                FIX variables names
                                 try:
                                     cursor.execute(
                                         "UPDATE AP SET packetsTotal = packetsTotal + %s \
@@ -450,7 +454,9 @@ def parse_log_csv(ouiMap, name, database, verbose):
                                 except sqlite3.IntegrityError:
                                     print(error)
                                 except Exception as error:
-                                    print ("Uncontrolled error: ", error)
+                                    if verbose:
+                                        print ("Uncontrolled error UPDATE AP logcsv: ", error)
+                                """
 
                             # if row[6] != "0.000000":
                             try:
@@ -546,6 +552,8 @@ def main():
     parser.add_argument("capture", type=str,
                         help="capture file (.csv, .kismet.csv, .kismet.netxml, .log.csv), \
                         if no extension add all")
+
+    args = parser.parse_args()
 
     #vars
     verbose = args.verbose
