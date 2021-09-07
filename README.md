@@ -56,13 +56,13 @@ docker run -v $PWD/db.SQLITE:/db.SQLITE -v $CAPTURESFOLDER:/captures/ wifi_db
 Once the capture is created, we can create the database by importing the capture. To do this, put the name of the capture without format.
 
 ``` bash
-python3 wifi_db.py database.sqlite scan-01
+python3 wifi_db.py scan-01
 ```
 
-In the event that we have multiple captures we can load the folder in which they are directly.
+In the event that we have multiple captures we can load the folder in which they are directly. And with -d we can rename the output database.
 
 ``` bash
-python3 wifi_db.py database.sqlite scan-folder
+python3 wifi_db.py -d database.sqlite scan-folder
 ```
 
 To open the database we can use sqlitebrowser:
