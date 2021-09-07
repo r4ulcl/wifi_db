@@ -89,7 +89,8 @@ def main():
             wifi_db_aircrack.parse_log_csv(ouiMap, capture, database, verbose)
         
         # Cleat whitelist MACs
-        wifi_db_aircrack.clear_whitelist(database, 'whitelist.txt')
+        script_path = os.path.dirname(os.path.abspath( __file__ ))
+        wifi_db_aircrack.clear_whitelist(database, script_path+'/whitelist.txt')
 
 
         if fake_lat != "":
