@@ -76,6 +76,7 @@ sqlitebrowser database.sqlite
 ``` bash
   -h, --help            show this help message and exit
   -v, --verbose         increase output verbosity
+  --debug               increase output verbosity to debug
   -t LAT, --lat LAT     insert a fake lat in all database
   -n LON, --lon LON     insert a fake lat in all database
   --source [{aircrack-ng,kismet,wigle}]
