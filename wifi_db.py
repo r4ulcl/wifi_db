@@ -16,6 +16,8 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("-v", "--verbose", help="increase output verbosity",
                         action="store_true")
+    parser.add_argument("--debug", help="increase output verbosity to debug",
+                        action="store_true")
     
     parser.add_argument("-t", "--lat", default='', help="insert a fake lat in all database")
     parser.add_argument("-n", "--lon", default='', help="insert a fake lat in all database")
@@ -36,6 +38,7 @@ def main():
 
     #vars
     verbose = args.verbose
+    debug = args.debug
 
     name = args.database
     capture = args.capture
