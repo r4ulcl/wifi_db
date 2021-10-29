@@ -3,58 +3,11 @@
 # -*- coding: utf-8 -*-
 import csv
 import xml.etree.ElementTree as ET
-import sqlite3
 import os
 import re
-import argparse
 import oui
 import ftfy
-from os import path
-
-def connect_database(name, verbose):
-    '''Function to connect to the database'''
-    database = sqlite3.connect(name)
-    database.text_factory = str
-    if verbose:
-        print("DB connected OK")
-    return database
-
-
-def create_database(database, verbose):
-    '''Function to create the tables in the database'''
-    script_path = os.path.dirname(os.path.abspath( __file__ ))
-    path = script_path+'/wifi_db_database.sql'
-    views_file = open(path, 'r')
-    views = views_file.read()
-    try:
-        cursor = database.cursor()
-        for statement in views.split(';'):
-            if statement:
-                cursor.execute(statement + ';')
-        database.commit()
-        if verbose:
-            print("Database created")
-    except sqlite3.IntegrityError as error:
-        print(error)
-
-
-def create_views(database, verbose):
-    '''Function to create the Views in the database'''
-    script_path = os.path.dirname(os.path.abspath( __file__ ))
-    path = script_path+'/view.sql'
-    views_file = open(path, 'r')
-    views = views_file.read()
-    try:
-        cursor = database.cursor()
-        #cursor.executemany(views)
-        for statement in views.split(';'):
-            if statement:
-                cursor.execute(statement + ';')
-        database.commit()
-        if verbose:
-            print("Views created")
-    except sqlite3.IntegrityError as error:
-        print(error)
+import database_utils
 
 
 def parse_netxml(ouiMap, name, database, verbose):
@@ -73,10 +26,12 @@ def parse_netxml(ouiMap, name, database, verbose):
             # fix aircrack error, remove NULL byte &#x0;
             filedata = filedata.replace('&#x0;', '')
             filedata = filedata.replace('&#x0;', '')
-            if "</detection-run>" not in filedata: #fix xml not well formed, end before write all the file
+            # fix xml not well formed, end before write all the file
+            if "</detection-run>" not in filedata:
                 if verbose:
                     print("ERROR, not end")
-                filedata= filedata[:filedata.rfind("<wireless-network ")] + " </detection-run>"
+                filedata = filedata[:filedata.rfind("<wireless-network ")]
+                filedata += "</detection-run>"
 
             raiz = ET.fromstring(filedata)
             for wireless in raiz:
@@ -85,33 +40,23 @@ def parse_netxml(ouiMap, name, database, verbose):
                     manuf = oui.get_vendor(ouiMap, bssid)
                     packets_total = wireless.find("packets").find("total").text
                     if verbose:
-                        print (bssid, manuf, "W", packets_total)
-                    try: 
-                        cursor.execute('''INSERT INTO client VALUES(?,?,?,?,?,?)''',
-                                       (bssid, '', manuf , 'W', packets_total, 'Misc'))
-                    except sqlite3.IntegrityError as error:
-                        errors += 1
-                        try:
-                            cursor.execute(
-                                "UPDATE client SET packetsTotal = packetsTotal \
-                                    + %s WHERE mac = '%s'" % (packets_total, bssid))
-                        except sqlite3.IntegrityError as error:
-                            print(error)
-                        # print('Record already exists')
+                        print(bssid, manuf, "W", packets_total)
+
+                    errors += database_utils.insertClients(
+                        cursor, verbose, bssid, '',
+                        manuf, 'W', packets_total, 'Misc')
 
                     # probe
-                    if wireless.find("wireless-client").find("SSID").find("ssid") is not None:
-                        essid_probe = wireless.find("wireless-client").findall("SSID")
+                    ssid1 = wireless.find("wireless-client").find("SSID")
+                    ssid = ssid1.find("ssid")
+                    if ssid is not None:
+                        client = wireless.find("wireless-client")
+                        essid_probe = client.findall("SSID")
                         for ssid in essid_probe:
                             # print bssid, ssid.find("ssid").text
                             essid = ftfy.fix_text(ssid.find("ssid").text)
-                            try:
-                                cursor.execute('''INSERT INTO Probe VALUES(?,?,?)''',
-                                               (bssid, essid, 0))
-                            except sqlite3.IntegrityError as error:
-                                errors += 1
-                                if verbose:
-                                    print(error)
+                            errors += database_utils.insertProbe(
+                                cursor, verbose, bssid, essid, 0)
 
                 elif wireless.get("type") == "infrastructure":
                     # ap
@@ -127,19 +72,19 @@ def parse_netxml(ouiMap, name, database, verbose):
                     channel = wireless.find("channel").text
                     freqmhz = wireless.find("freqmhz").text.split()[0]
                     carrier = wireless.find("carrier").text
-                    
 
                     manuf = oui.get_vendor(ouiMap, bssid)
 
                     if wireless.find("SSID").find("encryption") is not None:
-                        encryption = wireless.find("SSID").find("encryption").text
+                        encryption = ""
+                        for e in wireless.find("SSID").findall("encryption"):
+                            encryption += e.text + ", "
                     else:
                         encryption = ""
-                        
 
                     lat = "0.0"
                     lon = "0.0"
-                    gps_info=wireless.find("gps-info")
+                    gps_info = wireless.find("gps-info")
                     if gps_info is not None:
                         if gps_info.find("max-lat") is not None:
                             lat = gps_info.find("max-lat").text
@@ -150,34 +95,9 @@ def parse_netxml(ouiMap, name, database, verbose):
 
                     packets_total = wireless[8].find("total").text
 
-                    try:
-                        cursor.execute('''INSERT INTO AP VALUES(?,?,?,?,?,?,?,?,?,?) ''',
-                                       (bssid, essid, manuf, channel, freqmhz, carrier,
-                                        encryption, packets_total, lat, lon))
-                    except sqlite3.IntegrityError as error:
-                        errors += 1
-                        try:
-                            cursor.execute(
-                                "UPDATE AP SET packetsTotal = packetsTotal + %s WHERE bssid = '%s'"\
-                                    % (packets_total, bssid))
-
-                            cursor.execute(
-                                "UPDATE AP SET lat_t = CASE WHEN lat_t == 0.0 THEN ('%s') ELSE lat_t "\
-                                    "END, lon_t = CASE WHEN lon_t == 0.0 THEN ('%s') ELSE lon_t END "\
-                                        "WHERE bssid = '%s'" % (lat, lon, bssid))
-
-                            cursor.execute(
-                                "UPDATE AP SET ssid = CASE WHEN ssid=='' THEN ('%s') WHEN ssid IS NULL THEN ('%s') ELSE ssid END "\
-                                        "WHERE bssid = '%s'" % (essid, essid, bssid))
-
-                            cursor.execute(
-                                "UPDATE AP SET channel = CASE WHEN channel=='-1' THEN ('%s') ELSE channel END "\
-                                        "WHERE bssid = '%s'" % (channel, bssid))
-                        except sqlite3.IntegrityError as error:
-                            print("a"+error)
-
-                        
-                    # print bssid, essid, manuf, channel,freqmhz, carrier, encryption, packetsT
+                    errors += database_utils.insertAP(
+                        cursor, verbose, bssid, essid, manuf, channel,
+                        freqmhz, carrier, encryption, packets_total, lat, lon)
 
                     # client
                     clients = wireless.findall("wireless-client")
@@ -185,47 +105,28 @@ def parse_netxml(ouiMap, name, database, verbose):
                         client_mac = client.find("client-mac").text
                         manuf = oui.get_vendor(ouiMap, client_mac)
 
-                        packets_total = client.find("packets").find("total").text
+                        packets = client.find("packets")
+                        packets_total = packets.find("total").text
                         # print (client_mac, manuf, "W", packets_total)
-                        try:
-                            cursor.execute('''INSERT INTO client VALUES(?,?,?,?,?,?)''',
-                                           (client_mac, '', manuf, 'W', packets_total, 'Misc'))
-                        except sqlite3.IntegrityError as error:
-                            errors += 1
-                            try:
-                                cursor.execute(
-                                    "UPDATE client SET packetsTotal = packetsTotal + %s \
-                                        WHERE mac = '%s'" % (packets_total, client_mac))
-                            except sqlite3.IntegrityError as error:
-                                print(error)
+                        errors += database_utils.insertClients(
+                            cursor, verbose, client_mac, '', manuf,
+                            'W', packets_total, 'Misc')
+
                         # connected
                         # print (bssid, client_mac)
-                        try:
-                            cursor.execute(
-                                '''INSERT INTO connected VALUES(?,?)''', (bssid, client_mac))
-                        except sqlite3.IntegrityError as error:
-                            errors += 1
-                            try:
-                                cursor.execute(
-                                    "UPDATE client SET packetsTotal = packetsTotal + %s \
-                                        WHERE mac = '%s'" % (packets_total, bssid))
-                            except sqlite3.IntegrityError as error:
-                                print(error)
+                        errors += database_utils.insertConnected(
+                            cursor, verbose, bssid, client_mac)
             database.commit()
-            if verbose:
-                print(".kismet.netxml OK, lines with errors or duplicates:", errors)
-            else:
-                print(".kismet.netxml OK")
-
+            print(".kismet.netxml OK, errors", errors)
         else:
             print(".kismet.netxml missing")
     except Exception as error:
-        print(error)
+        print("parse_netxml " + str(error))
         print("Error in kismet.netxml")
 
+
 def parse_kismet_csv(ouiMap, name, database, verbose):
-    '''Function to parse the .kismet.csv files'''    
-    
+    '''Function to parse the .kismet.csv files'''
     exists = os.path.isfile(name+".kismet.csv")
     errors = 0
     try:
@@ -235,62 +136,43 @@ def parse_kismet_csv(ouiMap, name, database, verbose):
                 csv_reader = csv.reader((x.replace('\0', '')
                                          for x in csv_file), delimiter=';')
                 for row in csv_reader:
-                    if len(row)>35 and row[0] != "Network":
+                    if len(row) > 35 and row[0] != "Network":
                         try:
                             bssid = row[3]
                             essid = row[2]
                             essid = essid.replace("'", "''")
 
-                            
                             manuf = oui.get_vendor(ouiMap, bssid)
-                            
+
                             channel = row[5]
-                            freq = 0
+                            freqmhz = -1
                             carrier = ""
-                            encrypt = row[7]
+                            encryption = row[7]
                             packets_total = row[16]
                             lat = row[32]
-                            lon = row [33]
+                            lon = row[33]
 
-                            cursor.execute('''INSERT INTO AP VALUES(?,?,?,?,?,?,?,?,?,?) ''', (
-                                bssid, essid, manuf, channel, freq, carrier,
-                                encrypt, packets_total, lat, lon))
+                            errors += database_utils.insertAP(
+                                cursor, verbose, bssid, essid, manuf, channel,
+                                freqmhz, carrier, encryption, packets_total,
+                                lat, lon)
                             # manuf y carrier implementar
-                        except sqlite3.IntegrityError as error:
-                            errors += 1
+                        except Exception as error:
                             if verbose:
-                                print("INSERT INTO AP error: ", error)
-                            try:
-                                cursor.execute(
-                                    "UPDATE AP SET packetsTotal = packetsTotal + %s \
-                                        WHERE bssid = '%s'" % (packets_total, bssid))
-                                cursor.execute(
-                                "UPDATE AP SET lat_t = CASE WHEN lat_t == 0.0 THEN ('%s') ELSE lat_t "\
-                                    "END, lon_t = CASE WHEN lon_t == 0.0 THEN ('%s') ELSE lon_t END "\
-                                        "WHERE bssid = '%s'" % (lat, lon, bssid))
-      
-                                cursor.execute(
-                                "UPDATE AP SET ssid = CASE WHEN ssid=='' THEN ('%s') WHEN ssid IS NULL THEN ('%s') ELSE ssid END "\
-                                        "WHERE bssid = '%s'" % (essid, essid, bssid))
-                            except sqlite3.IntegrityError:
-                                print("UPDATE DATA AFTER ERROR ERROR: ", error)
-                            except Exception as error:
-                                if verbose:
-                                    print ("Uncontrolled error UPDATE AP kismet csv: ", error)
+                                print("Uncontrolled error UPDATE AP "
+                                      "kismet csv: ", error)
+
             database.commit()
-            if verbose:
-                print(".kismet.csv OK, lines with errors or duplicates:", errors)
-            else:
-                print(".kismet.csv OK")
+            print(".kismet.csv OK, errors", errors)
         else:
             print(".kismet.csv missing")
     except Exception as error:
-        print(error)
+        print("parse_kismet_csv " + str(error))
         print("Error in kismet.csv")
+
 
 def parse_csv(ouiMap, name, database, verbose):
     '''Function to parse the .csv files'''
-   
     exists = os.path.isfile(name+".csv")
     errors = 0
     try:
@@ -302,8 +184,9 @@ def parse_csv(ouiMap, name, database, verbose):
                 client = False
                 for row in csv_reader:
                     if row:
-                        if client == False and len(row)>13 and row[0] != "BSSID":
-                            #insert AP de aqui tambien
+                        if client is False and len(row) > 13 \
+                           and row[0] != "BSSID":
+                            # insert AP de aqui tambien
                             bssid = row[0]
                             essid = row[13]
                             essid = essid.replace("'", "''")
@@ -313,28 +196,13 @@ def parse_csv(ouiMap, name, database, verbose):
                             carrier = ""
                             encrypt = row[5] + row[6] + row[7]
                             packets_total = row[10]
-                            try:
-                                cursor.execute('''INSERT INTO AP VALUES(?,?,?,?,?,?,?,?,?,?) ''', (
-                                    bssid, essid[1:], manuf, channel, freq, carrier,
-                                    encrypt, packets_total, 0, 0))
-                            except sqlite3.IntegrityError as error:
-                                errors += 1
-                                if verbose:
-                                    print(error)
-                                try:
-                                    cursor.execute(
-                                        "UPDATE AP SET packetsTotal = packetsTotal + %s \
-                                            WHERE bssid = '%s'" % (packets_total, bssid))
-                                    cursor.execute(
-                                    "UPDATE AP SET ssid = CASE WHEN ssid=='' THEN ('%s') WHEN ssid IS NULL THEN ('%s') ELSE ssid END "\
-                                            "WHERE bssid = '%s'" % (essid, essid, bssid))
-                                except sqlite3.IntegrityError:
-                                    print(error)
-                                except Exception as error:
-                                    print ("Uncontrolled error UPDATE csv : ", error)
-                        
-                        
-                        if row  and row[0] == "Station MAC":
+
+                            errors += database_utils.insertAP(
+                                cursor, verbose,  bssid, essid[1:], manuf,
+                                channel, freq, carrier, encrypt,
+                                packets_total, 0, 0)
+
+                        if row and row[0] == "Station MAC":
                             client = True
                         elif row and client and len(row) > 5:
                             # print(row[0])
@@ -343,56 +211,34 @@ def parse_csv(ouiMap, name, database, verbose):
                             packets = row[4]
                             # print(mac, manuf)
 
-                            try:
-                                cursor.execute('''INSERT INTO client VALUES(?,?,?,?,?,?)''',
-                                            (mac, '', manuf, 'W', packets, 'Misc'))
-                                # manuf implementar
-                            except sqlite3.IntegrityError as error:
-                                errors += 1
-                                try:
-                                    cursor.execute(
-                                        "UPDATE client SET packetsTotal = packetsTotal + %s \
-                                            WHERE mac = '%s'" % (packets, mac))
-                                except sqlite3.IntegrityError:
-                                    if verbose:
-                                        print(error)
+                            errors += database_utils.insertClients(
+                                cursor, verbose, mac, '', manuf, 'W',
+                                packets, 'Misc')
 
-                            if len(row)>5 and row[5] != " (not associated) ":
-                                try:
-                                    # print(row[5].replace(' ', ''))
-                                    cursor.execute(
-                                        '''INSERT INTO connected VALUES(?,?)''',
-                                        (row[5].replace(' ', ''), row[0]))
-                                except sqlite3.IntegrityError as error:
-                                    errors += 1
-                                    if verbose:
-                                        print(error)
+                            if len(row) > 5 and row[5] != " (not associated) ":
+                                a = database_utils.insertConnected(
+                                    cursor, verbose, row[5].replace(' ', ''),
+                                    row[0])
+
+                                errors += a
 
                             contador = 6
                             while contador < len(row) and row[contador] != "":
-                                try:
-                                    cursor.execute(
-                                        '''INSERT INTO Probe VALUES(?,?,?)''',
-                                        (row[0], row[contador], 0))
-                                except sqlite3.IntegrityError as error:
-                                    errors += 1
-                                    if verbose:
-                                        print(error)
+                                errors += database_utils.insertProbe(
+                                    cursor, verbose, row[0], row[contador], 0)
                                 contador += 1
             database.commit()
-            if verbose:
-                print(".csv OK, lines with errors or duplicates:", errors)
-            else:
-                print(".csv OK")
+
+            print(".csv OK, errors", errors)
         else:
             print(".csv missing")
     except Exception as error:
-        print(error)
+        print("parse_csv " + str(error))
         print("Error in .csv")
 
+
 def parse_log_csv(ouiMap, name, database, verbose):
-    ''' Parse .log.csv file from Aircrack-ng to the database '''    
-    
+    ''' Parse .log.csv file from Aircrack-ng to the database '''
     exists = os.path.isfile(name+".log.csv")
     errors = 0
     try:
@@ -403,208 +249,29 @@ def parse_log_csv(ouiMap, name, database, verbose):
                 for row in csv_reader:
                     if row[0] != "LocalTime":
                         if len(row) > 10 and row[10] == "Client":
-                            try:
-                                manuf = oui.get_vendor(ouiMap, row[3])
-                                cursor.execute('''INSERT INTO client VALUES(?,?,?,?,?,?)''',
-                                               (row[3], '', manuf, 'W', -1, 'Misc'))
-                            except sqlite3.IntegrityError as error:
-                                if verbose:
-                                    print(error)
-
-                            try:
-                                if row[6] != 0.0:
-                                    cursor.execute('''INSERT INTO SeenClient
-                                                   VALUES(?,?,?,?,?,?,?)''',
-                                                   (row[3], row[0], 'aircrack-ng',
-                                                    row[4], row[6], row[7], '0.0'))
-                            except sqlite3.IntegrityError as error:
-                                errors += 1
-                                if verbose:
-                                    print(error)
+                            manuf = oui.get_vendor(ouiMap, row[3])
+                            if row[6] != 0.0:
+                                errors += database_utils.insertSeenClient(
+                                    cursor, verbose, row[3], row[0],
+                                    'aircrack-ng', row[4], row[6],
+                                    row[7], '0.0')
 
                         if len(row) > 10 and row[10] == "AP":
-
-                            try:
-                                manuf = oui.get_vendor(ouiMap, row[3])
-                                    
-                                cursor.execute('''INSERT INTO AP VALUES(?,?,?,?,?,?,?,?,?,?) ''', (
-                                    row[3], row[2], manuf, 0, 0, '', '', 0, row[6], row[7]))
-                                # manuf y carrier implementar
-                            except sqlite3.IntegrityError as error:
-                                errors += 1
-                                if verbose:
-                                    print(error)
-                                """
-                                FIX variables names
-                                try:
-                                    cursor.execute(
-                                        "UPDATE AP SET packetsTotal = packetsTotal + %s \
-                                            WHERE bssid = '%s'" % (packets_total, bssid))
-                                    
-                                    cursor.execute(
-                                    "UPDATE AP SET lat_t = CASE WHEN lat_t == 0.0 THEN ('%s') ELSE lat_t "\
-                                        "END, lon_t = CASE WHEN lon_t == 0.0 THEN ('%s') ELSE lon_t END "\
-                                            "WHERE bssid = '%s'"\
-                                        % (lat, lon, bssid))
-                                    
-
-                                    cursor.execute(
-                                    "UPDATE AP SET ssid = CASE WHEN ssid=='' THEN ('%s') WHEN ssid IS NULL THEN ('%s') ELSE ssid END "\
-                                            "WHERE bssid = '%s'" % (ssid, ssid, bssid))
-                                except sqlite3.IntegrityError:
-                                    print(error)
-                                except Exception as error:
-                                    if verbose:
-                                        print ("Uncontrolled error UPDATE AP logcsv: ", error)
-                                """
+                            manuf = oui.get_vendor(ouiMap, row[3])
+                            errors += database_utils.insertAP(
+                                cursor, verbose,  row[3], row[2], manuf, 0,
+                                0, '', '', 0, row[6], row[7])
 
                             # if row[6] != "0.000000":
-                            try:
-                                cursor.execute('''INSERT INTO SeenAp VALUES(?,?,?,?,?,?,?,?)''',
-                                            (row[3], row[0], 'aircrack-ng',
-                                                row[4], row[6], row[7], '0.0', 0))
-                            except sqlite3.IntegrityError as error:
-                                errors += 1
-                                if verbose:
-                                    print(error)
-                    
-                            
+                            errors += database_utils.insertSeenAP(
+                                cursor, verbose,  row[3], row[0],
+                                'aircrack-ng', row[4], row[6], row[7],
+                                '0.0', 0)
+
             database.commit()
-            if verbose:
-                print(".log.csv OK, lines with errors or duplicates:", errors)
-            else:
-                print(".log.csv OK")
+            print(".log.csv done, errors", errors)
         else:
             print(".log.csv missing")
     except Exception as error:
-        print(error)
+        print("parse_log_csv " + str(error))
         print("Error in log")
-
-def fake_lat(database, lat):
-    try:
-        cursor = database.cursor()
-            
-        sql = "UPDATE AP SET lat_t = " + lat
-        cursor.execute(sql)
-        sql = "UPDATE SeenAP SET lat = " + lat
-        cursor.execute(sql)
-        sql = "UPDATE SeenClient SET lat = " + lat
-        cursor.execute(sql)
-        
-        database.commit()
-    except sqlite3.IntegrityError as error:
-        print(error)
-                            
-def fake_lon(database, lon):
-    try:
-        cursor = database.cursor()
-            
-        sql = "UPDATE AP SET lon_t = " + lon
-        cursor.execute(sql)
-        sql = "UPDATE SeenAP SET lon = " + lon
-        cursor.execute(sql)
-        sql = "UPDATE SeenClient SET lon = " + lon
-        cursor.execute(sql)
-        
-        database.commit()
-    except sqlite3.IntegrityError as error:
-        print(error)
-
-#exists = '11:22:33:44:55:77' in whitelist
-def clear_whitelist(database, whitelist):
-    with open(whitelist) as f:
-        whitelist = f.read().splitlines()
-    cursor = database.cursor()
-    for mac in whitelist:
-        try:
-            cursor.execute(
-                "DELETE from SeenAP where bssid='%s'" % (mac))
-            cursor.execute(
-                "DELETE from SeenClient where mac='%s'" % (mac))
-            cursor.execute(
-                "DELETE from Probe where mac='%s'" % (mac))
-            cursor.execute(
-                "DELETE from Connected where bssid='%s' OR mac='%s'" % (mac, mac))
-            cursor.execute(
-                "DELETE from AP where bssid='%s'" % (mac))
-            cursor.execute(
-                "DELETE from Client where mac='%s'" % (mac))
-            
-        except sqlite3.IntegrityError as error:
-            print(error)
-    print("CLEARED WHITELIST MACS")
-
-    
-      
-def main():
-    '''Function main. Parse argument and exec the functions '''
-    #args
-    parser = argparse.ArgumentParser()
-    parser.add_argument("-v", "--verbose", help="increase output verbosity",
-                        action="store_true")
-    
-    parser.add_argument("-t", "--lat", default='', help="insert a fake lat in all database")
-    parser.add_argument("-n", "--lon", default='', help="insert a fake lat in all database")
-
-    parser.add_argument("-d", "--database", type=str, default='db.SQLITE',
-                        help="output database, if exist append to the given database (default name: %(default)s)")
-    
-    parser.add_argument("capture", type=str,
-                        help="capture file (.csv, .kismet.csv, .kismet.netxml, .log.csv), \
-                        if no extension add all")
-
-    args = parser.parse_args()
-
-    #vars
-    verbose = args.verbose
-    folder = args.folder
-    name = args.database
-    capture = args.capture
-
-    if verbose:
-        print("verbosity turned on")
-
-
-    database = connect_database(name, verbose)
-    create_database(database, verbose)
-    create_views(database, verbose)
-    
-    
-    ouiMap = oui.load_vendors()
-    
-    if path.isdir(capture):
-        files = []
-        dirpath = os.getcwd()
-        if verbose:
-            print(dirpath+"/"+capture)
-            print("current directory is : " + dirpath)
-        for r, d, f in os.walk(dirpath+"/"+capture):
-            for file in f:
-                if 'kismet.netxml' in file:
-                    files.append(os.path.join(r, file))
-
-        for f in files:
-            base = os.path.basename(f)
-            name = os.path.splitext(os.path.splitext(base)[0])[0]
-            capture_aux = dirpath+"/"+capture+"/"+name
-            print(capture_aux)
-            parse_netxml(ouiMap, capture_aux, database, verbose)
-            parse_kismet_csv(ouiMap, capture_aux, database, verbose)
-            parse_csv(ouiMap, capture_aux, database, verbose)
-            parse_log_csv(ouiMap, capture_aux, database, verbose)
-    else:
-        parse_netxml(ouiMap, capture, database, verbose)
-        parse_kismet_csv(ouiMap, capture, database, verbose)
-        parse_csv(ouiMap, capture, database, verbose)
-        parse_log_csv(ouiMap, capture, database, verbose)
-
-
-if __name__ == "__main__":
-    main()
-
-
-'''
-UPDATE AP
-SET lat_t = CASE WHEN lat_t == 0.0 THEN (123) ELSE lat_t END
-WHERE bssid="C8:F9:F9:4D:73:42";
-'''
