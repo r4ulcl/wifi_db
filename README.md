@@ -1,5 +1,5 @@
 # wifi_db
-Script to parse Aircrack-ng captures to a SQLite database
+Script to parse Aircrack-ng captures into a SQLite database.
 
 ## Install
 
@@ -26,7 +26,6 @@ pip3 install -r requirements.txt
 ```
 
 ## Usage
-
 
 ### Scan with airodump-ng
 
@@ -77,11 +76,17 @@ sqlitebrowser database.sqlite
   -h, --help            show this help message and exit
   -v, --verbose         increase output verbosity
   --debug               increase output verbosity to debug
-  -t LAT, --lat LAT     insert a fake lat in all database
-  -n LON, --lon LON     insert a fake lat in all database
+  -t LAT, --lat LAT     insert a fake lat into the entire database
+  -n LON, --lon LON     insert a fake lat into the entire database
   --source [{aircrack-ng,kismet,wigle}]
                         source from capture data (default: aircrack-ng) 
 ```
+
+### Open database
+
+The database can be open with:
+- [sqlitebrowser](https://sqlitebrowser.org/)
+- [wifi_data](https://github.com/RaulCalvoLaorden/wifi_data)
 
 ### Kismet
 
@@ -121,7 +126,7 @@ TODO
 
 - [X] Whitelist to don't add mac to DB (file whitelist.txt, add macs, create DB)
 
-- [ ] Overwrite if there is new info (old ESSID='', New ESSID='WIFI') (Work in progress)
+- [X] Overwrite if there is new info (old ESSID='', New ESSID='WIFI')
 
 ---------
 
