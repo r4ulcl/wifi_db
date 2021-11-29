@@ -5,7 +5,7 @@ import json
 import tempfile
 from shutil import copyfile
 import csv
-
+import os
 
 def load_vendors():
     '''Download and load vendors'''
@@ -37,9 +37,11 @@ def load_vendors():
         # error control and copy local (old file)
         except requests.exceptions.RequestException as e:
             # catastrophic error. bail.
+            dirpath = os.getcwd()
+            script_path = os.path.dirname(os.path.abspath(__file__))
             print(e)
             print("Copy local file")
-            src = "./mac-vendors-export.csv"
+            src = script_path + "/mac-vendors-export.csv"
             dst = tmp.name
             copyfile(src, dst)
         with open(tmp.name) as csv_file:
