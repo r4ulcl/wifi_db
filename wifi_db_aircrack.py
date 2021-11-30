@@ -8,7 +8,7 @@ import re
 import oui
 import ftfy
 import database_utils
-
+import pyshark
 
 def parse_netxml(ouiMap, name, database, verbose):
     '''Function to parse the .kismet.netxml files'''
@@ -275,3 +275,38 @@ def parse_log_csv(ouiMap, name, database, verbose):
     except Exception as error:
         print("parse_log_csv " + str(error))
         print("Error in log")
+
+def parse_cap(name, database, verbose):
+    try:
+        cursor = database.cursor()
+        errors = 0
+        file = name+".cap"
+        cap = pyshark.FileCapture(file, display_filter="eapol")
+        #cap.set_debug()
+        #cap.set_debug()
+        prevSrc = ""
+        prevDst = ""
+        prevFlag = ""
+
+        for pkt in cap:
+            print(pkt.eapol.type)
+            #print(pkt.eapol.field_names)
+            src = pkt.wlan.ta
+            dst = pkt.wlan.da
+            flag = pkt.eapol.wlan_rsna_keydes_key_info
+            print(flag)
+            # IF is the second and the prev is the first one add handshake
+            if flag == '0x010a':
+                print('handhsake 2 of 4')
+                if prevFlag == '0x008a' and dst == prevSrc and src == prevDst: # first
+                    print("Valid handshake from client " + prevSrc  + " to AP " + prevDst )
+                    errors += database_utils.insertHandshake(cursor, verbose, dst, src) #ap, client
+            else:
+                prevSrc = src
+                prevDst = dst
+                prevFlag = flag
+        database.commit()
+        print(".cap done, errors", errors)
+
+    except Exception as error:
+        print("Error in parse cap, probably PCAP cut in the middle of a packet: " , error)

@@ -173,6 +173,24 @@ def insertConnected(cursor, verbose, bssid, mac):
             print("insertConnected Error " + str(error))
         return int(1)
 
+def insertHandshake(cursor, verbose, bssid, mac):
+    ''''''
+    try:
+        # print(row[5].replace(' ', ''))
+        cursor.execute(
+            '''INSERT INTO handshake VALUES(?,?)''',
+            (bssid.upper(), mac.upper()))
+        return int(0)
+    except sqlite3.IntegrityError as error:
+        # errors += 1
+        if verbose:
+            print("insertHandshake" + str(error))
+        return int(0)
+    except sqlite3.Error as error:
+        if verbose:
+            print("insertHandshake Error " + str(error))
+        return int(1)
+
 
 def insertSeenClient(cursor, verbose, mac, time, tool, signal_rssi,
                      lat, lon, alt):
