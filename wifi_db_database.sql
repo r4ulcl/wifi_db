@@ -73,3 +73,12 @@ CREATE TABLE IF NOT EXISTS Probe
     CONSTRAINT ProbesSent FOREIGN KEY (mac) REFERENCES Client (mac)
 );
 
+
+CREATE TABLE IF NOT EXISTS Handshake
+(
+    bssid TEXT NOT NULL,
+    mac TEXT NOT NULL,
+    CONSTRAINT Key6 PRIMARY KEY (bssid,mac),
+    CONSTRAINT FRelationship4 FOREIGN KEY (bssid) REFERENCES AP (bssid),
+    CONSTRAINT FRelationship5 FOREIGN KEY (mac) REFERENCES Client (mac)
+);

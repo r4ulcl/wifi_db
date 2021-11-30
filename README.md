@@ -128,6 +128,7 @@ TODO
 
 - [X] Overwrite if there is new info (old ESSID='', New ESSID='WIFI')
 
+- [X] Table Handhsakes and PMKID
 ---------
 
 This program is a continuation of a part of: https://github.com/T1GR3S/airo-heat
