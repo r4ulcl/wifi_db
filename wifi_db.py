@@ -96,6 +96,8 @@ def main():
                                            database, verbose)
                 wifi_db_aircrack.parse_log_csv(ouiMap, capture_aux,
                                                database, verbose)
+                wifi_db_aircrack.parse_cap(capture_aux, database, verbose)
+
         else:  # file
             wifi_db_aircrack.parse_netxml(ouiMap, capture,
                                           database, verbose)
@@ -105,6 +107,8 @@ def main():
                                        database, verbose)
             wifi_db_aircrack.parse_log_csv(ouiMap, capture,
                                            database, verbose)
+            wifi_db_aircrack.parse_cap(capture, database, verbose)
+
 
         # Cleat whitelist MACs
         script_path = os.path.dirname(os.path.abspath(__file__))
