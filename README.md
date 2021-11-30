@@ -11,6 +11,12 @@ git clone https://github.com/RaulCalvoLaorden/wifi_db
 docker build -t wifi_db .
 ```
 
+## From [DockerHub](https://hub.docker.com/r/raulcalvolaorden/wifi_db)
+
+``` bash
+docker pull raulcalvolaorden/wifi_db:main
+``` 
+
 ## Manual installation
 
 ``` bash
@@ -24,6 +30,7 @@ cd wifi_db
 pip3 install -r requirements.txt 
 
 ```
+
 
 ## Usage
 
