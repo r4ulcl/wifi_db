@@ -23,6 +23,14 @@ def delete_ap(database, bssid, verbose):
     try:
         cursor = database.cursor()
 
+        sql = "DELETE from handshake where bssid=\""+bssid+"\""
+        print(sql)
+        cursor.execute(sql)
+
+        sql = "DELETE from identityap where bssid=\""+bssid+"\""
+        print(sql)
+        cursor.execute(sql)
+
         sql = "DELETE from seenap where bssid=\""+bssid+"\""
         print(sql)
         cursor.execute(sql)

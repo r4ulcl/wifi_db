@@ -78,7 +78,18 @@ CREATE TABLE IF NOT EXISTS Handshake
 (
     bssid TEXT NOT NULL,
     mac TEXT NOT NULL,
+    file TEXT NOT NULL,
     CONSTRAINT Key6 PRIMARY KEY (bssid,mac),
     CONSTRAINT FRelationship4 FOREIGN KEY (bssid) REFERENCES AP (bssid),
     CONSTRAINT FRelationship5 FOREIGN KEY (mac) REFERENCES Client (mac)
+);
+
+CREATE TABLE IF NOT EXISTS Identity
+(
+    bssid TEXT NOT NULL,
+    mac TEXT NOT NULL,
+    identity TEXT NOT NULL,
+    CONSTRAINT Key7 PRIMARY KEY (bssid,mac,identity),
+    CONSTRAINT FRelationship6 FOREIGN KEY (bssid) REFERENCES AP (bssid),
+    CONSTRAINT FRelationship7 FOREIGN KEY (mac) REFERENCES Client (mac)
 );
