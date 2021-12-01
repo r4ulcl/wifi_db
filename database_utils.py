@@ -126,6 +126,7 @@ def insertClients(cursor, verbose, mac, ssid, manuf,
                 "UPDATE client SET device = CASE WHEN device=='' "
                 "THEN ('%s') WHEN device IS NULL THEN ('%s') ELSE device END "
                 "WHERE mac = '%s'" % (device, device, mac))
+
             return int(0)
         except sqlite3.IntegrityError as error:
             if verbose:
@@ -173,13 +174,13 @@ def insertConnected(cursor, verbose, bssid, mac):
             print("insertConnected Error " + str(error))
         return int(1)
 
-def insertHandshake(cursor, verbose, bssid, mac):
+def insertHandshake(cursor, verbose, bssid, mac, file):
     ''''''
     try:
         # print(row[5].replace(' ', ''))
         cursor.execute(
-            '''INSERT INTO handshake VALUES(?,?)''',
-            (bssid.upper(), mac.upper()))
+            '''INSERT INTO handshake VALUES(?,?,?)''',
+            (bssid.upper(), mac.upper(), file))
         return int(0)
     except sqlite3.IntegrityError as error:
         # errors += 1
@@ -189,6 +190,24 @@ def insertHandshake(cursor, verbose, bssid, mac):
     except sqlite3.Error as error:
         if verbose:
             print("insertHandshake Error " + str(error))
+        return int(1)
+
+def insertIdentity(cursor, verbose, bssid, mac, identity):
+    ''''''
+    try:
+        # print(row[5].replace(' ', ''))
+        cursor.execute(
+            '''INSERT INTO identity VALUES(?,?,?)''',
+            (bssid.upper(), mac.upper(), identity))
+        return int(0)
+    except sqlite3.IntegrityError as error:
+        # errors += 1
+        if verbose:
+            print("insertIdentity" + str(error))
+        return int(0)
+    except sqlite3.Error as error:
+        if verbose:
+            print("insertIdentity Error " + str(error))
         return int(1)
 
 
@@ -305,7 +324,12 @@ def clear_whitelist(database, whitelist):
         whitelist = f.read().splitlines()
     cursor = database.cursor()
     for mac in whitelist:
+        mac = mac.upper()
         try:
+            cursor.execute(
+                "DELETE from Handshake where bssid='%s'" % (mac))
+            cursor.execute(
+                "DELETE from Identity where bssid='%s'" % (mac))
             cursor.execute(
                 "DELETE from SeenAP where bssid='%s'" % (mac))
             cursor.execute(
@@ -319,6 +343,8 @@ def clear_whitelist(database, whitelist):
                 "DELETE from AP where bssid='%s'" % (mac))
             cursor.execute(
                 "DELETE from Client where mac='%s'" % (mac))
+
+            database.commit()
 
         except sqlite3.IntegrityError as error:
             print("clear_whitelist" + str(error))

@@ -273,10 +273,15 @@ def parse_log_csv(ouiMap, name, database, verbose):
         else:
             print(".log.csv missing")
     except Exception as error:
+        errors += 1
         print("parse_log_csv " + str(error))
         print("Error in log")
 
 def parse_cap(name, database, verbose):
+    parse_handshakes(name, database, verbose)
+    parse_identities(name, database, verbose)
+
+def parse_handshakes(name, database, verbose):
     try:
         cursor = database.cursor()
         errors = 0
@@ -289,24 +294,52 @@ def parse_cap(name, database, verbose):
         prevFlag = ""
 
         for pkt in cap:
-            print(pkt.eapol.type)
             #print(pkt.eapol.field_names)
-            src = pkt.wlan.ta
-            dst = pkt.wlan.da
-            flag = pkt.eapol.wlan_rsna_keydes_key_info
-            print(flag)
-            # IF is the second and the prev is the first one add handshake
-            if flag == '0x010a':
-                print('handhsake 2 of 4')
-                if prevFlag == '0x008a' and dst == prevSrc and src == prevDst: # first
-                    print("Valid handshake from client " + prevSrc  + " to AP " + prevDst )
-                    errors += database_utils.insertHandshake(cursor, verbose, dst, src) #ap, client
-            else:
-                prevSrc = src
-                prevDst = dst
-                prevFlag = flag
+            #print(pkt.eapol.type)
+            if pkt.eapol.type == '3' : # EAPOL = 3
+                src = pkt.wlan.ta
+                dst = pkt.wlan.da
+                flag = pkt.eapol.wlan_rsna_keydes_key_info
+                #print(flag)
+                # IF is the second and the prev is the first one add handshake
+                if flag.find('10a') != -1:
+                    #print('handhsake 2 of 4')
+                    if prevFlag.find('08a') and dst == prevSrc and src == prevDst: # first
+                        if verbose: 
+                            print("Valid handshake from client " + prevSrc  + " to AP " + prevDst )
+                        errors += database_utils.insertHandshake(cursor, verbose, dst, src, file) #ap, client
+                else:
+                    prevSrc = src
+                    prevDst = dst
+                    prevFlag = flag
         database.commit()
-        print(".cap done, errors", errors)
-
-    except Exception as error:
+        print(".cap Handshake done, errors", errors)
+    except pyshark.capture.capture.TSharkCrashException as error:
         print("Error in parse cap, probably PCAP cut in the middle of a packet: " , error)
+    except Exception as error:
+        print("Error in parse cap: " , error)
+
+
+def parse_identities(name, database, verbose):
+    try:
+        cursor = database.cursor()
+        errors = 0
+        file = name+".cap"
+        cap = pyshark.FileCapture(file, display_filter="eap")
+        #cap.set_debug()
+
+        for pkt in cap:
+            #print(pkt.eapol.field_names)
+            #print(pkt)
+            if pkt.eap.code == '2':
+                if pkt.eap.type == '1': # EAP = 1
+                    dst = pkt.wlan.da 
+                    src = pkt.wlan.sa 
+                    identity = pkt.eap.identity
+                    if verbose:
+                        print('output ' +dst + src + identity)
+                    errors += database_utils.insertIdentity(cursor, verbose, dst, src, identity) #ap, client
+        database.commit()
+        print(".cap Identity done, errors", errors)
+    except Exception as error:
+        print("Error in parse cap: " , error)

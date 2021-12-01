@@ -98,11 +98,15 @@ TODO
 
 ## Views
 
-- ProbeClients: Shows the complete information of the users with their probes
+- ProbeClients: It shows the complete information of the users with their probes
 
 - ConnectedAP: It shows the information of the clients connected to the APs. With this view you can easily filter by scope and check connected clients.
 
 - ProbeClientsConnected: Displays the list of poor users connected to WiFi networks. This is useful to check the problems of users connecting to networks in the scope.
+
+- HandshakeAP: Show the APs, client and file for each handshake in the Handshake table
+
+- IdentityAP: Show the APs, client and Identity for each identity its table
 
 ## TODO
 
@@ -129,6 +133,8 @@ TODO
 - [X] Overwrite if there is new info (old ESSID='', New ESSID='WIFI')
 
 - [X] Table Handhsakes and PMKID
+
+- [ ] Table files, if file exists skip (full path)
 ---------
 
 This program is a continuation of a part of: https://github.com/T1GR3S/airo-heat
