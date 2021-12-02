@@ -15,7 +15,7 @@ from Probe join Client on Probe.mac  = Client.mac join ConnectedAP on Probe.mac 
 ORDER BY Probe.ssid;
 
 CREATE VIEW IF NOT EXISTS HandshakeAP AS
-SELECT Handshake.bssid, AP.ssid, Handshake.mac, Client.manuf, Handshake.file
+SELECT Handshake.bssid, AP.ssid, Handshake.mac, Client.manuf, Handshake.file, Handshake.hashcat
 FROM Handshake JOIN AP ON Handshake.bssid = AP.bssid  JOIN Client ON Handshake.mac = Client.mac
 ORDER BY Handshake.bssid;
 
