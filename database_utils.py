@@ -288,10 +288,10 @@ def create_views(database, verbose):
         print("create_views" + str(error))
 
 
-def set_hashcat(cursor, verbose, bssid, mac, hash):
+def set_hashcat(cursor, verbose, bssid, mac, file, hash):
     try:
         sql = "UPDATE Handshake SET hashcat = '" + hash + "' WHERE bssid == '"
-        + bssid + "' AND mac == '" + mac + "' ;"
+        + bssid + "' AND mac == '" + mac + "' and file == '" + file + "';"
         cursor.execute(sql)
         return int(0)
     except sqlite3.IntegrityError as error:
