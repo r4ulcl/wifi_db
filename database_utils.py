@@ -179,8 +179,8 @@ def insertHandshake(cursor, verbose, bssid, mac, file):
     try:
         # print(row[5].replace(' ', ''))
         cursor.execute(
-            '''INSERT INTO handshake VALUES(?,?,?)''',
-            (bssid.upper(), mac.upper(), file))
+            '''INSERT INTO handshake VALUES(?,?,?,?)''',
+            (bssid.upper(), mac.upper(), file, ""))
         return int(0)
     except sqlite3.IntegrityError as error:
         # errors += 1
@@ -284,6 +284,16 @@ def create_views(database, verbose):
             print("Views created")
     except sqlite3.IntegrityError as error:
         print("create_views" + str(error))
+
+
+def set_hashcat(cursor, verbose, bssid, mac, hash):
+    try:
+        sql = "UPDATE Handshake SET hashcat = '" + hash + "' WHERE bssid == '" + bssid + "' AND mac == '" + mac + "' ;"
+        cursor.execute(sql)
+        return int(0)
+    except sqlite3.IntegrityError as error:
+        print("set_hashcat" + str(error))
+        return int(1)
 
 
 def fake_lat(database, lat):

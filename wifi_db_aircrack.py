@@ -9,6 +9,9 @@ import oui
 import ftfy
 import database_utils
 import pyshark
+import subprocess
+import platform
+
 
 def parse_netxml(ouiMap, name, database, verbose):
     '''Function to parse the .kismet.netxml files'''
@@ -277,9 +280,13 @@ def parse_log_csv(ouiMap, name, database, verbose):
         print("parse_log_csv " + str(error))
         print("Error in log")
 
-def parse_cap(name, database, verbose):
+
+def parse_cap(name, database, verbose, hcxpcapngtool):
     parse_handshakes(name, database, verbose)
     parse_identities(name, database, verbose)
+    if hcxpcapngtool:
+        exec_hcxpcapngtool(name, database, verbose)
+
 
 def parse_handshakes(name, database, verbose):
     try:
@@ -287,7 +294,6 @@ def parse_handshakes(name, database, verbose):
         errors = 0
         file = name+".cap"
         cap = pyshark.FileCapture(file, display_filter="eapol")
-        #cap.set_debug()
         #cap.set_debug()
         prevSrc = ""
         prevDst = ""
@@ -326,20 +332,60 @@ def parse_identities(name, database, verbose):
         errors = 0
         file = name+".cap"
         cap = pyshark.FileCapture(file, display_filter="eap")
-        #cap.set_debug()
+        # cap.set_debug()
 
         for pkt in cap:
-            #print(pkt.eapol.field_names)
-            #print(pkt)
+            # print(pkt.eapol.field_names)
+            # print(pkt)
             if pkt.eap.code == '2':
-                if pkt.eap.type == '1': # EAP = 1
-                    dst = pkt.wlan.da 
-                    src = pkt.wlan.sa 
+                if pkt.eap.type == '1':  # EAP = 1
+                    dst = pkt.wlan.da
+                    src = pkt.wlan.sa
                     identity = pkt.eap.identity
                     if verbose:
-                        print('output ' +dst + src + identity)
-                    errors += database_utils.insertIdentity(cursor, verbose, dst, src, identity) #ap, client
+                        print('output ' + dst + src + identity)
+                    errors += database_utils.insertIdentity(cursor, verbose, 
+                                                            dst, src, identity)
         database.commit()
         print(".cap Identity done, errors", errors)
     except Exception as error:
-        print("Error in parse cap: " , error)
+        print("Error in parse cap: ", error)
+
+
+def exec_hcxpcapngtool(name, database, verbose):
+
+    try:
+        # cmd = "where" if platform.system() == "Windows" else "which"
+        # subprocess.call([cmd, "dirasdsd"])
+        cursor = database.cursor()
+        errors = 0
+        file = name + ".cap"
+        # exec_hcxpcapngtool
+        arguments = file + ' -o test.22000'
+
+        execution = subprocess.check_output("hcxpcapngtool " + arguments, shell=True)
+        if verbose:
+            print(execution)
+
+        # Read output (file) each line
+        with open('test.22000') as f:
+            lines = f.readlines()
+            for line in lines:
+                # update in database aka insert_hash
+                split = line.split('*')
+                ap_lower = split[3].upper()
+                client_lower = split[4].upper()
+                # : format
+                ap = (':'.join(ap_lower[i:i+2] for i in range(0,12,2))) 
+                client = (':'.join(client_lower[i:i+2] for i in range(0,12,2)))
+                if verbose:
+                    print(ap)
+                    print(client)
+                    print(line)
+                # Update handshake
+
+                errors += database_utils.set_hashcat(cursor, verbose,
+                                                     ap, client, line)
+        os.remove("test.22000")
+    except Exception as error:
+        print("Error in parse cap hcxpcapngtool: ", error)

@@ -7,6 +7,7 @@ from shutil import copyfile
 import csv
 import os
 
+
 def load_vendors():
     '''Download and load vendors'''
     print('Download and load vendors')
@@ -14,7 +15,7 @@ def load_vendors():
     # urlOld = 'https://macaddress.io/database/macaddress.io-db.json'#Notfree
     oui = {}
 
-    with tempfile.NamedTemporaryFile() as tmp:
+    with tempfile.NamedTemporaryFile(delete=False) as tmp:
         print(tmp.name)
         try:
             import requests
@@ -37,14 +38,14 @@ def load_vendors():
         # error control and copy local (old file)
         except requests.exceptions.RequestException as e:
             # catastrophic error. bail.
-            dirpath = os.getcwd()
             script_path = os.path.dirname(os.path.abspath(__file__))
             print(e)
             print("Copy local file")
             src = script_path + "/mac-vendors-export.csv"
             dst = tmp.name
             copyfile(src, dst)
-        with open(tmp.name) as csv_file:
+        tmp.close()
+        with open(tmp.name,  encoding='cp850') as csv_file:
             csv_reader = csv.reader(csv_file, delimiter=',')
             line_count = 0
             for row in csv_reader:
@@ -54,6 +55,7 @@ def load_vendors():
                     line_count += 1
                     oui[row[0].replace(':', '')] = row[1]
             print(f'Processed {line_count} lines.')
+        os.unlink(tmp.name)
 
     return oui
 
