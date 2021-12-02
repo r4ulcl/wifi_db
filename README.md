@@ -29,7 +29,7 @@ sudo make install
 
 ```
 
-Install: 
+Installation
 
 ``` bash
 
@@ -42,6 +42,13 @@ cd wifi_db
 pip3 install -r requirements.txt 
 
 ```
+
+### From [DockerHub](https://hub.docker.com/r/raulcalvolaorden/wifi_db)
+
+``` bash
+docker pull raulcalvolaorden/wifi_db:main
+``` 
+
 
 ## Usage
 
