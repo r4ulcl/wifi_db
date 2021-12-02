@@ -10,7 +10,6 @@ import ftfy
 import database_utils
 import pyshark
 import subprocess
-import platform
 
 
 def parse_netxml(ouiMap, name, database, verbose):
@@ -294,26 +293,31 @@ def parse_handshakes(name, database, verbose):
         errors = 0
         file = name+".cap"
         cap = pyshark.FileCapture(file, display_filter="eapol")
-        #cap.set_debug()
+        # cap.set_debug()
         prevSrc = ""
         prevDst = ""
         prevFlag = ""
 
         for pkt in cap:
-            #print(pkt.eapol.field_names)
-            #print(pkt.eapol.type)
-            if pkt.eapol.type == '3' : # EAPOL = 3
+            if verbose:
+                print(pkt.eapol.field_names)
+                print(pkt.eapol.type)
+            if pkt.eapol.type == '3':  # EAPOL = 3
                 src = pkt.wlan.ta
                 dst = pkt.wlan.da
                 flag = pkt.eapol.wlan_rsna_keydes_key_info
-                #print(flag)
+                # print(flag)
                 # IF is the second and the prev is the first one add handshake
                 if flag.find('10a') != -1:
-                    #print('handhsake 2 of 4')
-                    if prevFlag.find('08a') and dst == prevSrc and src == prevDst: # first
-                        if verbose: 
-                            print("Valid handshake from client " + prevSrc  + " to AP " + prevDst )
-                        errors += database_utils.insertHandshake(cursor, verbose, dst, src, file) #ap, client
+                    # print('handhsake 2 of 4')
+                    if (prevFlag.find('08a') and
+                       dst == prevSrc and src == prevDst):  # first
+                        if verbose:
+                            print("Valid handshake from client " + prevSrc +
+                                  " to AP " + prevDst)
+                        errors += database_utils.insertHandshake(cursor,
+                                                                 verbose, dst,
+                                                                 src, file)
                 else:
                     prevSrc = src
                     prevDst = dst
@@ -321,9 +325,10 @@ def parse_handshakes(name, database, verbose):
         database.commit()
         print(".cap Handshake done, errors", errors)
     except pyshark.capture.capture.TSharkCrashException as error:
-        print("Error in parse cap, probably PCAP cut in the middle of a packet: " , error)
+        print("Error in parse cap, probably PCAP cut in the "
+              "middle of a packet: ", error)
     except Exception as error:
-        print("Error in parse cap: " , error)
+        print("Error in parse cap: ", error)
 
 
 def parse_identities(name, database, verbose):
@@ -344,7 +349,7 @@ def parse_identities(name, database, verbose):
                     identity = pkt.eap.identity
                     if verbose:
                         print('output ' + dst + src + identity)
-                    errors += database_utils.insertIdentity(cursor, verbose, 
+                    errors += database_utils.insertIdentity(cursor, verbose,
                                                             dst, src, identity)
         database.commit()
         print(".cap Identity done, errors", errors)
@@ -363,7 +368,8 @@ def exec_hcxpcapngtool(name, database, verbose):
         # exec_hcxpcapngtool
         arguments = file + ' -o test.22000'
 
-        execution = subprocess.check_output("hcxpcapngtool " + arguments, shell=True)
+        execution = subprocess.check_output("hcxpcapngtool " + arguments,
+                                            shell=True)
         if verbose:
             print(execution)
 
@@ -376,8 +382,9 @@ def exec_hcxpcapngtool(name, database, verbose):
                 ap_lower = split[3].upper()
                 client_lower = split[4].upper()
                 # : format
-                ap = (':'.join(ap_lower[i:i+2] for i in range(0,12,2))) 
-                client = (':'.join(client_lower[i:i+2] for i in range(0,12,2)))
+                ap = (':'.join(ap_lower[i:i+2] for i in range(0, 12, 2)))
+                client = (':'.join(client_lower[i:i+2] for i in
+                          range(0, 12, 2)))
                 if verbose:
                     print(ap)
                     print(client)
