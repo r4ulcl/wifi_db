@@ -359,22 +359,24 @@ def parse_identities(name, database, verbose):
 
 
 def exec_hcxpcapngtool(name, database, verbose):
-
-    try:
-        cmd = "where" if platform.system() == "Windows" else "which"
-        subprocess.call([cmd, "hcxpcapngtool"])
+    #try:
+        #cmd = "where" if platform.system() == "Windows" else "which"
+        #subprocess.call([cmd, "hcxpcapngtool"])
         cursor = database.cursor()
         errors = 0
-        file = name + ".cap"
+        fileName = name + ".cap"
         # exec_hcxpcapngtool
-        arguments = file + ' -o test.22000'
+        arguments = fileName + ' -o test.22000'
 
         execution = subprocess.check_output("hcxpcapngtool " + arguments,
                                             shell=True)
         if verbose:
             print(execution)
 
-        # Read output (file) each line
+        # Read output (fileName) each line
+        file_exists = os.path.exists('test.22000')
+        if not file_exists:
+            return  
         with open('test.22000') as f:
             lines = f.readlines()
             for line in lines:
@@ -393,7 +395,7 @@ def exec_hcxpcapngtool(name, database, verbose):
                 # Update handshake
 
                 errors += database_utils.set_hashcat(cursor, verbose,
-                                                     ap, client, file, line)
+                                                     ap, client, fileName, line)
         os.remove("test.22000")
-    except Exception as error:
-        print("Error in parse cap hcxpcapngtool: ", error)
+    #except Exception as error:
+    #    print("Error in parse cap hcxpcapngtool: ", error)

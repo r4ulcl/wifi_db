@@ -290,9 +290,8 @@ def create_views(database, verbose):
 
 def set_hashcat(cursor, verbose, bssid, mac, file, hash):
     try:
-        sql = "UPDATE Handshake SET hashcat = '" + hash + "' WHERE bssid == '"
-        + bssid + "' AND mac == '" + mac + "' and file == '" + file + "';"
-        cursor.execute(sql)
+        cursor.execute('''INSERT OR REPLACE INTO Handshake VALUES(?,?,?,?)''',
+                       (bssid, mac, file, hash))
         return int(0)
     except sqlite3.IntegrityError as error:
         print("set_hashcat" + str(error))
