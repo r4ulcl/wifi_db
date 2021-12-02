@@ -14,7 +14,7 @@ docker build -t wifi_db .
 ## From [DockerHub](https://hub.docker.com/r/raulcalvolaorden/wifi_db)
 
 ``` bash
-docker pull raulcalvolaorden/wifi_db:main
+docker pull raulcalvolaorden/wifi_db
 ``` 
 
 ## Manual installation
