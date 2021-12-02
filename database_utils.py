@@ -174,6 +174,7 @@ def insertConnected(cursor, verbose, bssid, mac):
             print("insertConnected Error " + str(error))
         return int(1)
 
+
 def insertHandshake(cursor, verbose, bssid, mac, file):
     ''''''
     try:
@@ -191,6 +192,7 @@ def insertHandshake(cursor, verbose, bssid, mac, file):
         if verbose:
             print("insertHandshake Error " + str(error))
         return int(1)
+
 
 def insertIdentity(cursor, verbose, bssid, mac, identity):
     ''''''
@@ -288,7 +290,8 @@ def create_views(database, verbose):
 
 def set_hashcat(cursor, verbose, bssid, mac, hash):
     try:
-        sql = "UPDATE Handshake SET hashcat = '" + hash + "' WHERE bssid == '" + bssid + "' AND mac == '" + mac + "' ;"
+        sql = "UPDATE Handshake SET hashcat = '" + hash + "' WHERE bssid == '"
+        + bssid + "' AND mac == '" + mac + "' ;"
         cursor.execute(sql)
         return int(0)
     except sqlite3.IntegrityError as error:
