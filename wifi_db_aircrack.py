@@ -10,6 +10,7 @@ import ftfy
 import database_utils
 import pyshark
 import subprocess
+import platform
 
 
 def parse_netxml(ouiMap, name, database, verbose):
@@ -360,8 +361,8 @@ def parse_identities(name, database, verbose):
 def exec_hcxpcapngtool(name, database, verbose):
 
     try:
-        # cmd = "where" if platform.system() == "Windows" else "which"
-        # subprocess.call([cmd, "dirasdsd"])
+        cmd = "where" if platform.system() == "Windows" else "which"
+        subprocess.call([cmd, "hcxpcapngtool"])
         cursor = database.cursor()
         errors = 0
         file = name + ".cap"
@@ -392,7 +393,7 @@ def exec_hcxpcapngtool(name, database, verbose):
                 # Update handshake
 
                 errors += database_utils.set_hashcat(cursor, verbose,
-                                                     ap, client, line)
+                                                     ap, client, file, line)
         os.remove("test.22000")
     except Exception as error:
         print("Error in parse cap hcxpcapngtool: ", error)
