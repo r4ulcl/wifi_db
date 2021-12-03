@@ -37,7 +37,7 @@ def main():
                         help="output database, if exist append to the given"
                         " database (default name: %(default)s)")
 
-    parser.add_argument("capture", type=str,
+    parser.add_argument("capture", type=str,nargs='+',
                         help="capture file (.csv, .kismet.csv, "
                         ".kismet.netxml, .log.csv), \
                         if no extension add all")
@@ -49,13 +49,13 @@ def main():
     hcxpcapngtool = args.hcxpcapngtool
 
     name = args.database
-    capture = args.capture
+    captures = args.capture
     source = args.source
 
     fake_lat = args.lat
     fake_lon = args.lon
 
-    print(capture)
+    print(captures)
 
     if verbose:
         print("verbosity turned on")
@@ -69,69 +69,95 @@ def main():
 
     ouiMap = oui.load_vendors()
 
-    if source == "aircrack-ng":
-        print("Parsing aircrack-ng capture")
-        if path.isdir(capture):
-            files = []
-            dirpath = os.getcwd()
-            if os.path.isabs(capture):
-                dir_capture = capture
-            else:
-                dir_capture = dirpath+"/"+capture
-            if verbose:
-                print(dir_capture)
-                print("current directory is : " + dirpath)
+    for capture in captures:
+        if source == "aircrack-ng":
+            print("Parsing file:", capture)
+            # Remove format if any
 
-            for r, d, f in os.walk(dir_capture):
-                for file in f:
-                    if 'kismet.netxml' in file:
-                        files.append(os.path.join(r, file))
+            if path.isdir(capture):
+                files = []
+                dirpath = os.getcwd()
+                if os.path.isabs(capture):
+                    dir_capture = capture
+                else:
+                    dir_capture = dirpath+"/"+capture
+                if verbose:
+                    print(dir_capture)
+                    print("current directory is : " + dirpath)
 
-            for f in files:
-                base = os.path.basename(f)
-                name = os.path.splitext(os.path.splitext(base)[0])[0]
-                capture_aux = dir_capture+"/"+name
-                print("\n" + capture_aux)
-                wifi_db_aircrack.parse_netxml(ouiMap, capture_aux,
-                                              database, verbose)
-                wifi_db_aircrack.parse_kismet_csv(ouiMap, capture_aux,
-                                                  database, verbose)
-                wifi_db_aircrack.parse_csv(ouiMap, capture_aux,
-                                           database, verbose)
-                wifi_db_aircrack.parse_log_csv(ouiMap, capture_aux,
-                                               database, verbose)
-                wifi_db_aircrack.parse_cap(capture_aux, database, verbose,
-                                           hcxpcapngtool)
+                for r, d, f in os.walk(dir_capture):
+                    for file in f:
+                        if 'kismet.netxml' in file:
+                            files.append(os.path.join(r, file))
 
-        else:  # file
-            wifi_db_aircrack.parse_netxml(ouiMap, capture,
-                                          database, verbose)
-            wifi_db_aircrack.parse_kismet_csv(ouiMap, capture,
-                                              database, verbose)
-            wifi_db_aircrack.parse_csv(ouiMap, capture,
-                                       database, verbose)
-            wifi_db_aircrack.parse_log_csv(ouiMap, capture,
-                                           database, verbose)
-            wifi_db_aircrack.parse_cap(capture, database, verbose,
-                                       hcxpcapngtool)
+                for f in files:
+                    base = os.path.basename(f)
+                    name = os.path.splitext(os.path.splitext(base)[0])[0]
+                    capture_aux = dir_capture+"/"+name
+                    print("\n" + capture_aux)
+                    wifi_db_aircrack.parse_netxml(ouiMap, capture_aux,
+                                                database, verbose)
+                    wifi_db_aircrack.parse_kismet_csv(ouiMap, capture_aux,
+                                                    database, verbose)
+                    wifi_db_aircrack.parse_csv(ouiMap, capture_aux,
+                                            database, verbose)
+                    wifi_db_aircrack.parse_log_csv(ouiMap, capture_aux,
+                                                database, verbose)
+                    wifi_db_aircrack.parse_cap(capture_aux, database, verbose,
+                                            hcxpcapngtool)
 
-        # Cleat whitelist MACs
-        script_path = os.path.dirname(os.path.abspath(__file__))
-        database_utils.clear_whitelist(
-            database, script_path+'/whitelist.txt')
+            else:  # file
+                if ".cap" in capture:
+                    capture = capture.replace(".cap", "")  # remove format
+                    wifi_db_aircrack.parse_cap(capture, database, verbose,
+                                               hcxpcapngtool)
+                elif ".kismet.netxml" in capture:
+                    capture = capture.replace(".kismet.netxml", "")  # remove format
+                    wifi_db_aircrack.parse_netxml(ouiMap, capture,
+                                                database, verbose)
+                elif ".kismet.csv" in capture:
+                    capture = capture.replace(".kismet.csv", "")  # remove format
+                    wifi_db_aircrack.parse_kismet_csv(ouiMap, capture,
+                                                    database, verbose)
+                elif ".log.csv" in capture:
+                    capture = capture.replace(".log.csv", "")  # remove format
+                    wifi_db_aircrack.parse_log_csv(ouiMap, capture,
+                                                database, verbose)
+                elif ".csv" in capture:
+                    capture = capture.replace(".csv", "")  # remove format
+                    wifi_db_aircrack.parse_csv(ouiMap, capture,
+                                            database, verbose)
+                else:
+                    print("Not format found!")
+                    wifi_db_aircrack.parse_netxml(ouiMap, capture,
+                                                database, verbose)
+                    wifi_db_aircrack.parse_kismet_csv(ouiMap, capture,
+                                                    database, verbose)
+                    wifi_db_aircrack.parse_csv(ouiMap, capture,
+                                            database, verbose)
+                    wifi_db_aircrack.parse_log_csv(ouiMap, capture,
+                                                database, verbose)
+                    wifi_db_aircrack.parse_cap(capture, database, verbose,
+                                            hcxpcapngtool)
 
-        if fake_lat != "":
-            print(fake_lat)
-            database_utils.fake_lat(database, fake_lat)
-        if fake_lon != "":
-            print(fake_lon)
-            database_utils.fake_lon(database, fake_lon)
-    elif source == "kismet":
-        print("Parsing Kismet capture")
-        # TO DO
-    else:
-        print("Parsing Wigle capture")
-        # TO DO
+        elif source == "kismet":
+            print("Parsing Kismet capture")
+            # TO DO
+        else:
+            print("Parsing Wigle capture")
+            # TO DO
+
+    # Cleat whitelist MACs
+    script_path = os.path.dirname(os.path.abspath(__file__))
+    database_utils.clear_whitelist(
+        database, script_path+'/whitelist.txt')
+
+    if fake_lat != "":
+        print(fake_lat)
+        database_utils.fake_lat(database, fake_lat)
+    if fake_lon != "":
+        print(fake_lon)
+        database_utils.fake_lon(database, fake_lon)
 
 
 if __name__ == "__main__":

@@ -16,12 +16,13 @@ import platform
 def parse_netxml(ouiMap, name, database, verbose):
     '''Function to parse the .kismet.netxml files'''
 
-    exists = os.path.isfile(name+".kismet.netxml")
+    filename = name+".kismet.netxml"
+    exists = os.path.isfile(filename)
     errors = 0
     try:
         cursor = database.cursor()
         if exists:
-            with open(name+".kismet.netxml", 'r') as file:
+            with open(filename, 'r') as file:
                 filedata = file.read()
             # fix aircrack error, remove spaces &#x 0;
             filedata = re.sub(r'&#x[ ]+', '&#x', filedata)
