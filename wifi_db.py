@@ -18,6 +18,9 @@ def main():
                         action="store_true")
     parser.add_argument("--debug", help="increase output verbosity to debug",
                         action="store_true")
+    parser.add_argument("-H", "--hcxpcapngtool", help="Get hashcat hashes "
+                        "using hcxpcapngtool (has to be installed)",
+                        action="store_true")
 
     parser.add_argument("-t", "--lat", default='',
                         help="insert a fake lat in all database")
@@ -43,6 +46,7 @@ def main():
     # vars
     verbose = args.verbose
     debug = args.debug
+    hcxpcapngtool = args.hcxpcapngtool
 
     name = args.database
     capture = args.capture
@@ -96,6 +100,9 @@ def main():
                                            database, verbose)
                 wifi_db_aircrack.parse_log_csv(ouiMap, capture_aux,
                                                database, verbose)
+                wifi_db_aircrack.parse_cap(capture_aux, database, verbose,
+                                           hcxpcapngtool)
+
         else:  # file
             wifi_db_aircrack.parse_netxml(ouiMap, capture,
                                           database, verbose)
@@ -105,6 +112,8 @@ def main():
                                        database, verbose)
             wifi_db_aircrack.parse_log_csv(ouiMap, capture,
                                            database, verbose)
+            wifi_db_aircrack.parse_cap(capture, database, verbose,
+                                       hcxpcapngtool)
 
         # Cleat whitelist MACs
         script_path = os.path.dirname(os.path.abspath(__file__))
