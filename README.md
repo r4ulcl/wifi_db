@@ -21,6 +21,8 @@ Dependencies:
 
 ``` bash
 sudo apt install tshark
+docker pull raulcalvolaorden/wifi_db
+``` 
 
 git clone https://github.com/ZerBea/hcxtools.git
 cd hcxtools
