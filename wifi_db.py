@@ -8,6 +8,8 @@ import database_utils
 import os
 import oui
 from os import path
+import platform
+import subprocess
 
 
 def main():
@@ -17,9 +19,6 @@ def main():
     parser.add_argument("-v", "--verbose", help="increase output verbosity",
                         action="store_true")
     parser.add_argument("--debug", help="increase output verbosity to debug",
-                        action="store_true")
-    parser.add_argument("-H", "--hcxpcapngtool", help="Get hashcat hashes "
-                        "using hcxpcapngtool (has to be installed)",
                         action="store_true")
 
     parser.add_argument("-t", "--lat", default='',
@@ -46,7 +45,22 @@ def main():
     # vars
     verbose = args.verbose
     debug = args.debug
-    hcxpcapngtool = args.hcxpcapngtool
+
+    try:
+        cmd = "where" if platform.system() == "Windows" else "which"
+        subprocess.call([cmd, "hcxpcapngtool"])
+        hcxpcapngtool = True
+    except Exception as E:
+        hcxpcapngtool = False
+        print("False", E)
+
+    try:
+        cmd = "where" if platform.system() == "Windows" else "which"
+        subprocess.call([cmd, "tshark"])
+        tshark = True
+    except Exception as E:
+        tshark = False
+        print("False", E)
 
     name = args.database
     captures = args.capture
@@ -104,13 +118,13 @@ def main():
                     wifi_db_aircrack.parse_log_csv(ouiMap, capture_aux,
                                                 database, verbose)
                     wifi_db_aircrack.parse_cap(capture_aux, database, verbose,
-                                            hcxpcapngtool)
+                                            hcxpcapngtool, tshark)
 
             else:  # file
                 if ".cap" in capture:
                     capture = capture.replace(".cap", "")  # remove format
                     wifi_db_aircrack.parse_cap(capture, database, verbose,
-                                               hcxpcapngtool)
+                                               hcxpcapngtool, tshark)
                 elif ".kismet.netxml" in capture:
                     capture = capture.replace(".kismet.netxml", "")  # remove format
                     wifi_db_aircrack.parse_netxml(ouiMap, capture,
@@ -138,7 +152,7 @@ def main():
                     wifi_db_aircrack.parse_log_csv(ouiMap, capture,
                                                 database, verbose)
                     wifi_db_aircrack.parse_cap(capture, database, verbose,
-                                            hcxpcapngtool)
+                                            hcxpcapngtool, tshark)
 
         elif source == "kismet":
             print("Parsing Kismet capture")

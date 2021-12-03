@@ -282,13 +282,15 @@ def parse_log_csv(ouiMap, name, database, verbose):
         print("Error in log")
 
 
-def parse_cap(name, database, verbose, hcxpcapngtool):
-    parse_handshakes(name, database, verbose)
-    parse_identities(name, database, verbose)
+def parse_cap(name, database, verbose, hcxpcapngtool, tshark):
+    if tshark:
+        parse_handshakes(name, database, verbose)
+        parse_identities(name, database, verbose)
     if hcxpcapngtool:
         exec_hcxpcapngtool(name, database, verbose)
 
 
+# Get handshakes from .cap
 def parse_handshakes(name, database, verbose):
     try:
         cursor = database.cursor()
@@ -333,6 +335,7 @@ def parse_handshakes(name, database, verbose):
         print("Error in parse cap: ", error)
 
 
+# Get Identities from MGT login
 def parse_identities(name, database, verbose):
     try:
         cursor = database.cursor()
@@ -359,8 +362,9 @@ def parse_identities(name, database, verbose):
         print("Error in parse cap: ", error)
 
 
+# Use hcxpcapngtool to get the 22000 hash to hashcat
 def exec_hcxpcapngtool(name, database, verbose):
-    #try:
+    try:
         #cmd = "where" if platform.system() == "Windows" else "which"
         #subprocess.call([cmd, "hcxpcapngtool"])
         cursor = database.cursor()
@@ -398,5 +402,5 @@ def exec_hcxpcapngtool(name, database, verbose):
                 errors += database_utils.set_hashcat(cursor, verbose,
                                                      ap, client, fileName, line)
         os.remove("test.22000")
-    #except Exception as error:
-    #    print("Error in parse cap hcxpcapngtool: ", error)
+    except Exception as error:
+        print("Error in parse cap hcxpcapngtool: ", error)
