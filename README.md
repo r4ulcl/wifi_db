@@ -3,7 +3,6 @@ Script to parse Aircrack-ng captures into a SQLite database.
 
 ## Install
 
-
 ### Build Docker
 
 ``` bash
@@ -11,6 +10,12 @@ git clone https://github.com/RaulCalvoLaorden/wifi_db
 
 docker build -t wifi_db .
 ```
+
+### From [DockerHub](https://hub.docker.com/r/raulcalvolaorden/wifi_db)
+
+``` bash
+docker pull raulcalvolaorden/wifi_db:main
+``` 
 
 ### Manual installation
 
@@ -21,14 +26,11 @@ Dependencies:
 
 ``` bash
 sudo apt install tshark
-docker pull raulcalvolaorden/wifi_db
-``` 
 
 git clone https://github.com/ZerBea/hcxtools.git
 cd hcxtools
 make 
 sudo make install
-
 ```
 
 Installation
@@ -44,12 +46,6 @@ cd wifi_db
 pip3 install -r requirements.txt 
 
 ```
-
-### From [DockerHub](https://hub.docker.com/r/raulcalvolaorden/wifi_db)
-
-``` bash
-docker pull raulcalvolaorden/wifi_db:main
-``` 
 
 
 ## Usage
