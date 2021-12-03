@@ -116,7 +116,7 @@ def main():
                     wifi_db_aircrack.parse_csv(ouiMap, capture_aux,
                                             database, verbose)
                     wifi_db_aircrack.parse_log_csv(ouiMap, capture_aux,
-                                                database, verbose)
+                                                database, verbose, fake_lat, fake_lon)
                     wifi_db_aircrack.parse_cap(capture_aux, database, verbose,
                                             hcxpcapngtool, tshark)
 
@@ -136,7 +136,7 @@ def main():
                 elif ".log.csv" in capture:
                     capture = capture.replace(".log.csv", "")  # remove format
                     wifi_db_aircrack.parse_log_csv(ouiMap, capture,
-                                                database, verbose)
+                                                database, verbose, fake_lat, fake_lon)
                 elif ".csv" in capture:
                     capture = capture.replace(".csv", "")  # remove format
                     wifi_db_aircrack.parse_csv(ouiMap, capture,
@@ -150,7 +150,7 @@ def main():
                     wifi_db_aircrack.parse_csv(ouiMap, capture,
                                             database, verbose)
                     wifi_db_aircrack.parse_log_csv(ouiMap, capture,
-                                                database, verbose)
+                                                database, verbose, fake_lat, fake_lon)
                     wifi_db_aircrack.parse_cap(capture, database, verbose,
                                             hcxpcapngtool, tshark)
 
@@ -165,13 +165,6 @@ def main():
     script_path = os.path.dirname(os.path.abspath(__file__))
     database_utils.clear_whitelist(
         database, script_path+'/whitelist.txt')
-
-    if fake_lat != "":
-        print(fake_lat)
-        database_utils.fake_lat(database, fake_lat)
-    if fake_lon != "":
-        print(fake_lon)
-        database_utils.fake_lon(database, fake_lon)
 
 
 if __name__ == "__main__":

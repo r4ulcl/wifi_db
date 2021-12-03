@@ -241,7 +241,7 @@ def parse_csv(ouiMap, name, database, verbose):
         print("Error in .csv")
 
 
-def parse_log_csv(ouiMap, name, database, verbose):
+def parse_log_csv(ouiMap, name, database, verbose, fake_lat, fake_lon):
     ''' Parse .log.csv file from Aircrack-ng to the database '''
     exists = os.path.isfile(name+".log.csv")
     errors = 0
@@ -255,21 +255,33 @@ def parse_log_csv(ouiMap, name, database, verbose):
                         if len(row) > 10 and row[10] == "Client":
                             manuf = oui.get_vendor(ouiMap, row[3])
                             if row[6] != 0.0:
+                                lat = row[6]
+                                lon = row[7]
+                                if fake_lat != "":  #just write file in db
+                                    lat = fake_lat
+                                if fake_lon != "":
+                                    lon = fake_lon
                                 errors += database_utils.insertSeenClient(
                                     cursor, verbose, row[3], row[0],
-                                    'aircrack-ng', row[4], row[6],
-                                    row[7], '0.0')
+                                    'aircrack-ng', row[4], lat, lon,
+                                    '0.0')
 
                         if len(row) > 10 and row[10] == "AP":
+                            lat = row[6]
+                            lon = row[7]
+                            if fake_lat != "":  #just write file in db
+                                lat = fake_lat
+                            if fake_lon != "":
+                                lon = fake_lon
                             manuf = oui.get_vendor(ouiMap, row[3])
                             errors += database_utils.insertAP(
                                 cursor, verbose,  row[3], row[2], manuf, 0,
-                                0, '', '', 0, row[6], row[7])
+                                0, '', '', 0, lon, lat)
 
                             # if row[6] != "0.000000":
                             errors += database_utils.insertSeenAP(
                                 cursor, verbose,  row[3], row[0],
-                                'aircrack-ng', row[4], row[6], row[7],
+                                'aircrack-ng', row[4], lat, lon,
                                 '0.0', 0)
 
             database.commit()
@@ -402,5 +414,7 @@ def exec_hcxpcapngtool(name, database, verbose):
                 errors += database_utils.set_hashcat(cursor, verbose,
                                                      ap, client, fileName, line)
         os.remove("test.22000")
+        print(".cap hcxpcapngtool done, errors", errors)
+
     except Exception as error:
         print("Error in parse cap hcxpcapngtool: ", error)
