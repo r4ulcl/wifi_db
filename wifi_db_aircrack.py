@@ -8,6 +8,9 @@ import re
 import oui
 import ftfy
 import database_utils
+import pyshark
+import subprocess
+import platform
 
 
 def parse_netxml(ouiMap, name, database, verbose):
@@ -273,5 +276,126 @@ def parse_log_csv(ouiMap, name, database, verbose):
         else:
             print(".log.csv missing")
     except Exception as error:
+        errors += 1
         print("parse_log_csv " + str(error))
         print("Error in log")
+
+
+def parse_cap(name, database, verbose, hcxpcapngtool):
+    parse_handshakes(name, database, verbose)
+    parse_identities(name, database, verbose)
+    if hcxpcapngtool:
+        exec_hcxpcapngtool(name, database, verbose)
+
+
+def parse_handshakes(name, database, verbose):
+    try:
+        cursor = database.cursor()
+        errors = 0
+        file = name+".cap"
+        cap = pyshark.FileCapture(file, display_filter="eapol")
+        # cap.set_debug()
+        prevSrc = ""
+        prevDst = ""
+        prevFlag = ""
+
+        for pkt in cap:
+            if verbose:
+                print(pkt.eapol.field_names)
+                print(pkt.eapol.type)
+            if pkt.eapol.type == '3':  # EAPOL = 3
+                src = pkt.wlan.ta
+                dst = pkt.wlan.da
+                flag = pkt.eapol.wlan_rsna_keydes_key_info
+                # print(flag)
+                # IF is the second and the prev is the first one add handshake
+                if flag.find('10a') != -1:
+                    # print('handhsake 2 of 4')
+                    if (prevFlag.find('08a') and
+                       dst == prevSrc and src == prevDst):  # first
+                        if verbose:
+                            print("Valid handshake from client " + prevSrc +
+                                  " to AP " + prevDst)
+                        errors += database_utils.insertHandshake(cursor,
+                                                                 verbose, dst,
+                                                                 src, file)
+                else:
+                    prevSrc = src
+                    prevDst = dst
+                    prevFlag = flag
+        database.commit()
+        print(".cap Handshake done, errors", errors)
+    except pyshark.capture.capture.TSharkCrashException as error:
+        print("Error in parse cap, probably PCAP cut in the "
+              "middle of a packet: ", error)
+    except Exception as error:
+        print("Error in parse cap: ", error)
+
+
+def parse_identities(name, database, verbose):
+    try:
+        cursor = database.cursor()
+        errors = 0
+        file = name+".cap"
+        cap = pyshark.FileCapture(file, display_filter="eap")
+        # cap.set_debug()
+
+        for pkt in cap:
+            # print(pkt.eapol.field_names)
+            # print(pkt)
+            if pkt.eap.code == '2':
+                if pkt.eap.type == '1':  # EAP = 1
+                    dst = pkt.wlan.da
+                    src = pkt.wlan.sa
+                    identity = pkt.eap.identity
+                    if verbose:
+                        print('output ' + dst + src + identity)
+                    errors += database_utils.insertIdentity(cursor, verbose,
+                                                            dst, src, identity)
+        database.commit()
+        print(".cap Identity done, errors", errors)
+    except Exception as error:
+        print("Error in parse cap: ", error)
+
+
+def exec_hcxpcapngtool(name, database, verbose):
+    #try:
+        #cmd = "where" if platform.system() == "Windows" else "which"
+        #subprocess.call([cmd, "hcxpcapngtool"])
+        cursor = database.cursor()
+        errors = 0
+        fileName = name + ".cap"
+        # exec_hcxpcapngtool
+        arguments = fileName + ' -o test.22000'
+
+        execution = subprocess.check_output("hcxpcapngtool " + arguments,
+                                            shell=True)
+        if verbose:
+            print(execution)
+
+        # Read output (fileName) each line
+        file_exists = os.path.exists('test.22000')
+        if not file_exists:
+            return  
+        with open('test.22000') as f:
+            lines = f.readlines()
+            for line in lines:
+                # update in database aka insert_hash
+                split = line.split('*')
+                ap_lower = split[3].upper()
+                client_lower = split[4].upper()
+                # : format
+                ap = (':'.join(ap_lower[i:i+2] for i in range(0, 12, 2)))
+                client = (':'.join(client_lower[i:i+2] for i in
+                          range(0, 12, 2)))
+                if verbose:
+                    print(ap)
+                    print(client)
+                    print(line)
+                # Update handshake
+
+                errors += database_utils.set_hashcat(cursor, verbose,
+                                                     ap, client, fileName, line)
+        os.remove("test.22000")
+    #except Exception as error:
+    #    print("Error in parse cap hcxpcapngtool: ", error)
