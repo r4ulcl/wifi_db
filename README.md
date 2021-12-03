@@ -1,4 +1,3 @@
-<<<<<<< Updated upstream
 # wifi_db
 Script to parse Aircrack-ng captures into a SQLite database.
 
@@ -312,4 +311,3 @@ This program is a continuation of a part of: https://github.com/T1GR3S/airo-heat
 ## License
 
 [GNU General Public License v3.0](https://github.com/RaulCalvoLaorden/wifi_db/blob/master/LICENSE)
->>>>>>> Stashed changes
