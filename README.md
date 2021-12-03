@@ -1,5 +1,5 @@
 # wifi_db
-Script to parse Aircrack-ng captures into a SQLite database.
+Script to parse Aircrack-ng captures into a SQLite database, get handshakes (in 22000 hashcat format) and extract MGT identities.
 
 ## Install
 
@@ -8,14 +8,6 @@ Script to parse Aircrack-ng captures into a SQLite database.
 ``` bash
 docker pull raulcalvolaorden/wifi_db
 ``` 
-
-### Build Docker
-
-``` bash
-git clone https://github.com/RaulCalvoLaorden/wifi_db
-
-docker build -t wifi_db .
-```
 
 ### Manual installation
 
@@ -101,8 +93,8 @@ The database can be open with:
   -h, --help            show this help message and exit
   -v, --verbose         increase output verbosity
   --debug               increase output verbosity to debug
-  -t LAT, --lat LAT     insert a fake lat into the entire database
-  -n LON, --lon LON     insert a fake lat into the entire database
+  -t LAT, --lat LAT     insert a fake lat in the new elements 
+  -n LON, --lon LON     insert a fake lon in the new elements 
   --source [{aircrack-ng,kismet,wigle}]
                         source from capture data (default: aircrack-ng) 
 ```
