@@ -24,13 +24,6 @@ jobs:
         
       - name: Checkout
         uses: actions/checkout@v2        
-  
-      - name: Sync
-        uses: ms-jpq/sync-dockerhub-readme@v1
-        with:
-          context: .
-          repository: ${{ secrets.DOCKERHUB_USERNAME }}/wifi_db
-          readme: "./README.md"
         
       - name: Build and push
         id: docker_build
