@@ -22,9 +22,9 @@ def main():
                         action="store_true")
 
     parser.add_argument("-t", "--lat", default='',
-                        help="insert a fake lat in all database")
+                        help="insert a fake lat in the new elements")
     parser.add_argument("-n", "--lon", default='',
-                        help="insert a fake lat in all database")
+                        help="insert a fake lon in the new elements")
 
     parser.add_argument('--source',
                         default='aircrack-ng',
