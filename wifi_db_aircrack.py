@@ -275,8 +275,7 @@ def parse_log_csv(ouiMap, name, database, verbose, fake_lat, fake_lon):
                                 lon = fake_lon
                             manuf = oui.get_vendor(ouiMap, row[3])
                             errors += database_utils.insertAP(
-                                cursor, verbose,  row[3], row[2], manuf, 0,
-                                0, '', '', 0, lon, lat)
+                                cursor, verbose,  row[3], row[2], manuf, 0, 0, '', '', 0, lat, lon)
 
                             # if row[6] != "0.000000":
                             errors += database_utils.insertSeenAP(
