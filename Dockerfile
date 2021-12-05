@@ -20,5 +20,5 @@ RUN git clone https://github.com/ZerBea/hcxtools.git ; cd hcxtools ; make ; make
 RUN mkdir /captures/
 
 #CMD ["/app/wifi_db.py"]
-ENTRYPOINT ["python3", "/app/wifi_db.py", "/captures/", "-d", "/db.SQLITE", "-H"]
+ENTRYPOINT ["python3", "/app/wifi_db.py", "/captures/", "-d", "/db.SQLITE"]
                                                                              

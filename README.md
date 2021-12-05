@@ -1,5 +1,5 @@
 # wifi_db
-Script to parse Aircrack-ng captures into a SQLite database.
+Script to parse Aircrack-ng captures into a SQLite database, get handshakes (in 22000 hashcat format) and extract MGT identities.
 
 ## Install
 
@@ -8,14 +8,6 @@ Script to parse Aircrack-ng captures into a SQLite database.
 ``` bash
 docker pull raulcalvolaorden/wifi_db
 ``` 
-
-### Build Docker
-
-``` bash
-git clone https://github.com/RaulCalvoLaorden/wifi_db
-
-docker build -t wifi_db .
-```
 
 ### Manual installation
 
@@ -67,7 +59,7 @@ CAPTURESFOLDER=/home/user/wifi
 # Output database
 touch db.SQLITE
 
-docker run -v $PWD/db.SQLITE:/db.SQLITE -v $CAPTURESFOLDER:/captures/ wifi_db -H
+docker run -v $PWD/db.SQLITE:/db.SQLITE -v $CAPTURESFOLDER:/captures/ raulcalvolaorden/wifi_db
 ```
 
 - '-v $PWD/db.SQLITE:/db.SQLITE': To save de output in current folder db.SQLITE file
@@ -79,13 +71,13 @@ docker run -v $PWD/db.SQLITE:/db.SQLITE -v $CAPTURESFOLDER:/captures/ wifi_db -H
 Once the capture is created, we can create the database by importing the capture. To do this, put the name of the capture without format.
 
 ``` bash
-python3 wifi_db.py scan-01 -H
+python3 wifi_db.py scan-01
 ```
 
 In the event that we have multiple captures we can load the folder in which they are directly. And with -d we can rename the output database.
 
 ``` bash
-python3 wifi_db.py -d database.sqlite scan-folder -H
+python3 wifi_db.py -d database.sqlite scan-folder
 ```
 
 ### Open database
@@ -101,9 +93,8 @@ The database can be open with:
   -h, --help            show this help message and exit
   -v, --verbose         increase output verbosity
   --debug               increase output verbosity to debug
-  -H, --hcxpcapngtool   Get hashcat hashes using hcxpcapngtool (has to be installed)
-  -t LAT, --lat LAT     insert a fake lat into the entire database
-  -n LON, --lon LON     insert a fake lat into the entire database
+  -t LAT, --lat LAT     insert a fake lat in the new elements 
+  -n LON, --lon LON     insert a fake lon in the new elements 
   --source [{aircrack-ng,kismet,wigle}]
                         source from capture data (default: aircrack-ng) 
 ```

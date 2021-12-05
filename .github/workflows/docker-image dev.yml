@@ -2,9 +2,7 @@ name: Docker Image CI
 
 on:
   push:
-    branches: [ master ]
-  pull_request:
-    branches: [ master ]
+    branches: [ dev ]
     
 jobs:
   docker:
@@ -30,7 +28,6 @@ jobs:
         uses: docker/build-push-action@v2
         with:
           context: .
-          platforms: linux/amd64,linux/arm64/linux/arm/v8
           push: true
-          tags: raulcalvolaorden/wifi_db:latest,raulcalvolaorden/wifi_db:main
+          tags: raulcalvolaorden/wifi_db:dev
           
