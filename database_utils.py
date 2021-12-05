@@ -32,11 +32,12 @@ def insertAP(cursor, verbose, bssid, essid, manuf, channel, freqmhz, carrier,
                 "ELSE channel END "
                 "WHERE bssid = '%s'" % (channel, bssid))
 
+
             # Write if empty
-            cursor.execute(
-                "UPDATE AP SET ssid = CASE WHEN ssid=='' THEN ('%s') "
-                "WHEN ssid IS NULL THEN ('%s') ELSE ssid END "
-                "WHERE bssid = '%s'" % (essid, essid, bssid))
+            sql = "UPDATE AP SET ssid = CASE WHEN ssid=='' THEN (?) WHEN ssid IS NULL THEN (?) ELSE ssid END WHERE bssid = (?)"
+            if verbose:
+                print(sql, (essid, essid, bssid ))
+            cursor.execute(sql, (essid, essid, bssid,))
 
             cursor.execute(
                 "UPDATE AP SET manuf = CASE WHEN manuf=='' THEN ('%s') "

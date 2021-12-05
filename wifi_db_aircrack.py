@@ -16,12 +16,13 @@ import platform
 def parse_netxml(ouiMap, name, database, verbose):
     '''Function to parse the .kismet.netxml files'''
 
-    exists = os.path.isfile(name+".kismet.netxml")
+    filename = name+".kismet.netxml"
+    exists = os.path.isfile(filename)
     errors = 0
     try:
         cursor = database.cursor()
         if exists:
-            with open(name+".kismet.netxml", 'r') as file:
+            with open(filename, 'r') as file:
                 filedata = file.read()
             # fix aircrack error, remove spaces &#x 0;
             filedata = re.sub(r'&#x[ ]+', '&#x', filedata)
@@ -240,7 +241,7 @@ def parse_csv(ouiMap, name, database, verbose):
         print("Error in .csv")
 
 
-def parse_log_csv(ouiMap, name, database, verbose):
+def parse_log_csv(ouiMap, name, database, verbose, fake_lat, fake_lon):
     ''' Parse .log.csv file from Aircrack-ng to the database '''
     exists = os.path.isfile(name+".log.csv")
     errors = 0
@@ -254,21 +255,32 @@ def parse_log_csv(ouiMap, name, database, verbose):
                         if len(row) > 10 and row[10] == "Client":
                             manuf = oui.get_vendor(ouiMap, row[3])
                             if row[6] != 0.0:
+                                lat = row[6]
+                                lon = row[7]
+                                if fake_lat != "":  #just write file in db
+                                    lat = fake_lat
+                                if fake_lon != "":
+                                    lon = fake_lon
                                 errors += database_utils.insertSeenClient(
                                     cursor, verbose, row[3], row[0],
-                                    'aircrack-ng', row[4], row[6],
-                                    row[7], '0.0')
+                                    'aircrack-ng', row[4], lat, lon,
+                                    '0.0')
 
                         if len(row) > 10 and row[10] == "AP":
+                            lat = row[6]
+                            lon = row[7]
+                            if fake_lat != "":  #just write file in db
+                                lat = fake_lat
+                            if fake_lon != "":
+                                lon = fake_lon
                             manuf = oui.get_vendor(ouiMap, row[3])
                             errors += database_utils.insertAP(
-                                cursor, verbose,  row[3], row[2], manuf, 0,
-                                0, '', '', 0, row[6], row[7])
+                                cursor, verbose,  row[3], row[2], manuf, 0, 0, '', '', 0, lat, lon)
 
                             # if row[6] != "0.000000":
                             errors += database_utils.insertSeenAP(
                                 cursor, verbose,  row[3], row[0],
-                                'aircrack-ng', row[4], row[6], row[7],
+                                'aircrack-ng', row[4], lat, lon,
                                 '0.0', 0)
 
             database.commit()
@@ -281,13 +293,15 @@ def parse_log_csv(ouiMap, name, database, verbose):
         print("Error in log")
 
 
-def parse_cap(name, database, verbose, hcxpcapngtool):
-    parse_handshakes(name, database, verbose)
-    parse_identities(name, database, verbose)
+def parse_cap(name, database, verbose, hcxpcapngtool, tshark):
+    if tshark:
+        parse_handshakes(name, database, verbose)
+        parse_identities(name, database, verbose)
     if hcxpcapngtool:
         exec_hcxpcapngtool(name, database, verbose)
 
 
+# Get handshakes from .cap
 def parse_handshakes(name, database, verbose):
     try:
         cursor = database.cursor()
@@ -332,6 +346,7 @@ def parse_handshakes(name, database, verbose):
         print("Error in parse cap: ", error)
 
 
+# Get Identities from MGT login
 def parse_identities(name, database, verbose):
     try:
         cursor = database.cursor()
@@ -358,8 +373,9 @@ def parse_identities(name, database, verbose):
         print("Error in parse cap: ", error)
 
 
+# Use hcxpcapngtool to get the 22000 hash to hashcat
 def exec_hcxpcapngtool(name, database, verbose):
-    #try:
+    try:
         #cmd = "where" if platform.system() == "Windows" else "which"
         #subprocess.call([cmd, "hcxpcapngtool"])
         cursor = database.cursor()
@@ -397,5 +413,7 @@ def exec_hcxpcapngtool(name, database, verbose):
                 errors += database_utils.set_hashcat(cursor, verbose,
                                                      ap, client, fileName, line)
         os.remove("test.22000")
-    #except Exception as error:
-    #    print("Error in parse cap hcxpcapngtool: ", error)
+        print(".cap hcxpcapngtool done, errors", errors)
+
+    except Exception as error:
+        print("Error in parse cap hcxpcapngtool: ", error)
