@@ -19,6 +19,11 @@ SELECT Handshake.bssid, AP.ssid, Handshake.mac, Client.manuf, Handshake.file, Ha
 FROM Handshake JOIN AP ON Handshake.bssid = AP.bssid  JOIN Client ON Handshake.mac = Client.mac
 ORDER BY Handshake.bssid;
 
+CREATE VIEW IF NOT EXISTS HandshakeAPUnique AS
+SELECT Handshake.bssid, AP.ssid, Handshake.mac, Client.manuf, Handshake.file, Handshake.hashcat
+FROM Handshake JOIN AP ON Handshake.bssid = AP.bssid  JOIN Client ON Handshake.mac = Client.mac
+GROUP BY AP.ssid ORDER BY Handshake.bssid;
+
 CREATE VIEW IF NOT EXISTS IdentityAP AS
 SELECT Identity.bssid, AP.ssid, Identity.mac, Client.manuf, Identity.identity
 FROM Identity JOIN AP ON Identity.bssid = AP.bssid  JOIN Client ON Identity.mac = Client.mac
