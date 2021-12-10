@@ -23,6 +23,7 @@ git clone https://github.com/ZerBea/hcxtools.git
 cd hcxtools
 make 
 sudo make install
+cd ..
 ```
 
 Installation
