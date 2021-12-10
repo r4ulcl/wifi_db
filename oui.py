@@ -54,7 +54,7 @@ def load_vendors():
                 else:
                     line_count += 1
                     oui[row[0].replace(':', '')] = row[1]
-            print(f'Processed {line_count} lines.')
+            #print(f'Processed {line_count} lines.')
         os.unlink(tmp.name)
 
     return oui
