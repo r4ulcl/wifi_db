@@ -296,6 +296,7 @@ def parse_log_csv(ouiMap, name, database, verbose, fake_lat, fake_lon):
 def parse_cap(name, database, verbose, hcxpcapngtool, tshark):
     if tshark:
         parse_handshakes(name, database, verbose)
+        parse_WPS(name, database, verbose)
         parse_identities(name, database, verbose)
     if hcxpcapngtool:
         exec_hcxpcapngtool(name, database, verbose)
@@ -346,6 +347,54 @@ def parse_handshakes(name, database, verbose):
         print("Error in parse cap: ", error)
 
 
+
+# Get handshakes from .cap
+def parse_WPS(name, database, verbose):
+    try:
+        cursor = database.cursor()
+        errors = 0
+        file = name+".cap"
+        cap = pyshark.FileCapture(file, display_filter="wps.wifi_protected_setup_state == 0x02")
+        #cap.set_debug()
+
+        for pkt in cap:
+            #print(dir(pkt['wlan.mgt'].wps_version))
+            bssid = pkt.wlan.sa
+            wlan_ssid=''
+            wps_device_name=''
+            wps_model_name=''
+            wps_model_number=''
+            wps_config_methods=''
+            wps_config_methods_keypad=''
+            wps_version='1.0'  #Default 1.0
+            try:
+                wlan_ssid=pkt['wlan.mgt'].wlan_ssid
+                if (pkt['wlan.mgt'].wps_ext_version2 == '0x20'):
+                    wps_version = '2.0'
+                wps_device_name=pkt['wlan.mgt'].wps_device_name
+                wps_model_name=pkt['wlan.mgt'].wps_model_name
+                wps_model_number=pkt['wlan.mgt'].wps_model_number
+                wps_config_methods=pkt['wlan.mgt'].wps_config_methods
+                wps_config_methods_keypad=pkt['wlan.mgt'].wps_config_methods_keypad
+
+
+            except Exception:
+                pass
+
+            if verbose:
+                print('==============================')
+                print(bssid)
+                print(wps_version)
+            database_utils.insertWPS(cursor, verbose, bssid, wlan_ssid, wps_version, wps_device_name, wps_model_name, wps_model_number, wps_config_methods, wps_config_methods_keypad)
+                
+        print(".cap WPS done, errors", errors)
+    except pyshark.capture.capture.TSharkCrashException as error:
+        print("Error in parse cap, probably PCAP cut in the "
+              "middle of a packet: ", error)
+    except Exception as error:
+        print("Error in parse cap: ", error)
+
+
 # Get Identities from MGT login
 def parse_identities(name, database, verbose):
     try:
@@ -384,7 +433,7 @@ def exec_hcxpcapngtool(name, database, verbose):
         # exec_hcxpcapngtool
         arguments = fileName + ' -o test.22000'
 
-        execution = subprocess.check_output("hcxpcapngtool " + arguments,
+        execution = subprocess.check_output("hcxpcapngtool --all " + arguments,
                                             shell=True)
         if verbose:
             print(execution)

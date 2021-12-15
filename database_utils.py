@@ -156,6 +156,22 @@ def insertProbe(cursor, verbose, bssid, essid, time):
             print("insertProbe Error " + str(error))
         return int(1)
 
+def insertWPS(cursor, verbose, bssid, wlan_ssid, wps_version, wps_device_name, wps_model_name, wps_model_number, wps_config_methods, wps_config_methods_keypad):
+    ''''''
+    try:
+        cursor.execute('''INSERT INTO WPS VALUES(?,?,?,?,?,?,?,?)''',
+                       (bssid, wlan_ssid, wps_version, wps_device_name, wps_model_name, wps_model_number, wps_config_methods, wps_config_methods_keypad))
+        return int(0)
+    except sqlite3.IntegrityError as error:
+        # errors += 1
+        if verbose:
+            print("insertWPS" + str(error))
+        return int(0)
+    except sqlite3.Error as error:
+        if verbose:
+            print("insertWPS Error " + str(error))
+        return int(1)
+
 
 def insertConnected(cursor, verbose, bssid, mac):
     ''''''
