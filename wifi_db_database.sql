@@ -48,6 +48,20 @@ CREATE TABLE IF NOT EXISTS Connected
     CONSTRAINT Relationship3 FOREIGN KEY (mac) REFERENCES Client (mac)
 );
 
+CREATE TABLE IF NOT EXISTS WPS
+(
+    bssid TEXT NOT NULL,
+    wlan_ssid TEXT NOT NULL,
+    wps_version TEXT NOT NULL,
+    wps_device_name TEXT NOT NULL,
+    wps_model_name TEXT NOT NULL,
+    wps_model_number TEXT NOT NULL,
+    wps_config_methods TEXT NOT NULL,
+    wps_config_methods_keypad TEXT NOT NULL,
+    CONSTRAINT KeyWPS PRIMARY KEY (bssid),
+    CONSTRAINT RelationshipWPS FOREIGN KEY (bssid) REFERENCES AP (bssid)
+);
+
 
 CREATE TABLE IF NOT EXISTS SeenAp
 (
