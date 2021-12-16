@@ -369,7 +369,7 @@ def parse_WPS(name, database, verbose):
             wps_version='1.0'  #Default 1.0
             try:
                 wlan_ssid=pkt['wlan.mgt'].wlan_ssid
-                if (pkt['wlan.mgt'].wps_ext_version2 == '0x20'):
+                if ('20' in pkt['wlan.mgt'].wps_ext_version2):
                     wps_version = '2.0'
                 wps_device_name=pkt['wlan.mgt'].wps_device_name
                 wps_model_name=pkt['wlan.mgt'].wps_model_name
@@ -385,6 +385,7 @@ def parse_WPS(name, database, verbose):
                 print('==============================')
                 print(bssid)
                 print(wps_version)
+                print(pkt['wlan.mgt'].wps_ext_version2)
             database_utils.insertWPS(cursor, verbose, bssid, wlan_ssid, wps_version, wps_device_name, wps_model_name, wps_model_number, wps_config_methods, wps_config_methods_keypad)
                 
         print(".cap WPS done, errors", errors)
