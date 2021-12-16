@@ -104,7 +104,10 @@ def main():
                         if 'kismet.netxml' in file:
                             files.append(os.path.join(r, file))
 
+                counter = 0
                 for f in files:
+                    counter += 1
+                    print("File: " + str(counter) + " of " + str(len(files)))
                     base = os.path.basename(f)
                     name = os.path.splitext(os.path.splitext(base)[0])[0]
                     capture_aux = dir_capture+"/"+name
