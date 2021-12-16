@@ -371,15 +371,29 @@ def parse_WPS(name, database, verbose):
                 wlan_ssid=pkt['wlan.mgt'].wlan_ssid
                 if ('20' in pkt['wlan.mgt'].wps_ext_version2):
                     wps_version = '2.0'
-                wps_device_name=pkt['wlan.mgt'].wps_device_name
-                wps_model_name=pkt['wlan.mgt'].wps_model_name
-                wps_model_number=pkt['wlan.mgt'].wps_model_number
-                wps_config_methods=pkt['wlan.mgt'].wps_config_methods
-                wps_config_methods_keypad=pkt['wlan.mgt'].wps_config_methods_keypad
-
-
             except Exception:
-                pass
+                errors+=1
+            try:
+                wps_device_name=pkt['wlan.mgt'].wps_device_name
+            except Exception:
+                errors+=1
+            try:
+                wps_model_name=pkt['wlan.mgt'].wps_model_name
+            except Exception:
+                errors+=1
+            try:
+                wps_model_number=pkt['wlan.mgt'].wps_model_number
+            except Exception:
+                errors+=1
+            try:
+                wps_config_methods=pkt['wlan.mgt'].wps_config_methods
+            except Exception:
+                errors+=1
+            try:
+                wps_config_methods_keypad=pkt['wlan.mgt'].wps_config_methods_keypad
+            except Exception:
+                errors+=1
+
 
             if verbose:
                 print('==============================')
