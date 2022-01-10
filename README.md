@@ -60,7 +60,7 @@ CAPTURESFOLDER=/home/user/wifi
 # Output database
 touch db.SQLITE
 
-docker run -v $PWD/db.SQLITE:/db.SQLITE -v $CAPTURESFOLDER:/captures/ raulcalvolaorden/wifi_db
+docker run -t -v $PWD/db.SQLITE:/db.SQLITE -v $CAPTURESFOLDER:/captures/ raulcalvolaorden/wifi_db
 ```
 
 - '-v $PWD/db.SQLITE:/db.SQLITE': To save de output in current folder db.SQLITE file
