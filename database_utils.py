@@ -3,12 +3,15 @@
 # -*- coding: utf-8 -*-
 import sqlite3
 import os
+import random
+import string
 
 
 def connect_database(name, verbose):
     '''Function to connect to the database'''
     database = sqlite3.connect(name)
     database.text_factory = str
+    database.execute("PRAGMA foreign_keys = 1")
     if verbose:
         print("DB connected OK")
     return database
@@ -32,11 +35,11 @@ def insertAP(cursor, verbose, bssid, essid, manuf, channel, freqmhz, carrier,
                 "ELSE channel END "
                 "WHERE bssid = '%s'" % (channel, bssid))
 
-
             # Write if empty
-            sql = "UPDATE AP SET ssid = CASE WHEN ssid=='' THEN (?) WHEN ssid IS NULL THEN (?) ELSE ssid END WHERE bssid = (?)"
+            sql = """UPDATE AP SET ssid = CASE WHEN ssid=='' THEN (?) WHEN ssid
+                     IS NULL THEN (?) ELSE ssid END WHERE bssid = (?)"""
             if verbose:
-                print(sql, (essid, essid, bssid ))
+                print(sql, (essid, essid, bssid))
             cursor.execute(sql, (essid, essid, bssid,))
 
             cursor.execute(
@@ -156,11 +159,16 @@ def insertProbe(cursor, verbose, bssid, essid, time):
             print("insertProbe Error " + str(error))
         return int(1)
 
-def insertWPS(cursor, verbose, bssid, wlan_ssid, wps_version, wps_device_name, wps_model_name, wps_model_number, wps_config_methods, wps_config_methods_keypad):
+
+def insertWPS(cursor, verbose, bssid, wlan_ssid, wps_version, wps_device_name,
+              wps_model_name, wps_model_number, wps_config_methods,
+              wps_config_methods_keypad):
     ''''''
     try:
         cursor.execute('''INSERT INTO WPS VALUES(?,?,?,?,?,?,?,?)''',
-                       (bssid, wlan_ssid, wps_version, wps_device_name, wps_model_name, wps_model_number, wps_config_methods, wps_config_methods_keypad))
+                       (bssid, wlan_ssid, wps_version, wps_device_name,
+                        wps_model_name, wps_model_number, wps_config_methods,
+                        wps_config_methods_keypad))
         return int(0)
     except sqlite3.IntegrityError as error:
         # errors += 1
@@ -345,6 +353,54 @@ def fake_lon(database, lon):
         database.commit()
     except sqlite3.IntegrityError as error:
         print("fake_lon" + str(error))
+
+
+# obfuscated the database AA:BB:CC:XX:XX:XX-DEFG
+def obfuscatedDB(database):
+    # APs!
+    try:
+        # Get all APs
+        cursor = database.cursor()
+        sql = "SELECT bssid from AP; "
+        cursor.execute(sql)
+
+        output = cursor.fetchall()
+        for row in output:
+            # Replace all APs bssid (add random letter to avoid duplicates)
+            letter = string.ascii_lowercase
+            aux = ''.join(random.choice(letter) for _ in range(8))
+            new = (row[0][0:9] + ('XX:XX:XX') + '-' + aux)
+            # print (new)
+
+            cursor.execute('''UPDATE AP set bssid = ? where bssid = ?''',
+                           (new, row[0]))
+            database.commit()
+
+        database.commit()
+    except sqlite3.IntegrityError as error:
+        print("obfuscatedDB" + str(error))
+
+    # Clients!
+    try:
+        # Get all APs
+        cursor = database.cursor()
+        sql = "SELECT mac from Client; "
+        cursor.execute(sql)
+
+        output = cursor.fetchall()
+        for row in output:
+            # Replace all APs bssid (add random letter to avoid duplicates)
+            letter = string.ascii_lowercase
+            aux = ''.join(random.choice(letter) for _ in range(8))
+            new = (row[0][0:9] + ('XX:XX:XX') + '-' + aux)
+
+            cursor.execute('''UPDATE Client set mac = ? where mac = ?''',
+                           (new, row[0]))
+            database.commit()
+
+        database.commit()
+    except sqlite3.IntegrityError as error:
+        print("obfuscatedDB" + str(error))
 
 
 # exists = '11:22:33:44:55:77' in whitelist
