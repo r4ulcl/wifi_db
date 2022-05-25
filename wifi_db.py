@@ -21,6 +21,9 @@ def main():
     parser.add_argument("--debug", help="increase output verbosity to debug",
                         action="store_true")
 
+    parser.add_argument("-o", "--obfuscated", help="Obfuscate MAC and BSSID with AA:BB:CC:XX:XX:XX-defghi (WARNING: replace all database)",
+                        action="store_true")
+
     parser.add_argument("-t", "--lat", default='',
                         help="insert a fake lat in the new elements")
     parser.add_argument("-n", "--lon", default='',
@@ -45,6 +48,7 @@ def main():
     # vars
     verbose = args.verbose
     debug = args.debug
+    obfuscated = args.obfuscated
 
     try:
         cmd = "where" if platform.system() == "Windows" else "which"
@@ -168,6 +172,12 @@ def main():
     script_path = os.path.dirname(os.path.abspath(__file__))
     database_utils.clear_whitelist(
         database, script_path+'/whitelist.txt')
+
+    # if obfuscated
+    if obfuscated:
+        print("-o is enable, so obfuscate. This may take a while")
+        database_utils.obfuscatedDB(
+        database)
 
 
 if __name__ == "__main__":
