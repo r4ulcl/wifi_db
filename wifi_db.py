@@ -21,7 +21,9 @@ def main():
     parser.add_argument("--debug", help="increase output verbosity to debug",
                         action="store_true")
 
-    parser.add_argument("-o", "--obfuscated", help="Obfuscate MAC and BSSID with AA:BB:CC:XX:XX:XX-defghi (WARNING: replace all database)",
+    parser.add_argument("-o", "--obfuscated", help="""Obfuscate MAC and BSSID
+                         with AA:BB:CC:XX:XX:XX-defghi
+                         (WARNING: replace all database)""",
                         action="store_true")
 
     parser.add_argument("-t", "--lat", default='',
@@ -39,7 +41,7 @@ def main():
                         help="output database, if exist append to the given"
                         " database (default name: %(default)s)")
 
-    parser.add_argument("capture", type=str,nargs='+',
+    parser.add_argument("capture", type=str, nargs='+',
                         help="capture file (.csv, .kismet.csv, "
                         ".kismet.netxml, .log.csv), \
                         if no extension add all")
@@ -117,15 +119,16 @@ def main():
                     capture_aux = dir_capture+"/"+name
                     print("\n" + capture_aux)
                     wifi_db_aircrack.parse_netxml(ouiMap, capture_aux,
-                                                database, verbose)
+                                                  database, verbose)
                     wifi_db_aircrack.parse_kismet_csv(ouiMap, capture_aux,
-                                                    database, verbose)
+                                                      database, verbose)
                     wifi_db_aircrack.parse_csv(ouiMap, capture_aux,
-                                            database, verbose)
+                                               database, verbose)
                     wifi_db_aircrack.parse_log_csv(ouiMap, capture_aux,
-                                                database, verbose, fake_lat, fake_lon)
+                                                   database, verbose, fake_lat,
+                                                   fake_lon)
                     wifi_db_aircrack.parse_cap(capture_aux, database, verbose,
-                                            hcxpcapngtool, tshark)
+                                               hcxpcapngtool, tshark)
 
             else:  # file
                 if ".cap" in capture:
@@ -133,33 +136,35 @@ def main():
                     wifi_db_aircrack.parse_cap(capture, database, verbose,
                                                hcxpcapngtool, tshark)
                 elif ".kismet.netxml" in capture:
-                    capture = capture.replace(".kismet.netxml", "")  # remove format
+                    capture = capture.replace(".kismet.netxml", "")
                     wifi_db_aircrack.parse_netxml(ouiMap, capture,
-                                                database, verbose)
+                                                  database, verbose)
                 elif ".kismet.csv" in capture:
-                    capture = capture.replace(".kismet.csv", "")  # remove format
+                    capture = capture.replace(".kismet.csv", "")
                     wifi_db_aircrack.parse_kismet_csv(ouiMap, capture,
-                                                    database, verbose)
+                                                      database, verbose)
                 elif ".log.csv" in capture:
                     capture = capture.replace(".log.csv", "")  # remove format
                     wifi_db_aircrack.parse_log_csv(ouiMap, capture,
-                                                database, verbose, fake_lat, fake_lon)
+                                                   database, verbose, fake_lat,
+                                                   fake_lon)
                 elif ".csv" in capture:
                     capture = capture.replace(".csv", "")  # remove format
                     wifi_db_aircrack.parse_csv(ouiMap, capture,
-                                            database, verbose)
+                                               database, verbose)
                 else:
                     print("Not format found!")
                     wifi_db_aircrack.parse_netxml(ouiMap, capture,
-                                                database, verbose)
+                                                  database, verbose)
                     wifi_db_aircrack.parse_kismet_csv(ouiMap, capture,
-                                                    database, verbose)
+                                                      database, verbose)
                     wifi_db_aircrack.parse_csv(ouiMap, capture,
-                                            database, verbose)
+                                               database, verbose)
                     wifi_db_aircrack.parse_log_csv(ouiMap, capture,
-                                                database, verbose, fake_lat, fake_lon)
+                                                   database, verbose, fake_lat,
+                                                   fake_lon)
                     wifi_db_aircrack.parse_cap(capture, database, verbose,
-                                            hcxpcapngtool, tshark)
+                                               hcxpcapngtool, tshark)
 
         elif source == "kismet":
             print("Parsing Kismet capture")
@@ -176,8 +181,7 @@ def main():
     # if obfuscated
     if obfuscated:
         print("-o is enable, so obfuscate. This may take a while")
-        database_utils.obfuscatedDB(
-        database)
+        database_utils.obfuscatedDB(database)
 
 
 if __name__ == "__main__":
