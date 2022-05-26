@@ -10,7 +10,6 @@ import ftfy
 import database_utils
 import pyshark
 import subprocess
-import platform
 
 
 def parse_netxml(ouiMap, name, database, verbose):
@@ -257,7 +256,7 @@ def parse_log_csv(ouiMap, name, database, verbose, fake_lat, fake_lon):
                             if row[6] != 0.0:
                                 lat = row[6]
                                 lon = row[7]
-                                if fake_lat != "":  #just write file in db
+                                if fake_lat != "":  # just write file in db
                                     lat = fake_lat
                                 if fake_lon != "":
                                     lon = fake_lon
@@ -269,13 +268,14 @@ def parse_log_csv(ouiMap, name, database, verbose, fake_lat, fake_lon):
                         if len(row) > 10 and row[10] == "AP":
                             lat = row[6]
                             lon = row[7]
-                            if fake_lat != "":  #just write file in db
+                            if fake_lat != "":
                                 lat = fake_lat
                             if fake_lon != "":
                                 lon = fake_lon
                             manuf = oui.get_vendor(ouiMap, row[3])
                             errors += database_utils.insertAP(
-                                cursor, verbose,  row[3], row[2], manuf, 0, 0, '', '', 0, lat, lon)
+                                      cursor, verbose,  row[3], row[2],
+                                      manuf, 0, 0, '', '', 0, lat, lon)
 
                             # if row[6] != "0.000000":
                             errors += database_utils.insertSeenAP(
@@ -347,61 +347,65 @@ def parse_handshakes(name, database, verbose):
         print("Error in parse cap: ", error)
 
 
-
 # Get handshakes from .cap
 def parse_WPS(name, database, verbose):
     try:
         cursor = database.cursor()
         errors = 0
         file = name+".cap"
-        cap = pyshark.FileCapture(file, display_filter="wps.wifi_protected_setup_state == 0x02")
-        #cap.set_debug()
+        display_filter = "wps.wifi_protected_setup_state == 0x02"
+        cap = pyshark.FileCapture(file, display_filter)
+        # cap.set_debug()
 
         for pkt in cap:
-            #print(dir(pkt['wlan.mgt'].wps_version))
+            # print(dir(pkt['wlan.mgt'].wps_version))
             bssid = pkt.wlan.sa
-            wlan_ssid=''
-            wps_device_name=''
-            wps_model_name=''
-            wps_model_number=''
-            wps_config_methods=''
-            wps_config_methods_keypad=''
-            wps_version='1.0'  #Default 1.0
+            wlan_ssid = ''
+            wps_device_name = ''
+            wps_model_name = ''
+            wps_model_number = ''
+            wps_config_methods = ''
+            wps_config_methods_keypad = ''
+            wps_version = '1.0'  # Default 1.0
+            wmgt = 'wlan.mgt'
             try:
-                wlan_ssid=pkt['wlan.mgt'].wlan_ssid
-                if ('20' in pkt['wlan.mgt'].wps_ext_version2):
+                wlan_ssid = pkt[wmgt].wlan_ssid
+                if ('20' in pkt[wmgt].wps_ext_version2):
                     wps_version = '2.0'
             except Exception:
-                errors+=1
+                errors += 1
             try:
-                wps_device_name=pkt['wlan.mgt'].wps_device_name
+                wps_device_name = pkt[wmgt].wps_device_name
             except Exception:
-                errors+=1
+                errors += 1
             try:
-                wps_model_name=pkt['wlan.mgt'].wps_model_name
+                wps_model_name = pkt[wmgt].wps_model_name
             except Exception:
-                errors+=1
+                errors += 1
             try:
-                wps_model_number=pkt['wlan.mgt'].wps_model_number
+                wps_model_number = pkt[wmgt].wps_model_number
             except Exception:
-                errors+=1
+                errors += 1
             try:
-                wps_config_methods=pkt['wlan.mgt'].wps_config_methods
+                wps_config_methods = pkt[wmgt].wps_config_methods
             except Exception:
-                errors+=1
+                errors += 1
             try:
-                wps_config_methods_keypad=pkt['wlan.mgt'].wps_config_methods_keypad
+                wps_config_methods_keypad = pkt[wmgt].wps_config_methods_keypad
             except Exception:
-                errors+=1
-
+                errors += 1
 
             if verbose:
                 print('==============================')
                 print(bssid)
                 print(wps_version)
-                print(pkt['wlan.mgt'].wps_ext_version2)
-            database_utils.insertWPS(cursor, verbose, bssid, wlan_ssid, wps_version, wps_device_name, wps_model_name, wps_model_number, wps_config_methods, wps_config_methods_keypad)
-                
+                print(pkt[wmgt].wps_ext_version2)
+            database_utils.insertWPS(cursor, verbose, bssid, wlan_ssid,
+                                     wps_version, wps_device_name,
+                                     wps_model_name, wps_model_number,
+                                     wps_config_methods,
+                                     wps_config_methods_keypad)
+
         print(".cap WPS done, errors", errors)
     except pyshark.capture.capture.TSharkCrashException as error:
         print("Error in parse cap, probably PCAP cut in the "
@@ -440,8 +444,8 @@ def parse_identities(name, database, verbose):
 # Use hcxpcapngtool to get the 22000 hash to hashcat
 def exec_hcxpcapngtool(name, database, verbose):
     try:
-        #cmd = "where" if platform.system() == "Windows" else "which"
-        #subprocess.call([cmd, "hcxpcapngtool"])
+        # cmd = "where" if platform.system() == "Windows" else "which"
+        # subprocess.call([cmd, "hcxpcapngtool"])
         cursor = database.cursor()
         errors = 0
         fileName = name + ".cap"
@@ -456,7 +460,7 @@ def exec_hcxpcapngtool(name, database, verbose):
         # Read output (fileName) each line
         file_exists = os.path.exists('test.22000')
         if not file_exists:
-            return  
+            return
         with open('test.22000') as f:
             lines = f.readlines()
             for line in lines:
@@ -475,7 +479,8 @@ def exec_hcxpcapngtool(name, database, verbose):
                 # Update handshake
 
                 errors += database_utils.set_hashcat(cursor, verbose,
-                                                     ap, client, fileName, line)
+                                                     ap, client, fileName,
+                                                     line)
         os.remove("test.22000")
         print(".cap hcxpcapngtool done, errors", errors)
 
