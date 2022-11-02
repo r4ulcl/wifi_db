@@ -10,6 +10,7 @@ import ftfy
 import database_utils
 import pyshark
 import subprocess
+import platform
 
 
 def parse_netxml(ouiMap, name, database, verbose):
@@ -70,6 +71,14 @@ def parse_netxml(ouiMap, name, database, verbose):
                     else:
                         essid = ""
 
+                    cloakedtxt = wireless.find("SSID").find("essid").attrib['cloaked']
+                    # print("cloaked: " + cloakedtxt)
+                    if cloakedtxt == "true":
+                        cloaked = 1  # ftfy.fix_text(cloaked)
+                        # print(essid)
+                    else:
+                        cloaked = 0
+
                     bssid = wireless.find("BSSID").text
                     # manuf = wireless.find("manuf").text
                     channel = wireless.find("channel").text
@@ -100,7 +109,8 @@ def parse_netxml(ouiMap, name, database, verbose):
 
                     errors += database_utils.insertAP(
                         cursor, verbose, bssid, essid, manuf, channel,
-                        freqmhz, carrier, encryption, packets_total, lat, lon)
+                        freqmhz, carrier, encryption, packets_total, lat, lon,
+                        cloaked)
 
                     # client
                     clients = wireless.findall("wireless-client")
@@ -154,11 +164,11 @@ def parse_kismet_csv(ouiMap, name, database, verbose):
                             packets_total = row[16]
                             lat = row[32]
                             lon = row[33]
-
+                            cloaked = False
                             errors += database_utils.insertAP(
                                 cursor, verbose, bssid, essid, manuf, channel,
                                 freqmhz, carrier, encryption, packets_total,
-                                lat, lon)
+                                lat, lon, cloaked)
                             # manuf y carrier implementar
                         except Exception as error:
                             if verbose:
@@ -199,11 +209,12 @@ def parse_csv(ouiMap, name, database, verbose):
                             carrier = ""
                             encrypt = row[5] + row[6] + row[7]
                             packets_total = row[10]
+                            cloaked = False
 
                             errors += database_utils.insertAP(
                                 cursor, verbose,  bssid, essid[1:], manuf,
                                 channel, freq, carrier, encrypt,
-                                packets_total, 0, 0)
+                                packets_total, 0, 0, cloaked)
 
                         if row and row[0] == "Station MAC":
                             client = True
@@ -273,9 +284,11 @@ def parse_log_csv(ouiMap, name, database, verbose, fake_lat, fake_lon):
                             if fake_lon != "":
                                 lon = fake_lon
                             manuf = oui.get_vendor(ouiMap, row[3])
+                            cloaked = False
                             errors += database_utils.insertAP(
                                       cursor, verbose,  row[3], row[2],
-                                      manuf, 0, 0, '', '', 0, lat, lon)
+                                      manuf, 0, 0, '', '', 0, lat, lon,
+                                      cloaked)
 
                             # if row[6] != "0.000000":
                             errors += database_utils.insertSeenAP(
