@@ -18,12 +18,12 @@ def connect_database(name, verbose):
 
 
 def insertAP(cursor, verbose, bssid, essid, manuf, channel, freqmhz, carrier,
-             encryption, packets_total, lat, lon):
+             encryption, packets_total, lat, lon, cloaked):
     ''''''
     try:
-        cursor.execute('''INSERT INTO AP VALUES(?,?,?,?,?,?,?,?,?,?) ''',
+        cursor.execute('''INSERT INTO AP VALUES(?,?,?,?,?,?,?,?,?,?,?) ''',
                        (bssid, essid, manuf, channel, freqmhz, carrier,
-                        encryption, packets_total, lat, lon))
+                        encryption, packets_total, lat, lon, cloaked))
         return int(0)
     except sqlite3.IntegrityError as error:
         # errors += 1
@@ -79,6 +79,11 @@ def insertAP(cursor, verbose, bssid, essid, manuf, channel, freqmhz, carrier,
                 "ELSE lon_t END "
                 "WHERE bssid = '%s'" % (lat, lon, bssid))
 
+            cursor.execute(
+                "UPDATE AP SET cloaked = CASE WHEN cloaked == False THEN ('%s')"
+                "ELSE cloaked END "
+                "WHERE bssid = '%s'"
+                % (cloaked, bssid))
             return int(0)
         except sqlite3.IntegrityError as error:
 

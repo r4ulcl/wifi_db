@@ -2,6 +2,7 @@ CREATE TABLE IF NOT EXISTS AP
 (
     bssid TEXT NOT NULL,
     ssid TEXT,
+    cloaked BOOLEAN,
     manuf TEXT,
     channel int,
     frequency int,
