@@ -22,8 +22,8 @@ def insertAP(cursor, verbose, bssid, essid, manuf, channel, freqmhz, carrier,
     ''''''
     try:
         cursor.execute('''INSERT INTO AP VALUES(?,?,?,?,?,?,?,?,?,?,?) ''',
-                       (bssid, essid, manuf, channel, freqmhz, carrier,
-                        encryption, packets_total, lat, lon, cloaked))
+                       (bssid, essid, cloaked, manuf, channel, freqmhz, carrier,
+                        encryption, packets_total, lat, lon))
         return int(0)
     except sqlite3.IntegrityError as error:
         # errors += 1
