@@ -134,8 +134,10 @@ def parse_netxml(ouiMap, name, database, verbose):
         else:
             print(".kismet.netxml missing")
     except Exception as error:
+        errors += 1
         print("parse_netxml " + str(error))
         print("Error in kismet.netxml")
+        print(".kismet.netxml OK, errors", errors)
 
 
 def parse_kismet_csv(ouiMap, name, database, verbose):
@@ -180,8 +182,10 @@ def parse_kismet_csv(ouiMap, name, database, verbose):
         else:
             print(".kismet.csv missing")
     except Exception as error:
+        errors += 1
         print("parse_kismet_csv " + str(error))
         print("Error in kismet.csv")
+        print(".kismet.csv OK, errors", errors)
 
 
 def parse_csv(ouiMap, name, database, verbose):
@@ -247,8 +251,10 @@ def parse_csv(ouiMap, name, database, verbose):
         else:
             print(".csv missing")
     except Exception as error:
+        errors += 1
         print("parse_csv " + str(error))
         print("Error in .csv")
+        print(".csv OK, errors", errors)
 
 
 def parse_log_csv(ouiMap, name, database, verbose, fake_lat, fake_lon):
@@ -304,6 +310,7 @@ def parse_log_csv(ouiMap, name, database, verbose, fake_lat, fake_lon):
         errors += 1
         print("parse_log_csv " + str(error))
         print("Error in log")
+        print(".log.csv done, errors", errors)
 
 
 def parse_cap(name, database, verbose, hcxpcapngtool, tshark):
@@ -328,36 +335,42 @@ def parse_handshakes(name, database, verbose):
         prevFlag = ""
 
         for pkt in cap:
-            if verbose:
-                print(pkt.eapol.field_names)
-                print(pkt.eapol.type)
-            if pkt.eapol.type == '3':  # EAPOL = 3
-                src = pkt.wlan.ta
-                dst = pkt.wlan.da
-                flag = pkt.eapol.wlan_rsna_keydes_key_info
-                # print(flag)
-                # IF is the second and the prev is the first one add handshake
-                if flag.find('10a') != -1:
-                    # print('handhsake 2 of 4')
-                    if (prevFlag.find('08a') and
-                       dst == prevSrc and src == prevDst):  # first
-                        if verbose:
-                            print("Valid handshake from client " + prevSrc +
-                                  " to AP " + prevDst)
-                        errors += database_utils.insertHandshake(cursor,
-                                                                 verbose, dst,
-                                                                 src, file)
-                else:
-                    prevSrc = src
-                    prevDst = dst
-                    prevFlag = flag
+            try:
+                if verbose:
+                    print(pkt.eapol.field_names)
+                    print(pkt.eapol.type)
+                if pkt.eapol.type == '3':  # EAPOL = 3    
+                    src = pkt.wlan.ta
+                    dst = pkt.wlan.da
+                    flag = pkt.eapol.wlan_rsna_keydes_key_info
+                    # print(flag)
+                    # IF is the second and the prev is the first one add handshake
+                    if flag.find('10a') != -1:
+                        # print('handhsake 2 of 4')
+                        if (prevFlag.find('08a') and
+                        dst == prevSrc and src == prevDst):  # first
+                            if verbose:
+                                print("Valid handshake from client " + prevSrc +
+                                    " to AP " + prevDst)
+                            errors += database_utils.insertHandshake(cursor,
+                                                                    verbose, dst,
+                                                                    src, file)
+                    else:
+                        prevSrc = src
+                        prevDst = dst
+                        prevFlag = flag
+            except:
+                errors += 1
         database.commit()
         print(".cap Handshake done, errors", errors)
     except pyshark.capture.capture.TSharkCrashException as error:
-        print("Error in parse cap, probably PCAP cut in the "
+        errors += 1
+        print("Error in parse_handshakes (CAP), probably PCAP cut in the "
               "middle of a packet: ", error)
     except Exception as error:
-        print("Error in parse cap: ", error)
+        errors += 1
+        print("Error in parse_handshakes (CAP): ", error)
+        print(".cap Handshake done, errors", errors)
 
 
 # Get handshakes from .cap
@@ -366,13 +379,12 @@ def parse_WPS(name, database, verbose):
         cursor = database.cursor()
         errors = 0
         file = name+".cap"
-        display_filter = "wps.wifi_protected_setup_state == 0x02"
-        cap = pyshark.FileCapture(file, display_filter)
+        cap = pyshark.FileCapture(file, display_filter="wps.wifi_protected_setup_state == 0x02 and wlan.da == ff:ff:ff:ff:ff:ff")
         # cap.set_debug()
 
         for pkt in cap:
             # print(dir(pkt['wlan.mgt'].wps_version))
-            bssid = pkt.wlan.sa
+            bssid = ''
             wlan_ssid = ''
             wps_device_name = ''
             wps_model_name = ''
@@ -381,6 +393,10 @@ def parse_WPS(name, database, verbose):
             wps_config_methods_keypad = ''
             wps_version = '1.0'  # Default 1.0
             wmgt = 'wlan.mgt'
+            try:
+                bssid = pkt.wlan.sa
+            except Exception:
+                errors += 1
             try:
                 wlan_ssid = pkt[wmgt].wlan_ssid
                 if ('20' in pkt[wmgt].wps_ext_version2):
@@ -408,11 +424,15 @@ def parse_WPS(name, database, verbose):
             except Exception:
                 errors += 1
 
-            if verbose:
-                print('==============================')
-                print(bssid)
-                print(wps_version)
-                print(pkt[wmgt].wps_ext_version2)
+            try:
+                if verbose:
+                    print('==============================')
+                    print(bssid)
+                    print(wps_version)
+                    print(pkt[wmgt].wps_ext_version2)
+            except Exception:
+                errors += 1
+
             database_utils.insertWPS(cursor, verbose, bssid, wlan_ssid,
                                      wps_version, wps_device_name,
                                      wps_model_name, wps_model_number,
@@ -421,10 +441,14 @@ def parse_WPS(name, database, verbose):
 
         print(".cap WPS done, errors", errors)
     except pyshark.capture.capture.TSharkCrashException as error:
-        print("Error in parse cap, probably PCAP cut in the "
+        errors += 1
+        print("Error in parse_WPS (CAP), probably PCAP cut in the "
               "middle of a packet: ", error)
-    except Exception as error:
-        print("Error in parse cap: ", error)
+        print(".cap WPS done, errors", errors)
+    except Exception:
+        errors += 1
+        print("Critical error in parse_WPS (CAP)")
+        print(".cap WPS done, errors", errors)
 
 
 # Get Identities from MGT login
@@ -441,17 +465,22 @@ def parse_identities(name, database, verbose):
             # print(pkt)
             if pkt.eap.code == '2':
                 if pkt.eap.type == '1':  # EAP = 1
-                    dst = pkt.wlan.da
-                    src = pkt.wlan.sa
-                    identity = pkt.eap.identity
-                    if verbose:
-                        print('output ' + dst + src + identity)
-                    errors += database_utils.insertIdentity(cursor, verbose,
-                                                            dst, src, identity)
+                    try:
+                        dst = pkt.wlan.da
+                        src = pkt.wlan.sa
+                        identity = pkt.eap.identity
+                        if verbose:
+                            print('output ' + dst + src + identity)
+                        errors += database_utils.insertIdentity(cursor, verbose,
+                                                                dst, src, identity)
+                    except:
+                        errors += 1
         database.commit()
         print(".cap Identity done, errors", errors)
     except Exception as error:
-        print("Error in parse cap: ", error)
+        errors += 1
+        print("Error in parse_identities (CAP): ", error)
+        print(".cap Identity done, errors", errors)
 
 
 # Use hcxpcapngtool to get the 22000 hash to hashcat
@@ -498,4 +527,6 @@ def exec_hcxpcapngtool(name, database, verbose):
         print(".cap hcxpcapngtool done, errors", errors)
 
     except Exception as error:
-        print("Error in parse cap hcxpcapngtool: ", error)
+        errors += 1
+        print("Error in exec_hcxpcapngtool (CAP): ", error)
+        print(".cap hcxpcapngtool done, errors", errors)
