@@ -150,6 +150,10 @@ TODO
 
 - [ ] Table files, if file exists skip (full path)
 
+- [ ] Get HTTP POST passwords 
+
+- [ ] DNS querys
+
 ---------
 
 This program is a continuation of a part of: https://github.com/T1GR3S/airo-heat

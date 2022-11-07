@@ -176,9 +176,10 @@ def insertWPS(cursor, verbose, bssid, wlan_ssid, wps_version, wps_device_name,
                         wps_config_methods_keypad))
         return int(0)
     except sqlite3.IntegrityError as error:
+        # TODO: Update info if there is more, like AP
         # errors += 1
         if verbose:
-            print("insertWPS" + str(error))
+            print("insertWPS " + str(error))
         return int(0)
     except sqlite3.Error as error:
         if verbose:
