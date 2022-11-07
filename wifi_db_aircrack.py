@@ -395,6 +395,7 @@ def parse_WPS(name, database, verbose):
             wmgt = 'wlan.mgt'
             try:
                 bssid = pkt.wlan.sa
+                bssid = bssid.upper()
             except Exception:
                 errors += 1
             try:
@@ -433,7 +434,7 @@ def parse_WPS(name, database, verbose):
             except Exception:
                 errors += 1
 
-            database_utils.insertWPS(cursor, verbose, bssid, wlan_ssid,
+            errors += database_utils.insertWPS(cursor, verbose, bssid, wlan_ssid,
                                      wps_version, wps_device_name,
                                      wps_model_name, wps_model_number,
                                      wps_config_methods,

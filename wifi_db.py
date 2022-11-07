@@ -118,8 +118,8 @@ def main():
                        or ('kismet.netxml' in file)
                        or ('.log.csv' in file)):
                         files.append(file)
-
-                files.sort()
+                # Sorted reverse to cap last
+                files.sort(key=os.path.splitext, reverse=True) #by name and extension 
                 print(files)
 
                 counter = 0
@@ -134,7 +134,7 @@ def main():
                                     hcxpcapngtool, tshark)
 
             else:  # it is a file
-                process_capture(ouiMap, capture_aux, database, 
+                process_capture(ouiMap, capture, database, 
                                 verbose, fake_lat, fake_lon, 
                                 hcxpcapngtool, tshark)
 
