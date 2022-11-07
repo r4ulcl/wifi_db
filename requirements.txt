@@ -1,3 +1,4 @@
 ftfy==5.6
+nest_asyncio==1.5.6
 pyshark==0.4.3
 requests==2.26.0
