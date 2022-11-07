@@ -10,9 +10,15 @@ import oui
 from os import path
 import platform
 import subprocess
+import nest_asyncio 
+
+# import nest_asyncio ; nest_asyncio.apply() -> 
+# Fix RuntimeError: This event loop is already running”
+
 
 
 def main():
+    nest_asyncio.apply()
     '''Function main. Parse argument and exec the functions '''
     # args
     parser = argparse.ArgumentParser()
@@ -94,6 +100,7 @@ def main():
             print("Parsing file:", capture)
             # Remove format if any
 
+            # If it is a folder...
             if path.isdir(capture):
                 files = []
                 dirpath = os.getcwd()
@@ -105,66 +112,31 @@ def main():
                     print(dir_capture)
                     print("current directory is : " + dirpath)
 
-                for r, d, f in os.walk(dir_capture):
-                    for file in f:
-                        if 'kismet.netxml' in file:
-                            files.append(os.path.join(r, file))
+                for file in os.listdir(dir_capture):
+                    if (('.cap' in file) or ('.csv' in file)
+                       or ('.kismet.csv' in file)
+                       or ('kismet.netxml' in file)
+                       or ('.log.csv' in file)):
+                        files.append(file)
+
+                files.sort()
+                print(files)
 
                 counter = 0
+                # for each file with correct format of folder ...
                 for f in files:
                     counter += 1
                     print("File: " + str(counter) + " of " + str(len(files)))
-                    base = os.path.basename(f)
-                    name = os.path.splitext(os.path.splitext(base)[0])[0]
-                    capture_aux = dir_capture+"/"+name
+                    capture_aux = dir_capture+"/"+f
                     print("\n" + capture_aux)
-                    wifi_db_aircrack.parse_netxml(ouiMap, capture_aux,
-                                                  database, verbose)
-                    wifi_db_aircrack.parse_kismet_csv(ouiMap, capture_aux,
-                                                      database, verbose)
-                    wifi_db_aircrack.parse_csv(ouiMap, capture_aux,
-                                               database, verbose)
-                    wifi_db_aircrack.parse_log_csv(ouiMap, capture_aux,
-                                                   database, verbose, fake_lat,
-                                                   fake_lon)
-                    wifi_db_aircrack.parse_cap(capture_aux, database, verbose,
-                                               hcxpcapngtool, tshark)
+                    process_capture(ouiMap, capture_aux, database, 
+                                    verbose, fake_lat, fake_lon, 
+                                    hcxpcapngtool, tshark)
 
-            else:  # file
-                if ".cap" in capture:
-                    capture = capture.replace(".cap", "")  # remove format
-                    wifi_db_aircrack.parse_cap(capture, database, verbose,
-                                               hcxpcapngtool, tshark)
-                elif ".kismet.netxml" in capture:
-                    capture = capture.replace(".kismet.netxml", "")
-                    wifi_db_aircrack.parse_netxml(ouiMap, capture,
-                                                  database, verbose)
-                elif ".kismet.csv" in capture:
-                    capture = capture.replace(".kismet.csv", "")
-                    wifi_db_aircrack.parse_kismet_csv(ouiMap, capture,
-                                                      database, verbose)
-                elif ".log.csv" in capture:
-                    capture = capture.replace(".log.csv", "")  # remove format
-                    wifi_db_aircrack.parse_log_csv(ouiMap, capture,
-                                                   database, verbose, fake_lat,
-                                                   fake_lon)
-                elif ".csv" in capture:
-                    capture = capture.replace(".csv", "")  # remove format
-                    wifi_db_aircrack.parse_csv(ouiMap, capture,
-                                               database, verbose)
-                else:
-                    print("Not format found!")
-                    wifi_db_aircrack.parse_netxml(ouiMap, capture,
-                                                  database, verbose)
-                    wifi_db_aircrack.parse_kismet_csv(ouiMap, capture,
-                                                      database, verbose)
-                    wifi_db_aircrack.parse_csv(ouiMap, capture,
-                                               database, verbose)
-                    wifi_db_aircrack.parse_log_csv(ouiMap, capture,
-                                                   database, verbose, fake_lat,
-                                                   fake_lon)
-                    wifi_db_aircrack.parse_cap(capture, database, verbose,
-                                               hcxpcapngtool, tshark)
+            else:  # it is a file
+                process_capture(ouiMap, capture_aux, database, 
+                                verbose, fake_lat, fake_lon, 
+                                hcxpcapngtool, tshark)
 
         elif source == "kismet":
             print("Parsing Kismet capture")
@@ -182,6 +154,45 @@ def main():
     if obfuscated:
         print("-o is enable, so obfuscate. This may take a while")
         database_utils.obfuscatedDB(database)
+
+
+def process_capture(ouiMap, capture, database, 
+                    verbose, fake_lat, fake_lon, 
+                    hcxpcapngtool, tshark):
+    if ".cap" in capture:
+        capture = capture.replace(".cap", "")  # remove format
+        wifi_db_aircrack.parse_cap(capture, database, verbose,
+                                    hcxpcapngtool, tshark)
+    elif ".kismet.netxml" in capture:
+        capture = capture.replace(".kismet.netxml", "")
+        wifi_db_aircrack.parse_netxml(ouiMap, capture,
+                                        database, verbose)
+    elif ".kismet.csv" in capture:
+        capture = capture.replace(".kismet.csv", "")
+        wifi_db_aircrack.parse_kismet_csv(ouiMap, capture,
+                                            database, verbose)
+    elif ".log.csv" in capture:
+        capture = capture.replace(".log.csv", "")  # remove format
+        wifi_db_aircrack.parse_log_csv(ouiMap, capture,
+                                        database, verbose, fake_lat,
+                                        fake_lon)
+    elif ".csv" in capture:
+        capture = capture.replace(".csv", "")  # remove format
+        wifi_db_aircrack.parse_csv(ouiMap, capture,
+                                    database, verbose)
+    else:
+        print("Not format found!")
+        wifi_db_aircrack.parse_netxml(ouiMap, capture,
+                                        database, verbose)
+        wifi_db_aircrack.parse_kismet_csv(ouiMap, capture,
+                                            database, verbose)
+        wifi_db_aircrack.parse_csv(ouiMap, capture,
+                                    database, verbose)
+        wifi_db_aircrack.parse_log_csv(ouiMap, capture,
+                                        database, verbose, fake_lat,
+                                        fake_lon)
+        wifi_db_aircrack.parse_cap(capture, database, verbose,
+                                    hcxpcapngtool, tshark)
 
 
 if __name__ == "__main__":
