@@ -148,12 +148,12 @@ def main():
     # Cleat whitelist MACs
     script_path = os.path.dirname(os.path.abspath(__file__))
     database_utils.clear_whitelist(
-        database, script_path+'/whitelist.txt')
+        database, verbose, script_path+'/whitelist.txt')
 
     # if obfuscated
     if obfuscated:
         print("-o is enable, so obfuscate. This may take a while")
-        database_utils.obfuscatedDB(database)
+        database_utils.obfuscateDB(database, verbose)
 
 
 def process_capture(ouiMap, capture, database, 

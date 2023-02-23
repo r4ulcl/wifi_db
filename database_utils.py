@@ -17,6 +17,47 @@ def connect_database(name, verbose):
     return database
 
 
+def create_database(database, verbose):
+    '''Function to create the tables in the database'''
+    script_path = os.path.dirname(os.path.abspath(__file__))
+    path = script_path+'/wifi_db_database.sql'
+    db_file = open(path, 'r')
+    views = db_file.read()
+    try:
+        cursor = database.cursor()
+        for statement in views.split(';'):
+            if statement:
+                cursor.execute(statement + ';')
+        database.commit()
+        if verbose:
+            print("Database created")
+    except sqlite3.IntegrityError as error:
+        print("create_database" + str(error))
+    db_file.close()
+
+
+
+def create_views(database, verbose):
+    '''Function to create the Views in the database'''
+    script_path = os.path.dirname(os.path.abspath(__file__))
+    path = script_path+'/view.sql'
+    views_file = open(path, 'r')
+    views = views_file.read()
+    try:
+        cursor = database.cursor()
+        # cursor.executemany(views)
+        for statement in views.split(';'):
+            if statement:
+                cursor.execute(statement + ';')
+        database.commit()
+        if verbose:
+            print("Views created")
+    except sqlite3.IntegrityError as error:
+        print("create_views" + str(error))
+    views_file.close()
+
+
+
 def insertAP(cursor, verbose, bssid, essid, manuf, channel, freqmhz, carrier,
              encryption, packets_total, lat, lon, cloaked):
     ''''''
@@ -282,43 +323,6 @@ def insertSeenAP(cursor, verbose, bssid, time, tool, signal_rsi,
         return int(1)
 
 
-def create_database(database, verbose):
-    '''Function to create the tables in the database'''
-    script_path = os.path.dirname(os.path.abspath(__file__))
-    path = script_path+'/wifi_db_database.sql'
-    views_file = open(path, 'r')
-    views = views_file.read()
-    try:
-        cursor = database.cursor()
-        for statement in views.split(';'):
-            if statement:
-                cursor.execute(statement + ';')
-        database.commit()
-        if verbose:
-            print("Database created")
-    except sqlite3.IntegrityError as error:
-        print("create_database" + str(error))
-
-
-def create_views(database, verbose):
-    '''Function to create the Views in the database'''
-    script_path = os.path.dirname(os.path.abspath(__file__))
-    path = script_path+'/view.sql'
-    views_file = open(path, 'r')
-    views = views_file.read()
-    try:
-        cursor = database.cursor()
-        # cursor.executemany(views)
-        for statement in views.split(';'):
-            if statement:
-                cursor.execute(statement + ';')
-        database.commit()
-        if verbose:
-            print("Views created")
-    except sqlite3.IntegrityError as error:
-        print("create_views" + str(error))
-
-
 def set_hashcat(cursor, verbose, bssid, mac, file, hash):
     try:
         cursor.execute('''INSERT OR REPLACE INTO Handshake VALUES(?,?,?,?)''',
@@ -329,10 +333,8 @@ def set_hashcat(cursor, verbose, bssid, mac, file, hash):
         return int(1)
 
 
-def fake_lat(database, lat):
+def set_fake_lat(cursor, verbose, lat):
     try:
-        cursor = database.cursor()
-
         sql = "UPDATE AP SET lat_t = " + lat
         cursor.execute(sql)
         sql = "UPDATE SeenAP SET lat = " + lat
@@ -345,10 +347,8 @@ def fake_lat(database, lat):
         print("fake_lat" + str(error))
 
 
-def fake_lon(database, lon):
+def set_fake_lon(cursor, verbose, lon):
     try:
-        cursor = database.cursor()
-
         sql = "UPDATE AP SET lon_t = " + lon
         cursor.execute(sql)
         sql = "UPDATE SeenAP SET lon = " + lon
@@ -361,11 +361,13 @@ def fake_lon(database, lon):
         print("fake_lon" + str(error))
 
 
-# obfuscated the database AA:BB:CC:XX:XX:XX-DEFG
-def obfuscatedDB(database):
+# obfuscated the database AA:BB:CC:XX:XX:XX-DEFG, needs database and not cursos to commit
+def obfuscateDB(database, verbose ):
     # APs!
     try:
         # Get all APs
+        if verbose:
+            print("obfuscated APs")
         cursor = database.cursor()
         sql = "SELECT bssid from AP; "
         cursor.execute(sql)
@@ -383,12 +385,15 @@ def obfuscatedDB(database):
             database.commit()
 
         database.commit()
-    except sqlite3.IntegrityError as error:
-        print("obfuscatedDB" + str(error))
 
+    except sqlite3.IntegrityError as error:
+        print("obfuscateDB" + str(error))
+        
     # Clients!
     try:
-        # Get all APs
+        # Get all Clients
+        if verbose:
+            print("obfuscated clients")
         cursor = database.cursor()
         sql = "SELECT mac from Client; "
         cursor.execute(sql)
@@ -405,12 +410,13 @@ def obfuscatedDB(database):
             database.commit()
 
         database.commit()
+        return int(0)
     except sqlite3.IntegrityError as error:
-        print("obfuscatedDB" + str(error))
-
+        print("obfuscateDB" + str(error))
+        return int(1)
 
 # exists = '11:22:33:44:55:77' in whitelist
-def clear_whitelist(database, whitelist):
+def clear_whitelist(database, verbose, whitelist):
     with open(whitelist) as f:
         whitelist = f.read().splitlines()
     cursor = database.cursor()
