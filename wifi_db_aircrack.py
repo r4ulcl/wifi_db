@@ -74,10 +74,10 @@ def parse_netxml(ouiMap, name, database, verbose):
                     cloakedtxt = wireless.find("SSID").find("essid").attrib['cloaked']
                     # print("cloaked: " + cloakedtxt)
                     if cloakedtxt == "true":
-                        cloaked = 1  # ftfy.fix_text(cloaked)
+                        cloaked = 'True'  # ftfy.fix_text(cloaked)
                         # print(essid)
                     else:
-                        cloaked = 0
+                        cloaked = 'False'
 
                     bssid = wireless.find("BSSID").text
                     # manuf = wireless.find("manuf").text
@@ -160,13 +160,13 @@ def parse_kismet_csv(ouiMap, name, database, verbose):
                             manuf = oui.get_vendor(ouiMap, bssid)
 
                             channel = row[5]
-                            freqmhz = -1
+                            freqmhz = 0
                             carrier = ""
                             encryption = row[7]
                             packets_total = row[16]
                             lat = row[32]
                             lon = row[33]
-                            cloaked = False
+                            cloaked = 'False'
                             errors += database_utils.insertAP(
                                 cursor, verbose, bssid, essid, manuf, channel,
                                 freqmhz, carrier, encryption, packets_total,
@@ -213,7 +213,7 @@ def parse_csv(ouiMap, name, database, verbose):
                             carrier = ""
                             encrypt = row[5] + row[6] + row[7]
                             packets_total = row[10]
-                            cloaked = False
+                            cloaked = 'False'
 
                             errors += database_utils.insertAP(
                                 cursor, verbose,  bssid, essid[1:], manuf,
@@ -290,7 +290,7 @@ def parse_log_csv(ouiMap, name, database, verbose, fake_lat, fake_lon):
                             if fake_lon != "":
                                 lon = fake_lon
                             manuf = oui.get_vendor(ouiMap, row[3])
-                            cloaked = False
+                            cloaked = 'False'
                             errors += database_utils.insertAP(
                                       cursor, verbose,  row[3], row[2],
                                       manuf, 0, 0, '', '', 0, lat, lon,

@@ -36,7 +36,6 @@ def create_database(database, verbose):
     db_file.close()
 
 
-
 def create_views(database, verbose):
     '''Function to create the Views in the database'''
     script_path = os.path.dirname(os.path.abspath(__file__))
@@ -57,7 +56,6 @@ def create_views(database, verbose):
     views_file.close()
 
 
-
 def insertAP(cursor, verbose, bssid, essid, manuf, channel, freqmhz, carrier,
              encryption, packets_total, lat, lon, cloaked):
     ''''''
@@ -71,60 +69,73 @@ def insertAP(cursor, verbose, bssid, essid, manuf, channel, freqmhz, carrier,
         try:
             if verbose:
                 print("insertAP " + str(error))
-            cursor.execute(
-                "UPDATE AP SET channel = CASE WHEN channel=='-1' THEN ('%s') "
-                "ELSE channel END "
-                "WHERE bssid = '%s'" % (channel, bssid))
 
             # Write if empty
-            sql = """UPDATE AP SET ssid = CASE WHEN ssid=='' THEN (?) WHEN ssid
-                     IS NULL THEN (?) ELSE ssid END WHERE bssid = (?)"""
+            sql = """UPDATE AP SET ssid = CASE WHEN ssid = '' OR 
+                     ssid IS NULL THEN (?) ELSE ssid END WHERE bssid = (?)"""
             if verbose:
-                print(sql, (essid, essid, bssid))
-            cursor.execute(sql, (essid, essid, bssid,))
+                print(sql, (essid, bssid))
+            cursor.execute(sql, (essid, bssid,))
 
-            cursor.execute(
-                "UPDATE AP SET manuf = CASE WHEN manuf=='' THEN ('%s') "
-                "WHEN manuf IS NULL THEN ('%s') ELSE manuf END "
-                "WHERE bssid = '%s'" % (manuf, manuf, bssid))
+            # Update `manuf` column
+            sql = """UPDATE AP SET manuf = CASE WHEN manuf = '' OR manuf IS NULL 
+                    THEN (?) ELSE manuf END WHERE bssid = (?)"""
+            if verbose:
+                print(sql, (manuf, bssid))
+            cursor.execute(sql, (manuf, bssid,))
 
-            cursor.execute(
-                "UPDATE AP SET channel = CASE WHEN channel=='' THEN ('%s') "
-                "WHEN channel IS NULL THEN ('%s') ELSE channel END "
-                "WHERE bssid = '%s'" % (channel, channel, bssid))
+            # Update `channel` column
+            sql = """UPDATE AP SET channel = CASE WHEN channel = '' OR channel IS NULL 
+                    OR channel = 0 THEN (?) ELSE channel END WHERE bssid = (?)"""
+            if verbose:
+                print(sql, (channel, bssid))
+            cursor.execute(sql, (channel, bssid,))
 
-            cursor.execute(
-                "UPDATE AP SET frequency = CASE WHEN frequency=='' THEN ('%s')"
-                " WHEN frequency IS NULL THEN ('%s') ELSE frequency END "
-                "WHERE bssid = '%s'" % (freqmhz, freqmhz, bssid))
+            # Update `frequency` column
+            sql = """UPDATE AP SET frequency = CASE WHEN frequency = '' OR 
+                    frequency IS NULL OR frequency < 2000 THEN (?) ELSE frequency END WHERE bssid = (?)"""
+            if verbose:
+                print(sql, (freqmhz, bssid))
+            cursor.execute(sql, (freqmhz, bssid,))
 
-            cursor.execute(
-                "UPDATE AP SET carrier = CASE WHEN carrier=='' THEN ('%s') "
-                "WHEN carrier IS NULL THEN ('%s') ELSE carrier END "
-                "WHERE bssid = '%s'" % (carrier, carrier, bssid))
+            # Update `carrier` column
+            sql = """UPDATE AP SET carrier = CASE WHEN carrier = '' OR carrier IS NULL 
+                    THEN (?) ELSE carrier END WHERE bssid = (?)"""
+            if verbose:
+                print(sql, (carrier, bssid))
+            cursor.execute(sql, (carrier, bssid,))
 
-            cursor.execute(
-                "UPDATE AP SET encryption = CASE WHEN encryption=='' "
-                "THEN ('%s') WHEN encryption IS NULL THEN ('%s') "
-                "ELSE encryption END "
-                "WHERE bssid = '%s'" % (encryption, encryption, bssid))
+            # Update `encryption` column
+            sql = """UPDATE AP SET encryption = CASE WHEN encryption = '' OR 
+                    encryption IS NULL THEN (?) ELSE encryption END WHERE bssid = (?)"""
+            if verbose:
+                print(sql, (encryption, bssid))
+            cursor.execute(sql, (encryption, bssid,))
 
-            cursor.execute(
-                "UPDATE AP SET packetsTotal = packetsTotal + %s "
-                "WHERE bssid = '%s'"
-                % (packets_total, bssid))
+            # Update `packetsTotal` column
+            sql = """UPDATE AP SET packetsTotal = packetsTotal + (?) 
+                    WHERE bssid = (?)"""
+            if verbose:
+                print(sql, (packets_total, bssid))
+            cursor.execute(sql, (packets_total, bssid,))
 
-            cursor.execute(
-                "UPDATE AP SET lat_t = CASE WHEN lat_t == 0.0 THEN ('%s')"
-                "ELSE lat_t END, lon_t = CASE WHEN lon_t == 0.0 THEN ('%s') "
-                "ELSE lon_t END "
-                "WHERE bssid = '%s'" % (lat, lon, bssid))
+            # Update `lat_t` and `lon_t` columns
+            sql = """UPDATE AP SET lat_t = CASE WHEN lat_t = 0.0 THEN (?) 
+                    ELSE lat_t END, lon_t = CASE WHEN lon_t = 0.0 THEN (?) 
+                    ELSE lon_t END WHERE bssid = (?)"""
+            if verbose:
+                print(sql, (lat, lon, bssid))
+            cursor.execute(sql, (lat, lon, bssid,))
 
-            cursor.execute(
-                "UPDATE AP SET cloaked = CASE WHEN cloaked == False THEN ('%s')"
-                "ELSE cloaked END "
-                "WHERE bssid = '%s'"
-                % (cloaked, bssid))
+            # Update `cloaked` column
+            sql = """UPDATE AP SET cloaked = CASE WHEN cloaked = 'False' THEN (?) 
+                    ELSE cloaked END WHERE bssid = (?)"""
+            if verbose:
+                print(sql, (cloaked, bssid))
+            cursor.execute(sql, (cloaked, bssid,))
+
+
+
             return int(0)
         except sqlite3.IntegrityError as error:
 
@@ -362,7 +373,7 @@ def set_fake_lon(cursor, verbose, lon):
 
 
 # obfuscated the database AA:BB:CC:XX:XX:XX-DEFG, needs database and not cursos to commit
-def obfuscateDB(database, verbose ):
+def obfuscateDB(database, verbose):
     # APs!
     try:
         # Get all APs
@@ -388,7 +399,7 @@ def obfuscateDB(database, verbose ):
 
     except sqlite3.IntegrityError as error:
         print("obfuscateDB" + str(error))
-        
+
     # Clients!
     try:
         # Get all Clients
@@ -416,6 +427,8 @@ def obfuscateDB(database, verbose ):
         return int(1)
 
 # exists = '11:22:33:44:55:77' in whitelist
+
+
 def clear_whitelist(database, verbose, whitelist):
     with open(whitelist) as f:
         whitelist = f.read().splitlines()
