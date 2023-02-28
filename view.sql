@@ -26,7 +26,7 @@ FROM Handshake JOIN AP ON Handshake.bssid = AP.bssid  JOIN Client ON Handshake.m
 WHERE hashcat != '' GROUP BY AP.ssid ORDER BY Handshake.bssid;
 
 CREATE VIEW IF NOT EXISTS IdentityAP AS
-SELECT Identity.bssid, AP.ssid, Identity.mac, Client.manuf, Identity.identity
+SELECT Identity.bssid, AP.ssid, Identity.mac, Client.manuf, Identity.identity, Identity.method
 FROM Identity JOIN AP ON Identity.bssid = AP.bssid  JOIN Client ON Identity.mac = Client.mac
 ORDER BY Identity.bssid;
 
