@@ -77,12 +77,14 @@ def insertAP(cursor, verbose, bssid, essid, manuf, channel, freqmhz, carrier,
                 print(sql, (essid, bssid.upper()))
             cursor.execute(sql, (essid, bssid.upper()))
 
+
             # Update `manuf` column
             sql = """UPDATE AP SET manuf = CASE WHEN manuf = '' OR manuf IS NULL 
                     THEN (?) ELSE manuf END WHERE bssid = (?)"""
             if verbose:
                 print(sql, (manuf, bssid.upper()))
             cursor.execute(sql, (manuf, bssid.upper()))
+
 
             # Update `channel` column
             sql = """UPDATE AP SET channel = CASE WHEN channel = '' OR channel IS NULL 
@@ -91,6 +93,7 @@ def insertAP(cursor, verbose, bssid, essid, manuf, channel, freqmhz, carrier,
                 print(sql, (channel, bssid))
             cursor.execute(sql, (channel, bssid.upper()))
 
+
             # Update `frequency` column
             sql = """UPDATE AP SET frequency = CASE WHEN frequency = '' OR 
                     frequency IS NULL OR frequency < 2000 THEN (?) ELSE frequency END WHERE bssid = (?)"""
@@ -98,11 +101,13 @@ def insertAP(cursor, verbose, bssid, essid, manuf, channel, freqmhz, carrier,
                 print(sql, (freqmhz, bssid))
             cursor.execute(sql, (freqmhz, bssid.upper()))
 
+
             # Update `carrier` column
             sql = """UPDATE AP SET carrier = CASE WHEN carrier = '' OR carrier IS NULL 
                     THEN (?) ELSE carrier END WHERE bssid = (?)"""
             if verbose:
                 print(sql, (carrier, bssid))
+                
             cursor.execute(sql, (carrier, bssid.upper()))
 
             # Update `encryption` column
@@ -110,6 +115,7 @@ def insertAP(cursor, verbose, bssid, essid, manuf, channel, freqmhz, carrier,
                     encryption IS NULL THEN (?) ELSE encryption END WHERE bssid = (?)"""
             if verbose:
                 print(sql, (encryption, bssid))
+                
             cursor.execute(sql, (encryption, bssid.upper()))
 
             # Update `packetsTotal` column
