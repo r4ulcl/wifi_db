@@ -81,6 +81,10 @@ def main():
     fake_lat = args.lat
     fake_lon = args.lon
 
+    # If its without format but ends in dot remove the dot
+    if variable.endswith('.'):
+        variable = variable[:-1]
+
     print(captures)
 
     if verbose:
