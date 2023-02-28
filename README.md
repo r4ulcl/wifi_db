@@ -11,10 +11,13 @@ docker pull raulcalvolaorden/wifi_db
 
 ### Manual installation
 
+#### Debian bases
+
 Dependencies:
 
 - tshark
 - hcxtools
+
 
 ``` bash
 sudo apt install tshark
@@ -26,18 +29,41 @@ sudo make install
 cd ..
 ```
 
+
 Installation
 
 ``` bash
-
 sudo apt install python3-pip
-
 git clone https://github.com/RaulCalvoLaorden/wifi_db
-
 cd wifi_db
-
 pip3 install -r requirements.txt 
+```
 
+#### Arch
+
+Dependencies:
+
+- tshark
+- hcxtools
+
+
+``` bash
+sudo pacman -S wireshark-qt
+
+git clone https://github.com/ZerBea/hcxtools.git
+cd hcxtools
+make 
+sudo make install
+cd ..
+```
+
+Installation
+
+``` bash
+sudo pacman -S python-pip
+git clone https://github.com/RaulCalvoLaorden/wifi_db
+cd wifi_db
+pip3 install -r requirements.txt 
 ```
 
 
@@ -85,7 +111,6 @@ python3 wifi_db.py -d database.sqlite scan-folder
 
 The database can be open with:
 - [sqlitebrowser](https://sqlitebrowser.org/)
-- [wifi_data](https://github.com/RaulCalvoLaorden/wifi_data)
 
 
 ### Optional arguments
