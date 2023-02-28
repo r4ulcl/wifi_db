@@ -71,7 +71,8 @@ def parse_netxml(ouiMap, name, database, verbose):
                     else:
                         essid = ""
 
-                    cloakedtxt = wireless.find("SSID").find("essid").attrib['cloaked']
+                    cloakedtxt = wireless.find("SSID").find(
+                        "essid").attrib['cloaked']
                     # print("cloaked: " + cloakedtxt)
                     if cloakedtxt == "true":
                         cloaked = 'True'  # ftfy.fix_text(cloaked)
@@ -292,9 +293,9 @@ def parse_log_csv(ouiMap, name, database, verbose, fake_lat, fake_lon):
                             manuf = oui.get_vendor(ouiMap, row[3])
                             cloaked = 'False'
                             errors += database_utils.insertAP(
-                                      cursor, verbose,  row[3], row[2],
-                                      manuf, 0, 0, '', '', 0, lat, lon,
-                                      cloaked)
+                                cursor, verbose,  row[3], row[2],
+                                manuf, 0, 0, '', '', 0, lat, lon,
+                                cloaked)
 
                             # if row[6] != "0.000000":
                             errors += database_utils.insertSeenAP(
@@ -339,7 +340,7 @@ def parse_handshakes(name, database, verbose):
                 if verbose:
                     print(pkt.eapol.field_names)
                     print(pkt.eapol.type)
-                if pkt.eapol.type == '3':  # EAPOL = 3    
+                if pkt.eapol.type == '3':  # EAPOL = 3
                     src = pkt.wlan.ta
                     dst = pkt.wlan.da
                     flag = pkt.eapol.wlan_rsna_keydes_key_info
@@ -348,13 +349,13 @@ def parse_handshakes(name, database, verbose):
                     if flag.find('10a') != -1:
                         # print('handhsake 2 of 4')
                         if (prevFlag.find('08a') and
-                        dst == prevSrc and src == prevDst):  # first
+                                dst == prevSrc and src == prevDst):  # first
                             if verbose:
                                 print("Valid handshake from client " + prevSrc +
-                                    " to AP " + prevDst)
+                                      " to AP " + prevDst)
                             errors += database_utils.insertHandshake(cursor,
-                                                                    verbose, dst,
-                                                                    src, file)
+                                                                     verbose, dst,
+                                                                     src, file)
                     else:
                         prevSrc = src
                         prevDst = dst
@@ -379,7 +380,8 @@ def parse_WPS(name, database, verbose):
         cursor = database.cursor()
         errors = 0
         file = name+".cap"
-        cap = pyshark.FileCapture(file, display_filter="wps.wifi_protected_setup_state == 0x02 and wlan.da == ff:ff:ff:ff:ff:ff")
+        cap = pyshark.FileCapture(
+            file, display_filter="wps.wifi_protected_setup_state == 0x02 and wlan.da == ff:ff:ff:ff:ff:ff")
         # cap.set_debug()
 
         for pkt in cap:
@@ -435,10 +437,10 @@ def parse_WPS(name, database, verbose):
                 errors += 1
 
             errors += database_utils.insertWPS(cursor, verbose, bssid, wlan_ssid,
-                                     wps_version, wps_device_name,
-                                     wps_model_name, wps_model_number,
-                                     wps_config_methods,
-                                     wps_config_methods_keypad)
+                                               wps_version, wps_device_name,
+                                               wps_model_name, wps_model_number,
+                                               wps_config_methods,
+                                               wps_config_methods_keypad)
 
         print(".cap WPS done, errors", errors)
     except pyshark.capture.capture.TSharkCrashException as error:
@@ -461,21 +463,44 @@ def parse_identities(name, database, verbose):
         cap = pyshark.FileCapture(file, display_filter="eap")
         # cap.set_debug()
 
+        dst = ""
+        src = ""
+        identity = ""
+        method = ""
+
+        # The information is: Identity, method, method... , Identity2, method2, method2...
         for pkt in cap:
             # print(pkt.eapol.field_names)
-            # print(pkt)
-            if pkt.eap.code == '2':
+            try:
                 if pkt.eap.type == '1':  # EAP = 1
-                    try:
-                        dst = pkt.wlan.da
-                        src = pkt.wlan.sa
-                        identity = pkt.eap.identity
-                        if verbose:
-                            print('output ' + dst + src + identity)
-                        errors += database_utils.insertIdentity(cursor, verbose,
-                                                                dst, src, identity)
-                    except:
-                        errors += 1
+                    dst = pkt.wlan.da
+                    src = pkt.wlan.sa
+                    if pkt.eap.code == '2':
+                        try:
+                            identity = pkt.eap.identity
+                        except:
+                            errors += 1
+                # EAP-PEAP
+                elif pkt.eap.type == '25':  # Found EAP-PEAP
+                    method = "EAP-PEAP"
+                    # Insert, if its already error and continue
+                    database_utils.insertIdentity(cursor, verbose,
+                                                  dst, src, identity, method)
+
+                elif pkt.eap.type == '13':  # Found EAP-TLS
+                    method = "EAP-TLS"
+                    database_utils.insertIdentity(cursor, verbose,
+                                                  dst, src, identity, method)
+                else:
+                    method = "OTHER (NOT EAP-PEAP OR EAP-TLS) - ID: " + \
+                        pkt.eap.type
+                    database_utils.insertIdentity(cursor, verbose,
+                                                  dst, src, identity, method)
+            except Exception as e:
+                if verbose:
+                    print("ERROR:", e)
+                    errors += 1
+
         database.commit()
         print(".cap Identity done, errors", errors)
     except Exception as error:
