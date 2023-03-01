@@ -126,7 +126,8 @@ class TestFunctions(unittest.TestCase):
 
     def test_insertIdentity(self):
         identity = "DOMAIN\\username"
-        result = insertIdentity(self.c, self.verbose, self.bssid, self.mac, identity)
+        method = "EAP-PEAP"
+        result = insertIdentity(self.c, self.verbose, self.bssid, self.mac, identity, method)
         self.assertEqual(result, 0)
         self.c.execute("SELECT * FROM Identity WHERE mac=?", (self.mac,))
         row = self.c.fetchone()
