@@ -81,10 +81,6 @@ def main():
     fake_lat = args.lat
     fake_lon = args.lon
 
-    # If its without format but ends in dot remove the dot
-    if variable.endswith('.'):
-        variable = variable[:-1]
-
     print(captures)
 
     if verbose:
@@ -186,6 +182,10 @@ def process_capture(ouiMap, capture, database,
                                     database, verbose)
     else:
         print("Not format found!")
+        #Remove dot at end if not format found
+        if capture.endswith('.'):
+            capture = capture[:-1]
+
         wifi_db_aircrack.parse_netxml(ouiMap, capture,
                                         database, verbose)
         wifi_db_aircrack.parse_kismet_csv(ouiMap, capture,
