@@ -15,6 +15,16 @@ import nest_asyncio
 # import nest_asyncio ; nest_asyncio.apply() -> 
 # Fix RuntimeError: This event loop is already running”
 
+def banner():
+    print('''
+           _   __  _             _  _     
+__      __(_) / _|(_)         __| || |__  
+\ \ /\ / /| || |_ | |        / _` || '_ \ 
+ \ V  V / | ||  _|| |       | (_| || |_) |
+  \_/\_/  |_||_|  |_| _____  \__,_||_.__/ 
+                     |_____|          
+                               by r4ulcl           
+''')
 
 
 def main():
@@ -200,4 +210,5 @@ def process_capture(ouiMap, capture, database,
 
 
 if __name__ == "__main__":
+    banner()
     main()
