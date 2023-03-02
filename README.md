@@ -1,6 +1,16 @@
 # wifi_db
 Script to parse Aircrack-ng captures into a SQLite database, get handshakes (in 22000 hashcat format) and extract MGT identities.
 
+```
+           _   __  _             _  _     
+__      __(_) / _|(_)         __| || |__  
+\ \ /\ / /| || |_ | |        / _` || '_ \ 
+ \ V  V / | ||  _|| |       | (_| || |_) |
+  \_/\_/  |_||_|  |_| _____  \__,_||_.__/ 
+                     |_____|          
+                               by r4ulcl
+```
+
 ## Install
 
 ### From [DockerHub](https://hub.docker.com/r/r4ulcl/wifi_db) (RECOMMENDED)
@@ -65,6 +75,7 @@ git clone https://github.com/r4ulcl/wifi_db
 cd wifi_db
 pip3 install -r requirements.txt 
 ```
+
 
 
 ## Usage
@@ -133,17 +144,45 @@ TODO
 
 TODO
 
+## Database
+
+wifi_db contains several tables to store information related to wireless network traffic captured by airodump-ng. The tables are as follows:
+
+
+-   `AP`: This table stores information about the access points (APs) detected during the captures, including their MAC address (`bssid`), network name (`ssid`), whether the network is cloaked (`cloaked`), manufacturer (`manuf`), channel (`channel`), frequency (`frequency`), carrier (`carrier`), encryption type (`encryption`), and total packets received from this AP (`packetsTotal`). The table uses the MAC address as a primary key.
+
+-   `Client`: This table stores information about the wireless clients detected during the captures, including their MAC address (`mac`), network name (`ssid`), manufacturer (`manuf`), device type (`type`), and total packets received from this client (`packetsTotal`). The table uses the MAC address as a primary key.
+
+-   `SeenClient`: This table stores information about the clients seen during the captures, including their MAC address (`mac`), time of detection (`time`), tool used to capture the data (`tool`), signal strength (`signal_rssi`), latitude (`lat`), longitude (`lon`), altitude (`alt`). The table uses the combination of MAC address and detection time as a primary key, and has a foreign key relationship with the `Client` table.
+
+-   `Connected`: This table stores information about the wireless clients that are connected to an access point, including the MAC address of the access point (`bssid`) and the client (`mac`). The table uses a combination of access point and client MAC addresses as a primary key, and has foreign key relationships with both the `AP` and `Client` tables.
+
+-   `WPS`: This table stores information about access points that have Wi-Fi Protected Setup (WPS) enabled, including their MAC address (`bssid`), network name (`wlan_ssid`), WPS version (`wps_version`), device name (`wps_device_name`), model name (`wps_model_name`), model number (`wps_model_number`), configuration methods (`wps_config_methods`), and keypad configuration methods (`wps_config_methods_keypad`). The table uses the MAC address as a primary key, and has a foreign key relationship with the `AP` table.
+
+-   `SeenAp`: This table stores information about the access points seen during the captures, including their MAC address (`bssid`), time of detection (`time`), tool used to capture the data (`tool`), signal strength (`signal_rssi`), latitude (`lat`), longitude (`lon`), altitude (`alt`), and timestamp (`bsstimestamp`). The table uses the combination of access point MAC address and detection time as a primary key, and has a foreign key relationship with the `AP` table.
+
+-   `Probe`: This table stores information about the probes sent by clients, including the client MAC address (`mac`), network name (`ssid`), and time of probe (`time`). The table uses a combination of client MAC address and network name as a primary key, and has a foreign key relationship with the `Client` table.
+
+-   `Handshake`: This table stores information about the handshakes captured during the captures, including the MAC address of the access point (`bssid`), the client (`mac`), the file name (`file`), and the hashcat format (`hashcat`). The table uses a combination of access point and client MAC addresses, and file name as a primary key, and has foreign key relationships with both the `AP` and `Client` tables.
+
+-  `Identity`: This table represents EAP (Extensible Authentication Protocol) identities and methods used in wireless authentication. The `bssid` and `mac` fields are foreign keys that reference the `AP` and `Client` tables, respectively. Other fields include the identity and method used in the authentication process.
+
+
 ## Views
 
-- ProbeClients: It shows the complete information of the users with their probes
-
-- ConnectedAP: It shows the information of the clients connected to the APs. With this view you can easily filter by scope and check connected clients.
-
-- ProbeClientsConnected: Displays the list of poor users connected to WiFi networks. This is useful to check the problems of users connecting to networks in the scope.
-
-- HandshakeAP: Show the APs, client file and hashcat hash for each handshake in the Handshake table
-
-- IdentityAP: Show the APs, client and Identity for each identity its table
+-  `ProbeClients`: This view selects the MAC address of the probe, the manufacturer and type of the client device, the total number of packets transmitted by the client, and the SSID of the probe. It joins the `Probe` and `Client` tables on the MAC address and orders the results by SSID.
+    
+-  `ConnectedAP`: This view selects the BSSID of the connected access point, the SSID of the access point, the MAC address of the connected client device, and the manufacturer of the client device. It joins the `Connected`, `AP`, and `Client` tables on the BSSID and MAC address, respectively, and orders the results by BSSID.
+    
+-  `ProbeClientsConnected`: This view selects the BSSID and SSID of the connected access point, the MAC address of the probe, the manufacturer and type of the client device, the total number of packets transmitted by the client, and the SSID of the probe. It joins the `Probe`, `Client`, and `ConnectedAP` tables on the MAC address of the probe, and filters the results to exclude probes that are connected to the same SSID that they are probing. The results are ordered by the SSID of the probe.
+    
+-  `HandshakeAP`: This view selects the BSSID of the access point, the SSID of the access point, the MAC address of the client device that performed the handshake, the manufacturer of the client device, the file containing the handshake, and the hashcat output. It joins the `Handshake`, `AP`, and `Client` tables on the BSSID and MAC address, respectively, and orders the results by BSSID.
+    
+-  `HandshakeAPUnique`: This view selects the BSSID of the access point, the SSID of the access point, the MAC address of the client device that performed the handshake, the manufacturer of the client device, the file containing the handshake, and the hashcat output. It joins the `Handshake`, `AP`, and `Client` tables on the BSSID and MAC address, respectively, and filters the results to exclude handshakes that were not cracked by hashcat. The results are grouped by SSID and ordered by BSSID.
+    
+-  `IdentityAP`: This view selects the BSSID of the access point, the SSID of the access point, the MAC address of the client device that performed the identity request, the manufacturer of the client device, the identity string, and the method used for the identity request. It joins the `Identity`, `AP`, and `Client` tables on the BSSID and MAC address, respectively, and orders the results by BSSID.
+    
+-  `SummaryAP`: This view selects the SSID, the count of access points broadcasting the SSID, the encryption type, the manufacturer of the access point, and whether the SSID is cloaked. It groups the results by SSID and orders them by the count of access points in descending order.
 
 ## TODO
 
