@@ -32,5 +32,5 @@ jobs:
           context: .
           platforms: linux/amd64
           push: true
-          tags: r4ulcl/wifi_db:latest,r4ulcl/wifi_db:main
+          tags: ${{ secrets.DOCKERHUB_USERNAME }}/wifi_db:latest,${{ secrets.DOCKERHUB_USERNAME }}/wifi_db:main
           
