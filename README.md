@@ -3,10 +3,10 @@ Script to parse Aircrack-ng captures into a SQLite database, get handshakes (in 
 
 ## Install
 
-### From [DockerHub](https://hub.docker.com/r/raulcalvolaorden/wifi_db) (RECOMMENDED)
+### From [DockerHub](https://hub.docker.com/r/r4ulcl/wifi_db) (RECOMMENDED)
 
 ``` bash
-docker pull raulcalvolaorden/wifi_db
+docker pull r4ulcl/wifi_db
 ``` 
 
 ### Manual installation
@@ -34,7 +34,7 @@ Installation
 
 ``` bash
 sudo apt install python3-pip
-git clone https://github.com/RaulCalvoLaorden/wifi_db
+git clone https://github.com/r4ulcl/wifi_db
 cd wifi_db
 pip3 install -r requirements.txt 
 ```
@@ -61,7 +61,7 @@ Installation
 
 ``` bash
 sudo pacman -S python-pip
-git clone https://github.com/RaulCalvoLaorden/wifi_db
+git clone https://github.com/r4ulcl/wifi_db
 cd wifi_db
 pip3 install -r requirements.txt 
 ```
@@ -86,7 +86,7 @@ CAPTURESFOLDER=/home/user/wifi
 # Output database
 touch db.SQLITE
 
-docker run -t -v $PWD/db.SQLITE:/db.SQLITE -v $CAPTURESFOLDER:/captures/ raulcalvolaorden/wifi_db
+docker run -t -v $PWD/db.SQLITE:/db.SQLITE -v $CAPTURESFOLDER:/captures/ r4ulcl/wifi_db
 ```
 
 - '-v $PWD/db.SQLITE:/db.SQLITE': To save de output in current folder db.SQLITE file
@@ -189,4 +189,4 @@ This program is a continuation of a part of: https://github.com/T1GR3S/airo-heat
 
 ## License
 
-[GNU General Public License v3.0](https://github.com/RaulCalvoLaorden/wifi_db/blob/master/LICENSE)
+[GNU General Public License v3.0](https://github.com/r4ulcl/wifi_db/blob/master/LICENSE)
