@@ -29,5 +29,5 @@ jobs:
         with:
           context: .
           push: true
-          tags: r4ulcl/wifi_db:dev
+          tags: ${{ secrets.DOCKERHUB_USERNAME }}/wifi_db:dev
           
