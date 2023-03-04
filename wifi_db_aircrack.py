@@ -404,7 +404,6 @@ def parse_WPS(name, database, verbose):
                 wlan_ssid_hex = pkt[wmgt].wlan_ssid
                 wlan_ssid_bytes = binascii.unhexlify(wlan_ssid_hex.replace(':', ''))
                 wlan_ssid = wlan_ssid_bytes.decode('ascii')
-                print(wlan_ssid)
                 if ('20' in pkt[wmgt].wps_ext_version2):
                     wps_version = '2.0'
             except Exception as e:
