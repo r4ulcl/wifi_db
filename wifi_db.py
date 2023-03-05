@@ -58,9 +58,11 @@ def main():
                         " database (default name: %(default)s)")
 
     parser.add_argument("capture", type=str, nargs='+',
-                        help="capture file (.csv, .kismet.csv, "
-                        ".kismet.netxml, .log.csv), \
-                        if no extension add all")
+                        help="capture folder or file with extensions .csv, "
+                        ".kismet.csv, .kismet.netxml, or .log.csv. If no "
+                        "extension is provided, all types will be added. "
+                        "Additionally, this option supports the use of "
+                        "wildcards (*) to select multiple files or folders.")
     args = parser.parse_args()
 
     # vars
