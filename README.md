@@ -21,16 +21,18 @@ docker pull r4ulcl/wifi_db
 
 ### Manual installation
 
-#### Debian bases
+#### Debian based systems (Ubuntu, Kali, Parrot, etc.)
 
 Dependencies:
 
+- python3 
+- python3-pip
 - tshark
 - hcxtools
 
-
 ``` bash
 sudo apt install tshark
+sudo apt install python3 python3-pip
 
 git clone https://github.com/ZerBea/hcxtools.git
 cd hcxtools
@@ -43,7 +45,6 @@ cd ..
 Installation
 
 ``` bash
-sudo apt install python3-pip
 git clone https://github.com/r4ulcl/wifi_db
 cd wifi_db
 pip3 install -r requirements.txt 
@@ -53,12 +54,15 @@ pip3 install -r requirements.txt
 
 Dependencies:
 
+- python3 
+- python3-pip
 - tshark
 - hcxtools
 
 
 ``` bash
 sudo pacman -S wireshark-qt
+sudo pacman -S python-pip python
 
 git clone https://github.com/ZerBea/hcxtools.git
 cd hcxtools
@@ -70,7 +74,6 @@ cd ..
 Installation
 
 ``` bash
-sudo pacman -S python-pip
 git clone https://github.com/r4ulcl/wifi_db
 cd wifi_db
 pip3 install -r requirements.txt 
@@ -100,8 +103,11 @@ touch db.SQLITE
 docker run -t -v $PWD/db.SQLITE:/db.SQLITE -v $CAPTURESFOLDER:/captures/ r4ulcl/wifi_db
 ```
 
-- '-v $PWD/db.SQLITE:/db.SQLITE': To save de output in current folder db.SQLITE file
-- '-v $CAPTURESFOLDER:/captures/': To share the folder with the captures with the docker
+- `-v $PWD/db.SQLITE:/db.SQLITE`: To save de output in current folder db.SQLITE file
+- `-v $CAPTURESFOLDER:/captures/`: To share the folder with the captures with the docker
+
+![usage docker](./resources/usagedocker.png)
+
 
 
 ### Create the SQLite database using manual installation
@@ -118,10 +124,20 @@ In the event that we have multiple captures we can load the folder in which they
 python3 wifi_db.py -d database.sqlite scan-folder
 ```
 
+![usage](./resources/usage.png)
+
+
 ### Open database
 
 The database can be open with:
 - [sqlitebrowser](https://sqlitebrowser.org/)
+
+
+![sqlitebrowser](./resources/sqlitebrowser.png)
+
+Below is an example of a ProbeClientsConnected table.
+
+![sqlitebrowser-probes](./resources/sqlitebrowser-probes.png)
 
 
 ### Optional arguments
