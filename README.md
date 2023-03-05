@@ -140,16 +140,26 @@ Below is an example of a ProbeClientsConnected table.
 ![sqlitebrowser-probes](./resources/sqlitebrowser-probes.png)
 
 
-### Optional arguments
+### Arguments
 
 ``` bash
+usage: wifi_db.py [-h] [-v] [--debug] [-o] [-t LAT] [-n LON] [--source [{aircrack-ng,kismet,wigle}]] [-d DATABASE] capture [capture ...]
+
+positional arguments:
+  capture               capture folder or file with extensions .csv, .kismet.csv, .kismet.netxml, or .log.csv. If no extension is provided, all types will
+                        be added. This option supports the use of wildcards (*) to select multiple files or folders.
+
+options:
   -h, --help            show this help message and exit
   -v, --verbose         increase output verbosity
   --debug               increase output verbosity to debug
-  -t LAT, --lat LAT     insert a fake lat in the new elements 
-  -n LON, --lon LON     insert a fake lon in the new elements 
+  -o, --obfuscated      Obfuscate MAC and BSSID with AA:BB:CC:XX:XX:XX-defghi (WARNING: replace all database)
+  -t LAT, --lat LAT     insert a fake lat in the new elements
+  -n LON, --lon LON     insert a fake lon in the new elements
   --source [{aircrack-ng,kismet,wigle}]
-                        source from capture data (default: aircrack-ng) 
+                        source from capture data (default: aircrack-ng)
+  -d DATABASE, --database DATABASE
+                        output database, if exist append to the given database (default name: db.SQLITE)
 ```
 
 ### Kismet
