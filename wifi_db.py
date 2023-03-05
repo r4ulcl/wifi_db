@@ -61,7 +61,7 @@ def main():
                         help="capture folder or file with extensions .csv, "
                         ".kismet.csv, .kismet.netxml, or .log.csv. If no "
                         "extension is provided, all types will be added. "
-                        "Additionally, this option supports the use of "
+                        "This option supports the use of "
                         "wildcards (*) to select multiple files or folders.")
     args = parser.parse_args()
 
