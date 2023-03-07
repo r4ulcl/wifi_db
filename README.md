@@ -1,5 +1,5 @@
 # wifi_db
-Script to parse Aircrack-ng captures into a SQLite database, get handshakes (in 22000 hashcat format) and extract MGT identities.
+Script to parse Aircrack-ng captures into a SQLite database, get handshakes (in 22000 hashcat format), extract MGT identities, get interesting relations between APs, clients and it's Probes, get WPS information and have a global view of all the APs seen.
 
 ```
            _   __  _             _  _     
@@ -10,6 +10,21 @@ __      __(_) / _|(_)         __| || |__
                      |_____|          
                                by r4ulcl
 ```
+
+## Features
+
+-   Displays if a network is cloaked (hidden) even if you have the ESSID.
+-   Shows a detailed table of connected clients and their respective APs.
+-   Identifies client probes connected to APs, providing insight into potential security risks usin Rogue APs.
+-   Extracts handshakes for use with hashcat, facilitating password cracking.
+-   Displays identity information from enterprise networks, including the EAP method used for authentication.
+-   Generates a summary of each AP group by ESSID and encryption, giving an overview of the security status of nearby networks.
+-   Provides a WPS info table for each AP, detailing information about the Wi-Fi Protected Setup configuration of the network.
+-   Logs all instances when a client or AP has been seen with the GPS data and timestamp, enabling location-based analysis.
+-   Upload files with capture folder or file. This option supports the use of wildcards (*) to select multiple files or folders.
+-   Docker version in Docker Hub to avoid dependencies.
+-   Obfuscated mode for demonstrations and conferences.
+-   Possibility to add static GPS data.
 
 ## Install
 
