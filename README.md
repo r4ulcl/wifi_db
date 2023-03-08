@@ -1,5 +1,5 @@
 # wifi_db
-Script to parse Aircrack-ng captures into a SQLite database, get handshakes (in 22000 hashcat format), extract MGT identities, get interesting relations between APs, clients and it's Probes, get WPS information and have a global view of all the APs seen.
+Script to parse Aircrack-ng captures into a SQLite database and extract useful information, like handshakes (in 22000 hashcat format), MGT identities, interesting relations between APs, clients and it's Probes, WPS information and have a global view of all the APs seen.
 
 ```
            _   __  _             _  _     

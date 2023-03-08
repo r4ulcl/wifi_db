@@ -15,6 +15,9 @@ import nest_asyncio
 # import nest_asyncio ; nest_asyncio.apply() -> 
 # Fix RuntimeError: This event loop is already running”
 
+VERSION = '1.0'
+
+
 def banner():
     print('''
            _   __  _             _  _     
@@ -26,12 +29,16 @@ __      __(_) / _|(_)         __| || |__
                                by r4ulcl           
 ''')
 
+def printVersion():
+    print("wifi_db version:", VERSION)
 
 def main():
     nest_asyncio.apply()
     '''Function main. Parse argument and exec the functions '''
     # args
     parser = argparse.ArgumentParser()
+    parser.add_argument("-V", "--version", help="write the wifi_db version",
+                        action="store_true")
     parser.add_argument("-v", "--verbose", help="increase output verbosity",
                         action="store_true")
     parser.add_argument("--debug", help="increase output verbosity to debug",
@@ -57,7 +64,7 @@ def main():
                         help="output database, if exist append to the given"
                         " database (default name: %(default)s)")
 
-    parser.add_argument("capture", type=str, nargs='+',
+    parser.add_argument("capture", type=str, nargs='*',
                         help="capture folder or file with extensions .csv, "
                         ".kismet.csv, .kismet.netxml, or .log.csv. If no "
                         "extension is provided, all types will be added. "
@@ -65,7 +72,16 @@ def main():
                         "wildcards (*) to select multiple files or folders.")
     args = parser.parse_args()
 
+    if args.version:
+        printVersion()
+        exit()
+
+    if not args.capture:
+        print("wifi_db.py: error: the following arguments are required: capture")
+        exit()
+
     # vars
+    version = args.version
     verbose = args.verbose
     debug = args.debug
     obfuscated = args.obfuscated
