@@ -108,10 +108,12 @@ def parse_netxml(ouiMap, name, database, verbose):
 
                     packets_total = wireless[8].find("total").text
 
+                    mfpc = 'False'
+                    mfpr = 'False'
                     errors += database_utils.insertAP(
                         cursor, verbose, bssid, essid, manuf, channel,
                         freqmhz, carrier, encryption, packets_total, lat, lon,
-                        cloaked)
+                        cloaked, mfpc, mfpr)
 
                     # client
                     clients = wireless.findall("wireless-client")
@@ -168,10 +170,12 @@ def parse_kismet_csv(ouiMap, name, database, verbose):
                             lat = row[32]
                             lon = row[33]
                             cloaked = 'False'
+                            mfpc = 'False'
+                            mfpr = 'False'
                             errors += database_utils.insertAP(
                                 cursor, verbose, bssid, essid, manuf, channel,
                                 freqmhz, carrier, encryption, packets_total,
-                                lat, lon, cloaked)
+                                lat, lon, cloaked, mfpc, mfpr)
                             # manuf y carrier implementar
                         except Exception as error:
                             if verbose:
@@ -216,10 +220,13 @@ def parse_csv(ouiMap, name, database, verbose):
                             packets_total = row[10]
                             cloaked = 'False'
 
+                            mfpc = 'False'
+                            mfpr = 'False'
+                            
                             errors += database_utils.insertAP(
                                 cursor, verbose,  bssid, essid[1:], manuf,
                                 channel, freq, carrier, encrypt,
-                                packets_total, 0, 0, cloaked)
+                                packets_total, 0, 0, cloaked, mfpc, mfpr)
 
                         if row and row[0] == "Station MAC":
                             client = True
@@ -292,10 +299,12 @@ def parse_log_csv(ouiMap, name, database, verbose, fake_lat, fake_lon):
                                 lon = fake_lon
                             manuf = oui.get_vendor(ouiMap, row[3])
                             cloaked = 'False'
+                            mfpc = 'False'
+                            mfpr = 'False'
                             errors += database_utils.insertAP(
                                 cursor, verbose,  row[3], row[2],
                                 manuf, 0, 0, '', '', 0, lat, lon,
-                                cloaked)
+                                cloaked, mfpc, mfpr)
 
                             # if row[6] != "0.000000":
                             errors += database_utils.insertSeenAP(
@@ -319,6 +328,7 @@ def parse_cap(name, database, verbose, hcxpcapngtool, tshark):
         parse_handshakes(name, database, verbose)
         parse_WPS(name, database, verbose)
         parse_identities(name, database, verbose)
+        parse_MFP(name, database, verbose)
     if hcxpcapngtool:
         exec_hcxpcapngtool(name, database, verbose)
 
@@ -374,6 +384,52 @@ def parse_handshakes(name, database, verbose):
         print(".cap Handshake done, errors", errors)
 
 
+
+# Get MFP data from .cap
+def parse_MFP(name, database, verbose):
+    try:
+        cursor = database.cursor()
+        errors = 0
+        file = name+".cap"
+        #cap = pyshark.FileCapture(file, display_filter='wlan.fc.type_subtype == 0x0008')
+        # Filter only with mfpr or mfpc enable
+        cap = pyshark.FileCapture(file, display_filter='(wlan.rsn.capabilities.mfpr == 1) || (wlan.rsn.capabilities.mfpc == 1)')
+        # cap.set_debug()
+        prevSrc = ""
+        prevDst = ""
+        prevFlag = ""
+
+        for pkt in cap:
+            try:
+                if pkt['wlan.mgt'].wlan_rsn_capabilities:
+                    capabilities = pkt['wlan.mgt'].wlan_rsn_capabilities
+                    mfpc = int(capabilities, 16) & 0x01
+                    mfpr = (int(capabilities, 16) & 0x02) >> 1
+                    src = pkt.wlan.ta
+                    # if mfpc is 1 insert in DB
+                    if mfpc == 1 or mfpr == 1:
+                        print(f"MFPC: {mfpc}")
+                        print(f"MFPR: {mfpr}")
+                        errors += database_utils.insertMFP(cursor,
+                                                            verbose,
+                                                            src, mfpc, mfpr, file)
+                #wlan_options = pkt['wlan.mgt'].field_names
+                #print(wlan_options)
+                #print(pkt['wlan.mgt'])
+            except:
+                errors += 1
+        database.commit()
+        print(".cap MFP done, errors", errors)
+    except pyshark.capture.capture.TSharkCrashException as error:
+        errors += 1
+        print("Error in parse_MFP (CAP), probably PCAP cut in the "
+              "middle of a packet: ", error)
+    except Exception as error:
+        errors += 1
+        print("Error in parse_MFP (CAP): ", error)
+        print(".cap Handshake done, errors", errors)
+
+
 # Get handshakes from .cap
 def parse_WPS(name, database, verbose):
     try:
@@ -396,6 +452,7 @@ def parse_WPS(name, database, verbose):
             wps_version = '1.0'  # Default 1.0
             wmgt = 'wlan.mgt'
             try:
+                wlan_ssid = pkt['wlan.mgt'].wlan_ssid
                 bssid = pkt.wlan.sa
                 bssid = bssid.upper()
             except Exception:
@@ -403,7 +460,9 @@ def parse_WPS(name, database, verbose):
             try:
                 wlan_ssid_hex = pkt[wmgt].wlan_ssid
                 wlan_ssid_bytes = binascii.unhexlify(wlan_ssid_hex.replace(':', ''))
-                wlan_ssid = wlan_ssid_bytes.decode('ascii')
+                wlan_ssid_decode = wlan_ssid_bytes.decode('ascii')
+                if wlan_ssid_decode != "":
+                    wlan_ssid = wlan_ssid_decode
                 if ('20' in pkt[wmgt].wps_ext_version2):
                     wps_version = '2.0'
             except Exception as e:
