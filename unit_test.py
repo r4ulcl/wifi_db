@@ -32,9 +32,11 @@ class TestFunctions(unittest.TestCase):
         packets_total = "10"
         lat = "37.7749"
         lon = "-122.4194"
-        cloaked = False
+        cloaked = 'False'
+        mfpc = 'False'
+        mfpr = 'False'
         # Insert new AP
-        result = insertAP(self.c, self.verbose, self.bssid, essid, manuf, channel, freqmhz, carrier, encryption, packets_total, lat, lon, cloaked)
+        result = insertAP(self.c, self.verbose, self.bssid, essid, manuf, channel, freqmhz, carrier, encryption, packets_total, lat, lon, cloaked, mfpc, mfpr)
         self.assertEqual(result, 0)
         # TODO  Insert existing AP with new values 
         #manuf = "Updated_Manufacturer"
@@ -97,8 +99,10 @@ class TestFunctions(unittest.TestCase):
         lat = "37.7749"
         lon = "-122.4194"
         cloaked = False
+        mfpc = 'False'
+        mfpr = 'False'
         # Insert new AP
-        result = insertAP(self.c, self.verbose, self.bssid, essid, manuf, channel, freqmhz, carrier, encryption, packets_total, lat, lon, cloaked)
+        result = insertAP(self.c, self.verbose, self.bssid, essid, manuf, channel, freqmhz, carrier, encryption, packets_total, lat, lon, cloaked, mfpc, mfpr)
         self.assertEqual(result, 0)
 
         ssid = ""
@@ -171,8 +175,10 @@ class TestFunctions(unittest.TestCase):
         lat = "37.7749"
         lon = "-122.4194"
         cloaked = False
+        mfpc = 'False'
+        mfpr = 'False'
         # Insert new AP
-        result = insertAP(self.c, self.verbose, self.bssid, essid, manuf, channel, freqmhz, carrier, encryption, packets_total, lat, lon, cloaked)
+        result = insertAP(self.c, self.verbose, self.bssid, essid, manuf, channel, freqmhz, carrier, encryption, packets_total, lat, lon, cloaked, mfpc, mfpr)
         self.assertEqual(result, 0)
 
         # Insert SeenAP
@@ -204,8 +210,10 @@ class TestFunctions(unittest.TestCase):
         lat = "37.7749"
         lon = "-122.4194"
         cloaked = False
+        mfpc = 'False'
+        mfpr = 'False'
         # Insert new AP
-        result = insertAP(self.c, self.verbose, self.bssid, essid, manuf, channel, freqmhz, carrier, encryption, packets_total, lat, lon, cloaked)
+        result = insertAP(self.c, self.verbose, self.bssid, essid, manuf, channel, freqmhz, carrier, encryption, packets_total, lat, lon, cloaked, mfpc, mfpr)
         self.assertEqual(result, 0)
 
         ssid = ""
@@ -234,7 +242,7 @@ class TestFunctions(unittest.TestCase):
     def test_obfuscateDB(self):
         # add needed data
         essid = "Test_AP"
-        manufAP = "Test_Manufacturer"
+        manufAP = "Test_Manufacturer_AP"
         channel = "6"
         freqmhz = "2437"
         carrier = "test"
@@ -243,12 +251,14 @@ class TestFunctions(unittest.TestCase):
         lat = "37.7749"
         lon = "-122.4194"
         cloaked = False
+        mfpc = 'False'
+        mfpr = 'False'
         # Insert new AP
-        result = insertAP(self.c, self.verbose, self.bssid, essid, manufAP, channel, freqmhz, carrier, encryption, packets_total, lat, lon, cloaked)
+        result = insertAP(self.c, self.verbose, self.bssid, essid, manufAP, channel, freqmhz, carrier, encryption, packets_total, lat, lon, cloaked, mfpc, mfpr)
         self.assertEqual(result, 0)
 
         ssid = "null_ssid"
-        manufClient = "Test_Manufacturer"
+        manufClient = "Test_Manufacturer_Client"
         packets_total = "10"
         power = "-70"
         # Insert new client
@@ -280,3 +290,6 @@ class TestFunctions(unittest.TestCase):
         self.assertEqual(rows[0][1], ssid)
         self.assertEqual(rows[0][2], manufClient)
         self.assertEqual(rows[0][3], packets_total)
+
+if __name__ == '__main__':
+    unittest.main()
