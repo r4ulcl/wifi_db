@@ -11,6 +11,8 @@ CREATE TABLE IF NOT EXISTS AP
     packetsTotal int,
     lat_t REAL,
     lon_t REAL,
+    mfpc BOOLEAN,
+    mfpr BOOLEAN,
     CONSTRAINT Key1 PRIMARY KEY (bssid)
 );
 

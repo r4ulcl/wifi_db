@@ -31,6 +31,6 @@ FROM Identity JOIN AP ON Identity.bssid = AP.bssid  JOIN Client ON Identity.mac 
 ORDER BY Identity.bssid;
 
 CREATE VIEW IF NOT EXISTS SummaryAP AS
-SELECT ssid, count(ssid) AS "Count", AP.encryption, AP.manuf, AP.cloaked
-FROM AP group by AP.encryption, ssid
-ORDER BY count(ssid) DESC;
+SELECT ssid, count(ssid) AS "Count", AP.encryption, AP.manuf, AP.cloaked, count(Connected.mac) as "Clients"
+FROM AP JOIN Connected ON AP.bssid = Connected.bssid group by AP.encryption, ssid 
+ORDER BY count(ssid) DESC
