@@ -15,7 +15,7 @@ import nest_asyncio
 # import nest_asyncio ; nest_asyncio.apply() -> 
 # Fix RuntimeError: This event loop is already running”
 
-VERSION = '1.0'
+VERSION = '1.1'
 
 
 def banner():
@@ -183,6 +183,10 @@ def main():
         print("-o is enable, so obfuscate. This may take a while")
         database_utils.obfuscateDB(database, verbose)
 
+    print("\nThe output database is in the file:", name)
+    print("Use 'sqlitebrowser ",name,"' or other SQLITE program to view the data")
+
+
 
 def process_capture(ouiMap, capture, database, 
                     verbose, fake_lat, fake_lon, 
@@ -225,7 +229,6 @@ def process_capture(ouiMap, capture, database,
                                         fake_lon)
         wifi_db_aircrack.parse_cap(capture, database, verbose,
                                     hcxpcapngtool, tshark)
-
 
 if __name__ == "__main__":
     banner()

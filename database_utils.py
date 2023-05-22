@@ -57,12 +57,12 @@ def create_views(database, verbose):
 
 
 def insertAP(cursor, verbose, bssid, essid, manuf, channel, freqmhz, carrier,
-             encryption, packets_total, lat, lon, cloaked):
+             encryption, packets_total, lat, lon, cloaked, mfpc, mfpr):
     ''''''
     try:
-        cursor.execute('''INSERT INTO AP VALUES(?,?,?,?,?,?,?,?,?,?,?) ''',
+        cursor.execute('''INSERT INTO AP VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?) ''',
                        (bssid.upper(), essid, cloaked, manuf, channel, freqmhz, carrier,
-                        encryption, packets_total, lat, lon))
+                        encryption, packets_total, lat, lon, mfpc, mfpr))
         return int(0)
     except sqlite3.IntegrityError as error:
         # errors += 1
@@ -133,6 +133,22 @@ def insertAP(cursor, verbose, bssid, essid, manuf, channel, freqmhz, carrier,
             if verbose:
                 print(sql, (cloaked, bssid.upper()))
             cursor.execute(sql, (cloaked, bssid.upper()))
+
+
+            # UPDATE `mfpc` columns
+            sql = """UPDATE AP SET mfpc = CASE WHEN mfpc = 'False' THEN (?) 
+                    ELSE mfpc END WHERE bssid = (?)"""
+            if verbose:
+                print(sql, (mfpc, bssid.upper()))
+            cursor.execute(sql, (mfpc, bssid.upper()))
+
+            # UPDATE `mfpr` columns
+            sql = """UPDATE AP SET mfpr = CASE WHEN mfpr = 'False' THEN (?) 
+                    ELSE mfpr END WHERE bssid = (?)"""
+            if verbose:
+                print(sql, (mfpr, bssid.upper()))
+            cursor.execute(sql, (mfpr, bssid.upper()))
+
 
             return int(0)
         except sqlite3.IntegrityError as error:
@@ -231,8 +247,10 @@ def insertWPS(cursor, verbose, bssid, wlan_ssid, wps_version, wps_device_name,
         lat = "0.0"
         lon = "0.0"
         cloaked = 'False'
+        mfpc = 'False'
+        mfpr = 'False'
         insertAP(cursor, verbose, bssid, essid, manuf, channel, freqmhz, carrier,
-                 encryption, packets_total, lat, lon, cloaked)
+                 encryption, packets_total, lat, lon, cloaked, mfpc, mfpr)
 
 
 
@@ -271,6 +289,33 @@ def insertConnected(cursor, verbose, bssid, mac):
             print("insertConnected Error " + str(error))
         return int(1)
 
+def insertMFP(cursor, verbose, bssid, mfpc, mfpr, file):
+    ''''''
+    try:
+        # Insert AP or update
+        essid = ""
+        manuf = ""
+        channel = ""
+        freqmhz = ""
+        carrier = ""
+        encryption = ""
+        packets_total = ""
+        lat = "0.0"
+        lon = "0.0"
+        cloaked = 'False'
+        insertAP(cursor, verbose, bssid, essid, manuf, channel, freqmhz, carrier,
+                 encryption, packets_total, lat, lon, cloaked, mfpc, mfpr)
+
+        return int(0)
+    except sqlite3.IntegrityError as error:
+        # errors += 1
+        if verbose:
+            print("insertHandshake" + str(error))
+        return int(0)
+    except sqlite3.Error as error:
+        if verbose:
+            print("insertHandshake Error " + str(error))
+        return int(1)
 
 def insertHandshake(cursor, verbose, bssid, mac, file):
     ''''''
@@ -293,8 +338,10 @@ def insertHandshake(cursor, verbose, bssid, mac, file):
         lat = "0.0"
         lon = "0.0"
         cloaked = 'False'
+        mfpc = 'False'
+        mfpr = 'False'
         insertAP(cursor, verbose, bssid, essid, manuf, channel, freqmhz, carrier,
-                 encryption, packets_total, lat, lon, cloaked)
+                 encryption, packets_total, lat, lon, cloaked, mfpc, mfpr)
 
 
         # print(row[5].replace(' ', ''))
@@ -336,8 +383,10 @@ def insertIdentity(cursor, verbose, bssid, mac, identity, method):
         lat = "0.0"
         lon = "0.0"
         cloaked = 'False'
+        mfpc = 'False'
+        mfpr = 'False'
         error += insertAP(cursor, verbose, bssid, essid, manuf, channel, freqmhz, carrier,
-                 encryption, packets_total, lat, lon, cloaked)
+                 encryption, packets_total, lat, lon, cloaked, mfpc, mfpr)
 
         if verbose:
             print('output ' + bssid.upper(), mac.upper(), identity, method)
