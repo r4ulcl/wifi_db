@@ -10,8 +10,9 @@ import ftfy
 import database_utils
 import pyshark
 import subprocess
-import platform
+# import platform
 import binascii
+
 
 def parse_netxml(ouiMap, name, database, verbose):
     '''Function to parse the .kismet.netxml files'''
@@ -222,9 +223,9 @@ def parse_csv(ouiMap, name, database, verbose):
 
                             mfpc = 'False'
                             mfpr = 'False'
-                            
+
                             errors += database_utils.insertAP(
-                                cursor, verbose,  bssid, essid[1:], manuf,
+                                cursor, verbose, bssid, essid[1:], manuf,
                                 channel, freq, carrier, encrypt,
                                 packets_total, 0, 0, cloaked, mfpc, mfpr)
 
@@ -302,13 +303,13 @@ def parse_log_csv(ouiMap, name, database, verbose, fake_lat, fake_lon):
                             mfpc = 'False'
                             mfpr = 'False'
                             errors += database_utils.insertAP(
-                                cursor, verbose,  row[3], row[2],
+                                cursor, verbose, row[3], row[2],
                                 manuf, 0, 0, '', '', 0, lat, lon,
                                 cloaked, mfpc, mfpr)
 
                             # if row[6] != "0.000000":
                             errors += database_utils.insertSeenAP(
-                                cursor, verbose,  row[3], row[0],
+                                cursor, verbose, row[3], row[0],
                                 'aircrack-ng', row[4], lat, lon,
                                 '0.0', 0)
 
@@ -358,8 +359,8 @@ def parse_handshakes(name, database, verbose):
                     # IF is the second and the prev is the first one add handshake
                     if flag.find('10a') != -1:
                         # print('handhsake 2 of 4')
-                        if (prevFlag.find('08a') and
-                                dst == prevSrc and src == prevDst):  # first
+                        if (prevFlag.find('08a')
+                                and dst == prevSrc and src == prevDst):  # first
                             if verbose:
                                 print("Valid handshake from client " + prevSrc +
                                       " to AP " + prevDst)
@@ -370,8 +371,10 @@ def parse_handshakes(name, database, verbose):
                         prevSrc = src
                         prevDst = dst
                         prevFlag = flag
-            except:
+            except Exception as error:
                 errors += 1
+                if verbose:
+                    print(error)
         database.commit()
         print(".cap Handshake done, errors", errors)
     except pyshark.capture.capture.TSharkCrashException as error:
@@ -385,24 +388,21 @@ def parse_handshakes(name, database, verbose):
         print(".cap Handshake done, errors", errors)
 
 
-
 # Get MFP data from .cap
 def parse_MFP(name, database, verbose):
     try:
         cursor = database.cursor()
         errors = 0
         file = name
-        #cap = pyshark.FileCapture(file, display_filter='wlan.fc.type_subtype == 0x0008')
+        # cap = pyshark.FileCapture(file, display_filter='wlan.fc.type_subtype == 0x0008')
         # Filter only with mfpr or mfpc enable
-        cap = pyshark.FileCapture(file, display_filter='(wlan.rsn.capabilities.mfpr == 1) || (wlan.rsn.capabilities.mfpc == 1)')
+        cap = pyshark.FileCapture(file,
+                                  display_filter='(wlan.rsn.capabilities.mfpr == 1)||(wlan.rsn.capabilities.mfpc == 1)')
         # cap.set_debug()
-        prevSrc = ""
-        prevDst = ""
-        prevFlag = ""
 
         for pkt in cap:
             try:
-                if pkt['wlan.mgt'].wlan_rsn_capabilities:
+                if pkt['wlan.mgt'].wlan_rsn_capabilities and pkt.wlan.ta:
                     capabilities = pkt['wlan.mgt'].wlan_rsn_capabilities
                     mfpc = int(capabilities, 16) & 0x01
                     mfpr = (int(capabilities, 16) & 0x02) >> 1
@@ -412,13 +412,15 @@ def parse_MFP(name, database, verbose):
                         print(f"MFPC: {mfpc}")
                         print(f"MFPR: {mfpr}")
                         errors += database_utils.insertMFP(cursor,
-                                                            verbose,
-                                                            src, mfpc, mfpr, file)
-                #wlan_options = pkt['wlan.mgt'].field_names
-                #print(wlan_options)
-                #print(pkt['wlan.mgt'])
-            except:
+                                                           verbose,
+                                                           src, mfpc, mfpr, file)
+                # wlan_options = pkt['wlan.mgt'].field_names
+                # print(wlan_options)
+                # print(pkt['wlan.mgt'])
+            except Exception as error:
                 errors += 1
+                if verbose:
+                    print(error)
         database.commit()
         print(".cap MFP done, errors", errors)
     except pyshark.capture.capture.TSharkCrashException as error:
@@ -468,7 +470,8 @@ def parse_WPS(name, database, verbose):
                 if ('20' in pkt[wmgt].wps_ext_version2):
                     wps_version = '2.0'
             except Exception as e:
-                print(e)
+                if verbose:
+                    print(e)
                 errors += 1
             try:
                 wps_device_name = pkt[wmgt].wps_device_name
@@ -542,8 +545,10 @@ def parse_identities(name, database, verbose):
                     if pkt.eap.code == '2':
                         try:
                             identity = pkt.eap.identity
-                        except:
+                        except Exception as error:
                             errors += 1
+                            if verbose:
+                                print(error)
                 # EAP-PEAP
                 elif pkt.eap.type == '25':  # Found EAP-PEAP
                     method = "EAP-PEAP"
@@ -567,6 +572,11 @@ def parse_identities(name, database, verbose):
 
         database.commit()
         print(".cap Identity done, errors", errors)
+    except pyshark.capture.capture.TSharkCrashException as error:
+        errors += 1
+        print("Error in parse_identities (CAP), probably PCAP cut in the "
+              "middle of a packet: ", error)
+        print(".cap Identity done, errors", errors)
     except Exception as error:
         errors += 1
         print("Error in parse_identities (CAP): ", error)
@@ -580,7 +590,7 @@ def exec_hcxpcapngtool(name, database, verbose):
         # subprocess.call([cmd, "hcxpcapngtool"])
         cursor = database.cursor()
         errors = 0
-        fileName = name 
+        fileName = name
         # exec_hcxpcapngtool
         arguments = fileName + ' -o test.22000'
 
@@ -601,8 +611,8 @@ def exec_hcxpcapngtool(name, database, verbose):
                 ap_lower = split[3].upper()
                 client_lower = split[4].upper()
                 # : format
-                ap = (':'.join(ap_lower[i:i+2] for i in range(0, 12, 2)))
-                client = (':'.join(client_lower[i:i+2] for i in
+                ap = (':'.join(ap_lower[i:i + 2] for i in range(0, 12, 2)))
+                client = (':'.join(client_lower[i:i + 2] for i in
                           range(0, 12, 2)))
                 if verbose:
                     print(ap)
@@ -610,9 +620,9 @@ def exec_hcxpcapngtool(name, database, verbose):
                     print(line)
                 # Update handshake
 
-                errors += database_utils.set_hashcat(cursor, verbose,
-                                                     ap, client, fileName,
-                                                     line)
+                errors += database_utils.setHashcat(cursor, verbose,
+                                                    ap, client, fileName,
+                                                    line)
         os.remove("test.22000")
         print(".cap hcxpcapngtool done, errors", errors)
 
