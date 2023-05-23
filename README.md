@@ -241,7 +241,7 @@ wifi_db contains several tables to store information related to wireless network
 
 - [X] Fix Extended errors, tildes, etc (fixed in aircrack-ng 1.6)
 
-- [ ] Support bash multi files: "capture*-1*"
+- [X] Support bash multi files: "capture*-1*"
 
 - [X] Script to delete client or AP from DB (mac). - (Whitelist)
 
@@ -251,9 +251,9 @@ wifi_db contains several tables to store information related to wireless network
 
 - [X] Table Handhsakes and PMKID
 
-- [x] Hashcat hash format 22000
+- [X] Hashcat hash format 22000
 
-- [ ] Table files, if file exists skip (full path)
+- [X] Table files, if file exists skip (full path)
 
 - [ ] Get HTTP POST passwords 
 

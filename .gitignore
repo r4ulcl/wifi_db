@@ -5,5 +5,5 @@ capturas/*
 capturasRPI/*
 __pycache__/
 *.pyc
-
+.flake8
 .vscode/
