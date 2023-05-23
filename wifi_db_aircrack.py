@@ -16,7 +16,7 @@ import binascii
 def parse_netxml(ouiMap, name, database, verbose):
     '''Function to parse the .kismet.netxml files'''
 
-    filename = name+".kismet.netxml"
+    filename = name
     exists = os.path.isfile(filename)
     errors = 0
     try:
@@ -145,12 +145,12 @@ def parse_netxml(ouiMap, name, database, verbose):
 
 def parse_kismet_csv(ouiMap, name, database, verbose):
     '''Function to parse the .kismet.csv files'''
-    exists = os.path.isfile(name+".kismet.csv")
+    exists = os.path.isfile(name)
     errors = 0
     try:
         cursor = database.cursor()
         if exists:
-            with open(name+".kismet.csv") as csv_file:
+            with open(name) as csv_file:
                 csv_reader = csv.reader((x.replace('\0', '')
                                          for x in csv_file), delimiter=';')
                 for row in csv_reader:
@@ -195,12 +195,12 @@ def parse_kismet_csv(ouiMap, name, database, verbose):
 
 def parse_csv(ouiMap, name, database, verbose):
     '''Function to parse the .csv files'''
-    exists = os.path.isfile(name+".csv")
+    exists = os.path.isfile(name)
     errors = 0
     try:
         cursor = database.cursor()
         if exists:
-            with open(name+".csv") as csv_file:
+            with open(name) as csv_file:
                 csv_reader = csv.reader((x.replace('\0', '')
                                          for x in csv_file), delimiter=',')
                 client = False
@@ -267,12 +267,12 @@ def parse_csv(ouiMap, name, database, verbose):
 
 def parse_log_csv(ouiMap, name, database, verbose, fake_lat, fake_lon):
     ''' Parse .log.csv file from Aircrack-ng to the database '''
-    exists = os.path.isfile(name+".log.csv")
+    exists = os.path.isfile(name)
     errors = 0
     try:
         cursor = database.cursor()
         if exists:
-            with open(name+".log.csv") as csv_file:
+            with open(name) as csv_file:
                 csv_reader = csv.reader(csv_file, delimiter=',')
                 for row in csv_reader:
                     if row[0] != "LocalTime":
@@ -338,7 +338,7 @@ def parse_handshakes(name, database, verbose):
     try:
         cursor = database.cursor()
         errors = 0
-        file = name+".cap"
+        file = name
         cap = pyshark.FileCapture(file, display_filter="eapol")
         # cap.set_debug()
         prevSrc = ""
@@ -378,6 +378,7 @@ def parse_handshakes(name, database, verbose):
         errors += 1
         print("Error in parse_handshakes (CAP), probably PCAP cut in the "
               "middle of a packet: ", error)
+        print(".cap Handshake done, errors", errors)
     except Exception as error:
         errors += 1
         print("Error in parse_handshakes (CAP): ", error)
@@ -390,7 +391,7 @@ def parse_MFP(name, database, verbose):
     try:
         cursor = database.cursor()
         errors = 0
-        file = name+".cap"
+        file = name
         #cap = pyshark.FileCapture(file, display_filter='wlan.fc.type_subtype == 0x0008')
         # Filter only with mfpr or mfpc enable
         cap = pyshark.FileCapture(file, display_filter='(wlan.rsn.capabilities.mfpr == 1) || (wlan.rsn.capabilities.mfpc == 1)')
@@ -424,10 +425,11 @@ def parse_MFP(name, database, verbose):
         errors += 1
         print("Error in parse_MFP (CAP), probably PCAP cut in the "
               "middle of a packet: ", error)
+        print(".cap MFP done, errors", errors)
     except Exception as error:
         errors += 1
         print("Error in parse_MFP (CAP): ", error)
-        print(".cap Handshake done, errors", errors)
+        print(".cap MFP done, errors", errors)
 
 
 # Get handshakes from .cap
@@ -435,7 +437,7 @@ def parse_WPS(name, database, verbose):
     try:
         cursor = database.cursor()
         errors = 0
-        file = name+".cap"
+        file = name
         cap = pyshark.FileCapture(
             file, display_filter="wps.wifi_protected_setup_state == 0x02 and wlan.da == ff:ff:ff:ff:ff:ff")
         # cap.set_debug()
@@ -521,7 +523,7 @@ def parse_identities(name, database, verbose):
     try:
         cursor = database.cursor()
         errors = 0
-        file = name+".cap"
+        file = name
         cap = pyshark.FileCapture(file, display_filter="eap")
         # cap.set_debug()
 
@@ -578,7 +580,7 @@ def exec_hcxpcapngtool(name, database, verbose):
         # subprocess.call([cmd, "hcxpcapngtool"])
         cursor = database.cursor()
         errors = 0
-        fileName = name + ".cap"
+        fileName = name 
         # exec_hcxpcapngtool
         arguments = fileName + ' -o test.22000'
 
