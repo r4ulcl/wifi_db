@@ -5,6 +5,7 @@ import sqlite3
 import os
 import random
 import string
+import datetime
 
 
 def connect_database(name, verbose):
@@ -320,6 +321,9 @@ def insertMFP(cursor, verbose, bssid, mfpc, mfpr, file):
 def insertHandshake(cursor, verbose, bssid, mac, file):
     ''''''
     try:
+        # Insert file
+        insert_file(cursor, verbose, file)
+
         # insertHandshake Client and AP CONSTRAINT
         ssid = ""
         manuf = ""
@@ -453,6 +457,38 @@ def set_hashcat(cursor, verbose, bssid, mac, file, hash):
         print("set_hashcat" + str(error))
         return int(1)
 
+def insert_file(cursor, verbose, file):
+    try:
+        cursor.execute('''INSERT OR REPLACE INTO Files VALUES(?,?,?)''',
+                       (file, "False", datetime.datetime.now()))
+        return int(0)
+    except sqlite3.IntegrityError as error:
+        print("insert_file" + str(error))
+        return int(1)
+
+def set_file_processed(cursor, verbose, file):
+    try:
+        cursor.execute('''UPDATE Files SET processed = ? where file = ?''',
+                        ("True", file))
+        return int(0)
+    except sqlite3.IntegrityError as error:
+        print("insert_file" + str(error))
+        return int(1)
+
+
+def check_file_processed(cursor, verbose, file):
+    try:
+        sql = "SELECT file from Files where file = '" + file + "' AND processed = 'True';"
+        cursor.execute(sql)
+
+        output = cursor.fetchall()
+        if len(output) > 0:
+            return int(1)
+        
+        return int(0)
+    except sqlite3.IntegrityError as error:
+        print("insert_file" + str(error))
+        return int(2)
 
 def set_fake_lat(cursor, verbose, lat):
     try:
