@@ -8,7 +8,7 @@ import string
 import datetime
 
 
-def connect_database(name, verbose):
+def connectDatabase(name, verbose):
     '''Function to connect to the database'''
     database = sqlite3.connect(name)
     database.text_factory = str
@@ -18,10 +18,10 @@ def connect_database(name, verbose):
     return database
 
 
-def create_database(database, verbose):
+def createDatabase(database, verbose):
     '''Function to create the tables in the database'''
     script_path = os.path.dirname(os.path.abspath(__file__))
-    path = script_path+'/wifi_db_database.sql'
+    path = script_path + '/wifi_db_database.sql'
     db_file = open(path, 'r')
     views = db_file.read()
     try:
@@ -33,14 +33,14 @@ def create_database(database, verbose):
         if verbose:
             print("Database created")
     except sqlite3.IntegrityError as error:
-        print("create_database" + str(error))
+        print("createDatabase" + str(error))
     db_file.close()
 
 
-def create_views(database, verbose):
+def createViews(database, verbose):
     '''Function to create the Views in the database'''
     script_path = os.path.dirname(os.path.abspath(__file__))
-    path = script_path+'/view.sql'
+    path = script_path + '/view.sql'
     views_file = open(path, 'r')
     views = views_file.read()
     try:
@@ -53,7 +53,7 @@ def create_views(database, verbose):
         if verbose:
             print("Views created")
     except sqlite3.IntegrityError as error:
-        print("create_views" + str(error))
+        print("createViews" + str(error))
     views_file.close()
 
 
@@ -72,84 +72,82 @@ def insertAP(cursor, verbose, bssid, essid, manuf, channel, freqmhz, carrier,
                 print("insertAP " + str(error))
 
             # Write if empty
-            sql = """UPDATE AP SET ssid = CASE WHEN ssid = '' OR 
+            sql = """UPDATE AP SET ssid = CASE WHEN ssid = '' OR
                      ssid IS NULL THEN (?) ELSE ssid END WHERE bssid = (?)"""
             if verbose:
                 print(sql, (essid, bssid.upper()))
             cursor.execute(sql, (essid, bssid.upper()))
 
             # Update `manuf` column
-            sql = """UPDATE AP SET manuf = CASE WHEN manuf = '' OR manuf IS NULL 
+            sql = """UPDATE AP SET manuf = CASE WHEN manuf = '' OR manuf IS NULL
                     THEN (?) ELSE manuf END WHERE bssid = (?)"""
             if verbose:
                 print(sql, (manuf, bssid.upper()))
             cursor.execute(sql, (manuf, bssid.upper()))
 
             # Update `channel` column
-            sql = """UPDATE AP SET channel = CASE WHEN channel = '' OR channel IS NULL 
+            sql = """UPDATE AP SET channel = CASE WHEN channel = '' OR channel IS NULL
                     OR channel = 0 THEN (?) ELSE channel END WHERE bssid = (?)"""
             if verbose:
                 print(sql, (channel, bssid))
             cursor.execute(sql, (channel, bssid.upper()))
 
             # Update `frequency` column
-            sql = """UPDATE AP SET frequency = CASE WHEN frequency = '' OR 
+            sql = """UPDATE AP SET frequency = CASE WHEN frequency = '' OR
                     frequency IS NULL OR frequency < 2000 THEN (?) ELSE frequency END WHERE bssid = (?)"""
             if verbose:
                 print(sql, (freqmhz, bssid))
             cursor.execute(sql, (freqmhz, bssid.upper()))
 
             # Update `carrier` column
-            sql = """UPDATE AP SET carrier = CASE WHEN carrier = '' OR carrier IS NULL 
+            sql = """UPDATE AP SET carrier = CASE WHEN carrier = '' OR carrier IS NULL
                     THEN (?) ELSE carrier END WHERE bssid = (?)"""
             if verbose:
                 print(sql, (carrier, bssid))
             cursor.execute(sql, (carrier, bssid.upper()))
 
             # Update `encryption` column
-            sql = """UPDATE AP SET encryption = CASE WHEN encryption = '' OR 
+            sql = """UPDATE AP SET encryption = CASE WHEN encryption = '' OR
                     encryption IS NULL THEN (?) ELSE encryption END WHERE bssid = (?)"""
             if verbose:
                 print(sql, (encryption, bssid))
             cursor.execute(sql, (encryption, bssid.upper()))
 
             # Update `packetsTotal` column
-            sql = """UPDATE AP SET packetsTotal = packetsTotal + (?) 
+            sql = """UPDATE AP SET packetsTotal = packetsTotal + (?)
                     WHERE bssid = (?)"""
             if verbose:
                 print(sql, (packets_total, bssid.upper()))
             cursor.execute(sql, (packets_total, bssid.upper()))
 
             # Update `lat_t` and `lon_t` columns
-            sql = """UPDATE AP SET lat_t = CASE WHEN lat_t = 0.0 THEN (?) 
-                    ELSE lat_t END, lon_t = CASE WHEN lon_t = 0.0 THEN (?) 
+            sql = """UPDATE AP SET lat_t = CASE WHEN lat_t = 0.0 THEN (?)
+                    ELSE lat_t END, lon_t = CASE WHEN lon_t = 0.0 THEN (?)
                     ELSE lon_t END WHERE bssid = (?)"""
             if verbose:
                 print(sql, (lat, lon, bssid.upper()))
             cursor.execute(sql, (lat, lon, bssid.upper()))
 
             # Update `cloaked` column
-            sql = """UPDATE AP SET cloaked = CASE WHEN cloaked = 'False' THEN (?) 
+            sql = """UPDATE AP SET cloaked = CASE WHEN cloaked = 'False' THEN (?)
                     ELSE cloaked END WHERE bssid = (?)"""
             if verbose:
                 print(sql, (cloaked, bssid.upper()))
             cursor.execute(sql, (cloaked, bssid.upper()))
 
-
             # UPDATE `mfpc` columns
-            sql = """UPDATE AP SET mfpc = CASE WHEN mfpc = 'False' THEN (?) 
+            sql = """UPDATE AP SET mfpc = CASE WHEN mfpc = 'False' THEN (?)
                     ELSE mfpc END WHERE bssid = (?)"""
             if verbose:
                 print(sql, (mfpc, bssid.upper()))
             cursor.execute(sql, (mfpc, bssid.upper()))
 
             # UPDATE `mfpr` columns
-            sql = """UPDATE AP SET mfpr = CASE WHEN mfpr = 'False' THEN (?) 
+            sql = """UPDATE AP SET mfpr = CASE WHEN mfpr = 'False' THEN (?)
                     ELSE mfpr END WHERE bssid = (?)"""
             if verbose:
                 print(sql, (mfpr, bssid.upper()))
             cursor.execute(sql, (mfpr, bssid.upper()))
-
 
             return int(0)
         except sqlite3.IntegrityError as error:
@@ -253,8 +251,6 @@ def insertWPS(cursor, verbose, bssid, wlan_ssid, wps_version, wps_device_name,
         insertAP(cursor, verbose, bssid, essid, manuf, channel, freqmhz, carrier,
                  encryption, packets_total, lat, lon, cloaked, mfpc, mfpr)
 
-
-
         cursor.execute('''INSERT INTO WPS VALUES(?,?,?,?,?,?,?,?)''',
                        (bssid.upper(), wlan_ssid, wps_version, wps_device_name,
                         wps_model_name, wps_model_number, wps_config_methods,
@@ -290,6 +286,7 @@ def insertConnected(cursor, verbose, bssid, mac):
             print("insertConnected Error " + str(error))
         return int(1)
 
+
 def insertMFP(cursor, verbose, bssid, mfpc, mfpr, file):
     ''''''
     try:
@@ -318,11 +315,12 @@ def insertMFP(cursor, verbose, bssid, mfpc, mfpr, file):
             print("insertHandshake Error " + str(error))
         return int(1)
 
+
 def insertHandshake(cursor, verbose, bssid, mac, file):
     ''''''
     try:
         # Insert file
-        insert_file(cursor, verbose, file)
+        insertFile(cursor, verbose, file)
 
         # insertHandshake Client and AP CONSTRAINT
         ssid = ""
@@ -347,7 +345,6 @@ def insertHandshake(cursor, verbose, bssid, mac, file):
         insertAP(cursor, verbose, bssid, essid, manuf, channel, freqmhz, carrier,
                  encryption, packets_total, lat, lon, cloaked, mfpc, mfpr)
 
-
         # print(row[5].replace(' ', ''))
         cursor.execute(
             '''INSERT INTO handshake VALUES(?,?,?,?)''',
@@ -371,11 +368,11 @@ def insertIdentity(cursor, verbose, bssid, mac, identity, method):
         # Insert Identity Client and AP CONSTRAINT
         ssid = ""
         manuf = ""
-        type = ""
+        # type = ""
         packets_total = "0"
         device = ""
         error += insertClients(cursor, verbose, mac, ssid, manuf,
-                      "", packets_total, device)
+                               "", packets_total, device)
 
         essid = ""
         manuf = ""
@@ -390,7 +387,7 @@ def insertIdentity(cursor, verbose, bssid, mac, identity, method):
         mfpc = 'False'
         mfpr = 'False'
         error += insertAP(cursor, verbose, bssid, essid, manuf, channel, freqmhz, carrier,
-                 encryption, packets_total, lat, lon, cloaked, mfpc, mfpr)
+                          encryption, packets_total, lat, lon, cloaked, mfpc, mfpr)
 
         if verbose:
             print('output ' + bssid.upper(), mac.upper(), identity, method)
@@ -416,7 +413,7 @@ def insertSeenClient(cursor, verbose, mac, time, tool, signal_rssi,
     try:
         cursor.execute('''INSERT INTO SeenClient
                        VALUES(?,?,?,?,?,?,?)''',
-                       (mac.upper(),  time, tool, signal_rssi, lat, lon, alt))
+                       (mac.upper(), time, tool, signal_rssi, lat, lon, alt))
         return int(0)
     except sqlite3.IntegrityError as error:
         # errors += 1
@@ -448,35 +445,37 @@ def insertSeenAP(cursor, verbose, bssid, time, tool, signal_rsi,
         return int(1)
 
 
-def set_hashcat(cursor, verbose, bssid, mac, file, hash):
+def setHashcat(cursor, verbose, bssid, mac, file, hash):
     try:
         cursor.execute('''INSERT OR REPLACE INTO Handshake VALUES(?,?,?,?)''',
-                       (bssid.upper(), mac.upper(),  file, hash))
+                       (bssid.upper(), mac.upper(), file, hash))
         return int(0)
     except sqlite3.IntegrityError as error:
-        print("set_hashcat" + str(error))
+        print("setHashcat" + str(error))
         return int(1)
 
-def insert_file(cursor, verbose, file):
+
+def insertFile(cursor, verbose, file):
     try:
         cursor.execute('''INSERT OR REPLACE INTO Files VALUES(?,?,?)''',
                        (file, "False", datetime.datetime.now()))
         return int(0)
     except sqlite3.IntegrityError as error:
-        print("insert_file" + str(error))
+        print("insertFile" + str(error))
         return int(1)
 
-def set_file_processed(cursor, verbose, file):
+
+def setFileProcessed(cursor, verbose, file):
     try:
         cursor.execute('''UPDATE Files SET processed = ? where file = ?''',
-                        ("True", file))
+                       ("True", file))
         return int(0)
     except sqlite3.IntegrityError as error:
-        print("insert_file" + str(error))
+        print("setFileProcessed" + str(error))
         return int(1)
 
 
-def check_file_processed(cursor, verbose, file):
+def checkFileProcessed(cursor, verbose, file):
     try:
         sql = "SELECT file from Files where file = '" + file + "' AND processed = 'True';"
         cursor.execute(sql)
@@ -484,38 +483,11 @@ def check_file_processed(cursor, verbose, file):
         output = cursor.fetchall()
         if len(output) > 0:
             return int(1)
-        
+
         return int(0)
     except sqlite3.IntegrityError as error:
-        print("insert_file" + str(error))
+        print("checkFileProcessed" + str(error))
         return int(2)
-
-def set_fake_lat(cursor, verbose, lat):
-    try:
-        sql = "UPDATE AP SET lat_t = " + lat
-        cursor.execute(sql)
-        sql = "UPDATE SeenAP SET lat = " + lat
-        cursor.execute(sql)
-        sql = "UPDATE SeenClient SET lat = " + lat
-        cursor.execute(sql)
-
-        database.commit()
-    except sqlite3.IntegrityError as error:
-        print("fake_lat" + str(error))
-
-
-def set_fake_lon(cursor, verbose, lon):
-    try:
-        sql = "UPDATE AP SET lon_t = " + lon
-        cursor.execute(sql)
-        sql = "UPDATE SeenAP SET lon = " + lon
-        cursor.execute(sql)
-        sql = "UPDATE SeenClient SET lon = " + lon
-        cursor.execute(sql)
-
-        database.commit()
-    except sqlite3.IntegrityError as error:
-        print("fake_lon" + str(error))
 
 
 # obfuscated the database AA:BB:CC:XX:XX:XX-DEFG, needs database and not cursos to commit
@@ -575,7 +547,7 @@ def obfuscateDB(database, verbose):
 # exists = '11:22:33:44:55:77' in whitelist
 
 
-def clear_whitelist(database, verbose, whitelist):
+def clearWhitelist(database, verbose, whitelist):
     with open(whitelist) as f:
         whitelist = f.read().splitlines()
     cursor = database.cursor()
@@ -603,5 +575,5 @@ def clear_whitelist(database, verbose, whitelist):
             database.commit()
 
         except sqlite3.IntegrityError as error:
-            print("clear_whitelist" + str(error))
+            print("clearWhitelist" + str(error))
     print("CLEARED WHITELIST MACS")
