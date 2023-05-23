@@ -45,7 +45,7 @@ def load_vendors():
             dst = tmp.name
             copyfile(src, dst)
         tmp.close()
-        with open(tmp.name,  encoding='cp850') as csv_file:
+        with open(tmp.name, encoding='cp850') as csv_file:
             csv_reader = csv.reader(csv_file, delimiter=',')
             line_count = 0
             for row in csv_reader:
@@ -54,7 +54,7 @@ def load_vendors():
                 else:
                     line_count += 1
                     oui[row[0].replace(':', '')] = row[1]
-            #print(f'Processed {line_count} lines.')
+            # print(f'Processed {line_count} lines.')
         os.unlink(tmp.name)
 
     return oui
