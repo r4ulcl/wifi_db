@@ -83,7 +83,8 @@ def main():
         exit()
 
     if not args.capture:
-        print("wifi_db.py: error: the following arguments are required: capture")
+        print("wifi_db.py: error: the following arguments"
+              + " are required: capture")
         exit()
 
     # vars
@@ -131,6 +132,10 @@ def main():
     ouiMap = oui.load_vendors()
 
     for capture in captures:
+        # Remove the trailing forward slash, if it exists
+        if capture.endswith('/'):
+            capture = capture[:-1]
+
         if source == "aircrack-ng":
             print("Parsing file:", capture)
             # Remove format if any
@@ -153,8 +158,8 @@ def main():
                        or ('kismet.netxml' in file)
                        or ('.log.csv' in file)):
                         files.append(file)
-                # Sorted reverse to cap last
-                files.sort(key=os.path.splitext, reverse=True)  # by name and extension
+                # Sorted reverse to cap last by name and extension
+                files.sort(key=os.path.splitext, reverse=True)
                 print(files)
 
                 counter = 0
@@ -191,7 +196,8 @@ def main():
         database_utils.obfuscateDB(database, verbose)
 
     print("\nThe output database is in the file:", name)
-    print("Use 'sqlitebrowser " + name + "' or other SQLITE program to view the data")
+    print("Use 'sqlitebrowser " + name
+          + "' or other SQLITE program to view the data")
 
 
 def process_capture(ouiMap, capture, database,
@@ -199,7 +205,8 @@ def process_capture(ouiMap, capture, database,
                     hcxpcapngtool, tshark, force):
     cursor = database.cursor()
 
-    if database_utils.checkFileProcessed(cursor, verbose, capture) == 1 and not force:
+    if database_utils.checkFileProcessed(cursor,
+                                         verbose, capture) == 1 and not force:
         print("File", "already processed\n")
     else:
         if ".cap" in capture:
