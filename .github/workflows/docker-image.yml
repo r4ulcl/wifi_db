@@ -9,7 +9,8 @@ on:
   pull_request:
     branches:
       - 'master'
-    
+    tags:
+      - 'v*'
 jobs:
   docker:
     runs-on: ubuntu-latest
