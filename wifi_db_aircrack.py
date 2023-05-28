@@ -397,20 +397,30 @@ def parse_MFP(name, database, verbose):
         # cap = pyshark.FileCapture(file, display_filter='wlan.fc.type_subtype == 0x0008')
         # Filter only with mfpr or mfpc enable
         cap = pyshark.FileCapture(file,
-                                  display_filter='(wlan.rsn.capabilities.mfpr == 1)||(wlan.rsn.capabilities.mfpc == 1)')
+                                  display_filter='((wlan.rsn.capabilities.mfpr == 1)||(wlan.rsn.capabilities.mfpc == 1))&&(wlan.fc.type_subtype == 0x0008)')
         # cap.set_debug()
 
         for pkt in cap:
             try:
+                mfpc = 'False'
+                mfpr = 'False'
                 if pkt['wlan.mgt'].wlan_rsn_capabilities and pkt.wlan.ta:
                     capabilities = pkt['wlan.mgt'].wlan_rsn_capabilities
-                    mfpc = int(capabilities, 16) & 0x01
-                    mfpr = (int(capabilities, 16) & 0x02) >> 1
+                    # 0x0000008c MFPC only enable
+                    if capabilities == '0x0000008c':
+                        mfpc = 'True'
+                    # 0x000000cc MFP C and R enable
+                    elif capabilities == '0x000000cc':
+                        mfpc = 'True'
+                        mfpr = 'True'
+                    # mfpc = int(capabilities, 16) & 0x01
+                    # mfpr = (int(capabilities, 16) & 0x02) >> 1
                     src = pkt.wlan.ta
                     # if mfpc is 1 insert in DB
-                    if mfpc == 1 or mfpr == 1:
-                        print(f"MFPC: {mfpc}")
-                        print(f"MFPR: {mfpr}")
+                    if mfpc == 'True' or mfpr == 'True':
+                        if verbose:
+                            print(f"MFPC: {mfpc}")
+                            print(f"MFPR: {mfpr}")
                         errors += database_utils.insertMFP(cursor,
                                                            verbose,
                                                            src, mfpc, mfpr, file)
