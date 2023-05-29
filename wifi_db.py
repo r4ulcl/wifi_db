@@ -10,12 +10,12 @@ import oui
 from os import path
 import platform
 import subprocess
-import nest_asyncio 
+import nest_asyncio
 
-# import nest_asyncio ; nest_asyncio.apply() -> 
+# import nest_asyncio ; nest_asyncio.apply() ->
 # Fix RuntimeError: This event loop is already running”
 
-VERSION = '1.0'
+VERSION = '1.1'
 
 
 def banner():
@@ -29,8 +29,10 @@ __      __(_) / _|(_)         __| || |__
                                by r4ulcl           
 ''')
 
+
 def printVersion():
     print("wifi_db version:", VERSION)
+
 
 def main():
     nest_asyncio.apply()
@@ -47,6 +49,10 @@ def main():
     parser.add_argument("-o", "--obfuscated", help="""Obfuscate MAC and BSSID
                          with AA:BB:CC:XX:XX:XX-defghi
                          (WARNING: replace all database)""",
+                        action="store_true")
+
+    parser.add_argument("-f", "--force", help="""Force insert file even if the
+                         file is already processed.""",
                         action="store_true")
 
     parser.add_argument("-t", "--lat", default='',
@@ -77,14 +83,16 @@ def main():
         exit()
 
     if not args.capture:
-        print("wifi_db.py: error: the following arguments are required: capture")
+        print("wifi_db.py: error: the following arguments"
+              + " are required: capture")
         exit()
 
     # vars
-    version = args.version
+    # version = args.version
     verbose = args.verbose
     debug = args.debug
     obfuscated = args.obfuscated
+    force = args.force
 
     try:
         cmd = "where" if platform.system() == "Windows" else "which"
@@ -117,13 +125,17 @@ def main():
     if debug:
         print("debug turned on")
 
-    database = database_utils.connect_database(name, verbose)
-    database_utils.create_database(database, verbose)
-    database_utils.create_views(database, verbose)
+    database = database_utils.connectDatabase(name, verbose)
+    database_utils.createDatabase(database, verbose)
+    database_utils.createViews(database, verbose)
 
     ouiMap = oui.load_vendors()
 
     for capture in captures:
+        # Remove the trailing forward slash, if it exists
+        if capture.endswith('/'):
+            capture = capture[:-1]
+
         if source == "aircrack-ng":
             print("Parsing file:", capture)
             # Remove format if any
@@ -135,7 +147,7 @@ def main():
                 if os.path.isabs(capture):
                     dir_capture = capture
                 else:
-                    dir_capture = dirpath+"/"+capture
+                    dir_capture = dirpath + "/" + capture
                 if verbose:
                     print(dir_capture)
                     print("current directory is : " + dirpath)
@@ -146,8 +158,8 @@ def main():
                        or ('kismet.netxml' in file)
                        or ('.log.csv' in file)):
                         files.append(file)
-                # Sorted reverse to cap last
-                files.sort(key=os.path.splitext, reverse=True) #by name and extension 
+                # Sorted reverse to cap last by name and extension
+                files.sort(key=os.path.splitext, reverse=True)
                 print(files)
 
                 counter = 0
@@ -155,16 +167,16 @@ def main():
                 for f in files:
                     counter += 1
                     print("File: " + str(counter) + " of " + str(len(files)))
-                    capture_aux = dir_capture+"/"+f
+                    capture_aux = dir_capture + "/" + f
                     print("\n" + capture_aux)
-                    process_capture(ouiMap, capture_aux, database, 
-                                    verbose, fake_lat, fake_lon, 
-                                    hcxpcapngtool, tshark)
+                    process_capture(ouiMap, capture_aux, database,
+                                    verbose, fake_lat, fake_lon,
+                                    hcxpcapngtool, tshark, force)
 
             else:  # it is a file
-                process_capture(ouiMap, capture, database, 
-                                verbose, fake_lat, fake_lon, 
-                                hcxpcapngtool, tshark)
+                process_capture(ouiMap, capture, database,
+                                verbose, fake_lat, fake_lon,
+                                hcxpcapngtool, tshark, force)
 
         elif source == "kismet":
             print("Parsing Kismet capture")
@@ -175,56 +187,90 @@ def main():
 
     # Cleat whitelist MACs
     script_path = os.path.dirname(os.path.abspath(__file__))
-    database_utils.clear_whitelist(
-        database, verbose, script_path+'/whitelist.txt')
+    database_utils.clearWhitelist(
+        database, verbose, script_path + '/whitelist.txt')
 
     # if obfuscated
     if obfuscated:
         print("-o is enable, so obfuscate. This may take a while")
         database_utils.obfuscateDB(database, verbose)
 
+    print("\nThe output database is in the file:", name)
+    print("Use 'sqlitebrowser " + name
+          + "' or other SQLITE program to view the data")
 
-def process_capture(ouiMap, capture, database, 
-                    verbose, fake_lat, fake_lon, 
-                    hcxpcapngtool, tshark):
-    if ".cap" in capture:
-        capture = capture.replace(".cap", "")  # remove format
-        wifi_db_aircrack.parse_cap(capture, database, verbose,
-                                    hcxpcapngtool, tshark)
-    elif ".kismet.netxml" in capture:
-        capture = capture.replace(".kismet.netxml", "")
-        wifi_db_aircrack.parse_netxml(ouiMap, capture,
-                                        database, verbose)
-    elif ".kismet.csv" in capture:
-        capture = capture.replace(".kismet.csv", "")
-        wifi_db_aircrack.parse_kismet_csv(ouiMap, capture,
-                                            database, verbose)
-    elif ".log.csv" in capture:
-        capture = capture.replace(".log.csv", "")  # remove format
-        wifi_db_aircrack.parse_log_csv(ouiMap, capture,
-                                        database, verbose, fake_lat,
-                                        fake_lon)
-    elif ".csv" in capture:
-        capture = capture.replace(".csv", "")  # remove format
-        wifi_db_aircrack.parse_csv(ouiMap, capture,
-                                    database, verbose)
+
+def process_capture(ouiMap, capture, database,
+                    verbose, fake_lat, fake_lon,
+                    hcxpcapngtool, tshark, force):
+    cursor = database.cursor()
+
+    if database_utils.checkFileProcessed(cursor,
+                                         verbose, capture) == 1 and not force:
+        print("File", "already processed\n")
     else:
-        print("Not format found!")
-        #Remove dot at end if not format found
-        if capture.endswith('.'):
-            capture = capture[:-1]
+        if ".cap" in capture:
+            database_utils.insertFile(cursor, verbose, capture)
+            wifi_db_aircrack.parse_cap(capture, database, verbose,
+                                       hcxpcapngtool, tshark)
+            database_utils.setFileProcessed(cursor, verbose, capture)
+        elif ".kismet.netxml" in capture:
+            database_utils.insertFile(cursor, verbose, capture)
+            wifi_db_aircrack.parse_netxml(ouiMap, capture,
+                                          database, verbose)
+            database_utils.setFileProcessed(cursor, verbose, capture)
+        elif ".kismet.csv" in capture:
+            database_utils.insertFile(cursor, verbose, capture)
+            wifi_db_aircrack.parse_kismet_csv(ouiMap, capture,
+                                              database, verbose)
+            database_utils.setFileProcessed(cursor, verbose, capture)
+        elif ".log.csv" in capture:
+            database_utils.insertFile(cursor, verbose, capture)
+            wifi_db_aircrack.parse_log_csv(ouiMap, capture,
+                                           database, verbose, fake_lat,
+                                           fake_lon)
+            database_utils.setFileProcessed(cursor, verbose, capture)
+        elif ".csv" in capture:
+            database_utils.insertFile(cursor, verbose, capture)
+            wifi_db_aircrack.parse_csv(ouiMap, capture,
+                                       database, verbose)
+            database_utils.setFileProcessed(cursor, verbose, capture)
+        else:
+            print("Not format found!")
+            # Remove dot at end if not format found
+            if capture.endswith('.'):
+                capture = capture[:-1]
 
-        wifi_db_aircrack.parse_netxml(ouiMap, capture,
-                                        database, verbose)
-        wifi_db_aircrack.parse_kismet_csv(ouiMap, capture,
-                                            database, verbose)
-        wifi_db_aircrack.parse_csv(ouiMap, capture,
-                                    database, verbose)
-        wifi_db_aircrack.parse_log_csv(ouiMap, capture,
-                                        database, verbose, fake_lat,
-                                        fake_lon)
-        wifi_db_aircrack.parse_cap(capture, database, verbose,
-                                    hcxpcapngtool, tshark)
+            captureFormat = capture + ".kismet.netxml"
+            database_utils.insertFile(cursor, verbose, captureFormat)
+            wifi_db_aircrack.parse_netxml(ouiMap, captureFormat,
+                                          database, verbose)
+            database_utils.setFileProcessed(cursor, verbose, captureFormat)
+
+            captureFormat = capture + "kismet.csv"
+            database_utils.insertFile(cursor, verbose, captureFormat)
+            wifi_db_aircrack.parse_kismet_csv(ouiMap, captureFormat,
+                                              database, verbose)
+            database_utils.setFileProcessed(cursor, verbose, captureFormat)
+
+            captureFormat = capture + ".csv"
+            database_utils.insertFile(cursor, verbose, captureFormat)
+            wifi_db_aircrack.parse_csv(ouiMap, captureFormat,
+                                       database, verbose)
+            database_utils.setFileProcessed(cursor, verbose, captureFormat)
+
+            captureFormat = capture + ".log.csv"
+            database_utils.insertFile(cursor, verbose, captureFormat)
+            wifi_db_aircrack.parse_log_csv(ouiMap, captureFormat,
+                                           database, verbose, fake_lat,
+                                           fake_lon)
+            database_utils.setFileProcessed(cursor, verbose, captureFormat)
+
+            captureFormat = capture + ".cap"
+            database_utils.insertFile(cursor, verbose, captureFormat)
+            wifi_db_aircrack.parse_cap(captureFormat, database, verbose,
+                                       hcxpcapngtool, tshark)
+            database_utils.setFileProcessed(cursor, verbose, captureFormat)
 
 
 if __name__ == "__main__":

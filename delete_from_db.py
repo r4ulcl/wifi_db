@@ -5,7 +5,7 @@ import sqlite3
 import argparse
 
 
-def connect_database(name, verbose):
+def connectDatabase(name, verbose):
     '''Function to connect to the database'''
     database = sqlite3.connect(name)
     database.text_factory = str
@@ -23,23 +23,23 @@ def delete_ap(database, bssid, verbose):
     try:
         cursor = database.cursor()
 
-        sql = "DELETE from handshake where bssid=\""+bssid+"\""
+        sql = "DELETE from handshake where bssid=\"" + bssid + "\""
         print(sql)
         cursor.execute(sql)
 
-        sql = "DELETE from identityap where bssid=\""+bssid+"\""
+        sql = "DELETE from identityap where bssid=\"" + bssid + "\""
         print(sql)
         cursor.execute(sql)
 
-        sql = "DELETE from seenap where bssid=\""+bssid+"\""
+        sql = "DELETE from seenap where bssid=\"" + bssid + "\""
         print(sql)
         cursor.execute(sql)
 
-        sql = "DELETE from connected where bssid=\""+bssid+"\""
+        sql = "DELETE from connected where bssid=\"" + bssid + "\""
         print(sql)
         cursor.execute(sql)
 
-        sql = "DELETE from ap where bssid=\""+bssid+"\""
+        sql = "DELETE from ap where bssid=\"" + bssid + "\""
         print(sql)
         cursor.execute(sql)
 
@@ -74,7 +74,7 @@ def main():
     if verbose:
         print("verbosity turned on")
 
-    database = connect_database(name, verbose)
+    database = connectDatabase(name, verbose)
 
     delete_ap(database, bssid, verbose)
 

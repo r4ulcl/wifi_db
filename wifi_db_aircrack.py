@@ -10,13 +10,14 @@ import ftfy
 import database_utils
 import pyshark
 import subprocess
-import platform
+# import platform
 import binascii
+
 
 def parse_netxml(ouiMap, name, database, verbose):
     '''Function to parse the .kismet.netxml files'''
 
-    filename = name+".kismet.netxml"
+    filename = name
     exists = os.path.isfile(filename)
     errors = 0
     try:
@@ -108,10 +109,12 @@ def parse_netxml(ouiMap, name, database, verbose):
 
                     packets_total = wireless[8].find("total").text
 
+                    mfpc = 'False'
+                    mfpr = 'False'
                     errors += database_utils.insertAP(
                         cursor, verbose, bssid, essid, manuf, channel,
                         freqmhz, carrier, encryption, packets_total, lat, lon,
-                        cloaked)
+                        cloaked, mfpc, mfpr)
 
                     # client
                     clients = wireless.findall("wireless-client")
@@ -143,12 +146,12 @@ def parse_netxml(ouiMap, name, database, verbose):
 
 def parse_kismet_csv(ouiMap, name, database, verbose):
     '''Function to parse the .kismet.csv files'''
-    exists = os.path.isfile(name+".kismet.csv")
+    exists = os.path.isfile(name)
     errors = 0
     try:
         cursor = database.cursor()
         if exists:
-            with open(name+".kismet.csv") as csv_file:
+            with open(name) as csv_file:
                 csv_reader = csv.reader((x.replace('\0', '')
                                          for x in csv_file), delimiter=';')
                 for row in csv_reader:
@@ -168,10 +171,12 @@ def parse_kismet_csv(ouiMap, name, database, verbose):
                             lat = row[32]
                             lon = row[33]
                             cloaked = 'False'
+                            mfpc = 'False'
+                            mfpr = 'False'
                             errors += database_utils.insertAP(
                                 cursor, verbose, bssid, essid, manuf, channel,
                                 freqmhz, carrier, encryption, packets_total,
-                                lat, lon, cloaked)
+                                lat, lon, cloaked, mfpc, mfpr)
                             # manuf y carrier implementar
                         except Exception as error:
                             if verbose:
@@ -191,12 +196,12 @@ def parse_kismet_csv(ouiMap, name, database, verbose):
 
 def parse_csv(ouiMap, name, database, verbose):
     '''Function to parse the .csv files'''
-    exists = os.path.isfile(name+".csv")
+    exists = os.path.isfile(name)
     errors = 0
     try:
         cursor = database.cursor()
         if exists:
-            with open(name+".csv") as csv_file:
+            with open(name) as csv_file:
                 csv_reader = csv.reader((x.replace('\0', '')
                                          for x in csv_file), delimiter=',')
                 client = False
@@ -216,10 +221,13 @@ def parse_csv(ouiMap, name, database, verbose):
                             packets_total = row[10]
                             cloaked = 'False'
 
+                            mfpc = 'False'
+                            mfpr = 'False'
+
                             errors += database_utils.insertAP(
-                                cursor, verbose,  bssid, essid[1:], manuf,
+                                cursor, verbose, bssid, essid[1:], manuf,
                                 channel, freq, carrier, encrypt,
-                                packets_total, 0, 0, cloaked)
+                                packets_total, 0, 0, cloaked, mfpc, mfpr)
 
                         if row and row[0] == "Station MAC":
                             client = True
@@ -260,12 +268,12 @@ def parse_csv(ouiMap, name, database, verbose):
 
 def parse_log_csv(ouiMap, name, database, verbose, fake_lat, fake_lon):
     ''' Parse .log.csv file from Aircrack-ng to the database '''
-    exists = os.path.isfile(name+".log.csv")
+    exists = os.path.isfile(name)
     errors = 0
     try:
         cursor = database.cursor()
         if exists:
-            with open(name+".log.csv") as csv_file:
+            with open(name) as csv_file:
                 csv_reader = csv.reader(csv_file, delimiter=',')
                 for row in csv_reader:
                     if row[0] != "LocalTime":
@@ -292,14 +300,16 @@ def parse_log_csv(ouiMap, name, database, verbose, fake_lat, fake_lon):
                                 lon = fake_lon
                             manuf = oui.get_vendor(ouiMap, row[3])
                             cloaked = 'False'
+                            mfpc = 'False'
+                            mfpr = 'False'
                             errors += database_utils.insertAP(
-                                cursor, verbose,  row[3], row[2],
+                                cursor, verbose, row[3], row[2],
                                 manuf, 0, 0, '', '', 0, lat, lon,
-                                cloaked)
+                                cloaked, mfpc, mfpr)
 
                             # if row[6] != "0.000000":
                             errors += database_utils.insertSeenAP(
-                                cursor, verbose,  row[3], row[0],
+                                cursor, verbose, row[3], row[0],
                                 'aircrack-ng', row[4], lat, lon,
                                 '0.0', 0)
 
@@ -319,6 +329,7 @@ def parse_cap(name, database, verbose, hcxpcapngtool, tshark):
         parse_handshakes(name, database, verbose)
         parse_WPS(name, database, verbose)
         parse_identities(name, database, verbose)
+        parse_MFP(name, database, verbose)
     if hcxpcapngtool:
         exec_hcxpcapngtool(name, database, verbose)
 
@@ -328,7 +339,7 @@ def parse_handshakes(name, database, verbose):
     try:
         cursor = database.cursor()
         errors = 0
-        file = name+".cap"
+        file = name
         cap = pyshark.FileCapture(file, display_filter="eapol")
         # cap.set_debug()
         prevSrc = ""
@@ -348,8 +359,8 @@ def parse_handshakes(name, database, verbose):
                     # IF is the second and the prev is the first one add handshake
                     if flag.find('10a') != -1:
                         # print('handhsake 2 of 4')
-                        if (prevFlag.find('08a') and
-                                dst == prevSrc and src == prevDst):  # first
+                        if (prevFlag.find('08a')
+                                and dst == prevSrc and src == prevDst):  # first
                             if verbose:
                                 print("Valid handshake from client " + prevSrc +
                                       " to AP " + prevDst)
@@ -360,18 +371,77 @@ def parse_handshakes(name, database, verbose):
                         prevSrc = src
                         prevDst = dst
                         prevFlag = flag
-            except:
+            except Exception as error:
                 errors += 1
+                if verbose:
+                    print(error)
         database.commit()
         print(".cap Handshake done, errors", errors)
     except pyshark.capture.capture.TSharkCrashException as error:
         errors += 1
         print("Error in parse_handshakes (CAP), probably PCAP cut in the "
               "middle of a packet: ", error)
+        print(".cap Handshake done, errors", errors)
     except Exception as error:
         errors += 1
         print("Error in parse_handshakes (CAP): ", error)
         print(".cap Handshake done, errors", errors)
+
+
+# Get MFP data from .cap
+def parse_MFP(name, database, verbose):
+    try:
+        cursor = database.cursor()
+        errors = 0
+        file = name
+        # cap = pyshark.FileCapture(file, display_filter='wlan.fc.type_subtype == 0x0008')
+        # Filter only with mfpr or mfpc enable
+        cap = pyshark.FileCapture(file,
+                                  display_filter='((wlan.rsn.capabilities.mfpr == 1)||(wlan.rsn.capabilities.mfpc == 1))&&(wlan.fc.type_subtype == 0x0008)')
+        # cap.set_debug()
+
+        for pkt in cap:
+            try:
+                mfpc = 'False'
+                mfpr = 'False'
+                if pkt['wlan.mgt'].wlan_rsn_capabilities and pkt.wlan.ta:
+                    capabilities = pkt['wlan.mgt'].wlan_rsn_capabilities
+                    # 0x0000008c MFPC only enable
+                    if capabilities == '0x0000008c':
+                        mfpc = 'True'
+                    # 0x000000cc MFP C and R enable
+                    elif capabilities == '0x000000cc':
+                        mfpc = 'True'
+                        mfpr = 'True'
+                    # mfpc = int(capabilities, 16) & 0x01
+                    # mfpr = (int(capabilities, 16) & 0x02) >> 1
+                    src = pkt.wlan.ta
+                    # if mfpc is 1 insert in DB
+                    if mfpc == 'True' or mfpr == 'True':
+                        if verbose:
+                            print(f"MFPC: {mfpc}")
+                            print(f"MFPR: {mfpr}")
+                        errors += database_utils.insertMFP(cursor,
+                                                           verbose,
+                                                           src, mfpc, mfpr, file)
+                # wlan_options = pkt['wlan.mgt'].field_names
+                # print(wlan_options)
+                # print(pkt['wlan.mgt'])
+            except Exception as error:
+                errors += 1
+                if verbose:
+                    print(error)
+        database.commit()
+        print(".cap MFP done, errors", errors)
+    except pyshark.capture.capture.TSharkCrashException as error:
+        errors += 1
+        print("Error in parse_MFP (CAP), probably PCAP cut in the "
+              "middle of a packet: ", error)
+        print(".cap MFP done, errors", errors)
+    except Exception as error:
+        errors += 1
+        print("Error in parse_MFP (CAP): ", error)
+        print(".cap MFP done, errors", errors)
 
 
 # Get handshakes from .cap
@@ -379,7 +449,7 @@ def parse_WPS(name, database, verbose):
     try:
         cursor = database.cursor()
         errors = 0
-        file = name+".cap"
+        file = name
         cap = pyshark.FileCapture(
             file, display_filter="wps.wifi_protected_setup_state == 0x02 and wlan.da == ff:ff:ff:ff:ff:ff")
         # cap.set_debug()
@@ -396,6 +466,7 @@ def parse_WPS(name, database, verbose):
             wps_version = '1.0'  # Default 1.0
             wmgt = 'wlan.mgt'
             try:
+                wlan_ssid = pkt['wlan.mgt'].wlan_ssid
                 bssid = pkt.wlan.sa
                 bssid = bssid.upper()
             except Exception:
@@ -403,11 +474,14 @@ def parse_WPS(name, database, verbose):
             try:
                 wlan_ssid_hex = pkt[wmgt].wlan_ssid
                 wlan_ssid_bytes = binascii.unhexlify(wlan_ssid_hex.replace(':', ''))
-                wlan_ssid = wlan_ssid_bytes.decode('ascii')
+                wlan_ssid_decode = wlan_ssid_bytes.decode('ascii')
+                if wlan_ssid_decode != "":
+                    wlan_ssid = wlan_ssid_decode
                 if ('20' in pkt[wmgt].wps_ext_version2):
                     wps_version = '2.0'
             except Exception as e:
-                print(e)
+                if verbose:
+                    print(e)
                 errors += 1
             try:
                 wps_device_name = pkt[wmgt].wps_device_name
@@ -462,7 +536,7 @@ def parse_identities(name, database, verbose):
     try:
         cursor = database.cursor()
         errors = 0
-        file = name+".cap"
+        file = name
         cap = pyshark.FileCapture(file, display_filter="eap")
         # cap.set_debug()
 
@@ -481,8 +555,10 @@ def parse_identities(name, database, verbose):
                     if pkt.eap.code == '2':
                         try:
                             identity = pkt.eap.identity
-                        except:
+                        except Exception as error:
                             errors += 1
+                            if verbose:
+                                print(error)
                 # EAP-PEAP
                 elif pkt.eap.type == '25':  # Found EAP-PEAP
                     method = "EAP-PEAP"
@@ -506,6 +582,11 @@ def parse_identities(name, database, verbose):
 
         database.commit()
         print(".cap Identity done, errors", errors)
+    except pyshark.capture.capture.TSharkCrashException as error:
+        errors += 1
+        print("Error in parse_identities (CAP), probably PCAP cut in the "
+              "middle of a packet: ", error)
+        print(".cap Identity done, errors", errors)
     except Exception as error:
         errors += 1
         print("Error in parse_identities (CAP): ", error)
@@ -519,7 +600,7 @@ def exec_hcxpcapngtool(name, database, verbose):
         # subprocess.call([cmd, "hcxpcapngtool"])
         cursor = database.cursor()
         errors = 0
-        fileName = name + ".cap"
+        fileName = name
         # exec_hcxpcapngtool
         arguments = fileName + ' -o test.22000'
 
@@ -540,8 +621,8 @@ def exec_hcxpcapngtool(name, database, verbose):
                 ap_lower = split[3].upper()
                 client_lower = split[4].upper()
                 # : format
-                ap = (':'.join(ap_lower[i:i+2] for i in range(0, 12, 2)))
-                client = (':'.join(client_lower[i:i+2] for i in
+                ap = (':'.join(ap_lower[i:i + 2] for i in range(0, 12, 2)))
+                client = (':'.join(client_lower[i:i + 2] for i in
                           range(0, 12, 2)))
                 if verbose:
                     print(ap)
@@ -549,9 +630,9 @@ def exec_hcxpcapngtool(name, database, verbose):
                     print(line)
                 # Update handshake
 
-                errors += database_utils.set_hashcat(cursor, verbose,
-                                                     ap, client, fileName,
-                                                     line)
+                errors += database_utils.setHashcat(cursor, verbose,
+                                                    ap, client, fileName,
+                                                    line)
         os.remove("test.22000")
         print(".cap hcxpcapngtool done, errors", errors)
 
