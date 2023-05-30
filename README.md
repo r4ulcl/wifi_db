@@ -25,6 +25,8 @@ __      __(_) / _|(_)         __| || |__
 -   Docker version in Docker Hub to avoid dependencies.
 -   Obfuscated mode for demonstrations and conferences.
 -   Possibility to add static GPS data.
+-   Management Frame Protection (MFP) capable and required column in AP table.
+
 
 ## Install
 
@@ -97,6 +99,10 @@ pip3 install -r requirements.txt
 
 
 ## Usage
+
+### Usage example in [WiFiChallenge Lab](https://wifichallengelab.com/)
+
+- https://r4ulcl.com/posts/wifi_db-in-wifichallenge-lab/
 
 ### Scan with airodump-ng
 
