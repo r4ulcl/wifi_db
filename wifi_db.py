@@ -15,7 +15,7 @@ import nest_asyncio
 # import nest_asyncio ; nest_asyncio.apply() ->
 # Fix RuntimeError: This event loop is already running”
 
-VERSION = '1.1'
+VERSION = '1.2-dev'
 
 
 def banner():
