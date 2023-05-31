@@ -276,20 +276,30 @@ def parse_log_csv(ouiMap, name, database, verbose, fake_lat, fake_lon):
             with open(name) as csv_file:
                 csv_reader = csv.reader(csv_file, delimiter=',')
                 for row in csv_reader:
-                    if row[0] != "LocalTime":
+                    time = row[0]
+                    if time != "LocalTime":
                         if len(row) > 10 and row[10] == "Client":
-                            manuf = oui.get_vendor(ouiMap, row[3])
-                            if row[6] != 0.0:
-                                lat = row[6]
-                                lon = row[7]
-                                if fake_lat != "":  # just write file in db
-                                    lat = fake_lat
-                                if fake_lon != "":
-                                    lon = fake_lon
-                                errors += database_utils.insertSeenClient(
-                                    cursor, verbose, row[3], row[0],
-                                    'aircrack-ng', row[4], lat, lon,
-                                    '0.0')
+                            mac = row[3]
+                            manuf = oui.get_vendor(ouiMap, mac)
+                            signal_rssi = row[4]
+                            lat = row[6]
+                            lon = row[7]
+                            if fake_lat != "":  # just write file in db
+                                lat = fake_lat
+                            if fake_lon != "":
+                                lon = fake_lon
+                            ssid = ""
+                            typeAux = ""
+                            packets_total = ""
+                            device = ""
+                            errors += database_utils.insertClients(
+                                cursor, verbose, mac, ssid, manuf,
+                                typeAux, packets_total, device)
+                                
+                            errors += database_utils.insertSeenClient(
+                                cursor, verbose, mac, time,
+                                'aircrack-ng', signal_rssi, lat, lon,
+                                '0.0')
 
                         if len(row) > 10 and row[10] == "AP":
                             lat = row[6]
