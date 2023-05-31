@@ -11,6 +11,7 @@ from os import path
 import platform
 import subprocess
 import nest_asyncio
+import re
 
 # import nest_asyncio ; nest_asyncio.apply() ->
 # Fix RuntimeError: This event loop is already running”
@@ -33,6 +34,8 @@ __      __(_) / _|(_)         __| || |__
 def printVersion():
     print("wifi_db version:", VERSION)
 
+def replace_multiple_slashes(string):
+    return re.sub('/+', '/', string)
 
 def main():
     nest_asyncio.apply()
@@ -136,6 +139,7 @@ def main():
         # Remove the trailing forward slash, if it exists
         if capture.endswith('/'):
             capture = capture[:-1]
+        capture = replace_multiple_slashes(capture)
 
         if source == "aircrack-ng":
             print("Parsing file:", capture)

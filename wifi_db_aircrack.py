@@ -12,7 +12,7 @@ import pyshark
 import subprocess
 # import platform
 import binascii
-
+import datetime
 
 def parse_netxml(ouiMap, name, database, verbose):
     '''Function to parse the .kismet.netxml files'''
@@ -89,7 +89,7 @@ def parse_netxml(ouiMap, name, database, verbose):
 
                     # firstTimeSeen
                     firstTimeSeen_string = wireless.find("SSID").attrib['first-time']
-                    date_object = datetime.strptime(firstTimeSeen_string, "%a %b %d %H:%M:%S %Y")
+                    date_object = datetime.datetime.strptime(firstTimeSeen_string, "%a %b %d %H:%M:%S %Y")
                     firstTimeSeen = date_object.strftime("%Y-%m-%d %H:%M:%S")
                     
                     manuf = oui.get_vendor(ouiMap, bssid)
@@ -128,7 +128,7 @@ def parse_netxml(ouiMap, name, database, verbose):
                         manuf = oui.get_vendor(ouiMap, client_mac)
 
                         firstTimeSeen_string = client.attrib['first-time']
-                        date_object = datetime.strptime(firstTimeSeen_string, "%a %b %d %H:%M:%S %Y")
+                        date_object = datetime.datetime.strptime(firstTimeSeen_string, "%a %b %d %H:%M:%S %Y")
                         firstTimeSeen = date_object.strftime("%Y-%m-%d %H:%M:%S")
 
                         packets = client.find("packets")
@@ -172,7 +172,7 @@ def parse_kismet_csv(ouiMap, name, database, verbose):
 
                             # firstTimeSeen
                             firstTimeSeen_string = row[19]
-                            date_object = datetime.strptime(firstTimeSeen_string, "%a %b %d %H:%M:%S %Y")
+                            date_object = datetime.datetime.strptime(firstTimeSeen_string, "%a %b %d %H:%M:%S %Y")
                             firstTimeSeen = date_object.strftime("%Y-%m-%d %H:%M:%S")
 
                             manuf = oui.get_vendor(ouiMap, bssid)

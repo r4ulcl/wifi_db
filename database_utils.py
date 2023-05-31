@@ -73,11 +73,12 @@ def insertAP(cursor, verbose, bssid, essid, manuf, channel, freqmhz, carrier,
 
             # If firstTimeSeen is before current firstTimeSeen update
             # Update `firstTimeSeen` column
-            sql = """UPDATE AP SET firstTimeSeen = CASE WHEN firstTimeSeen = '' OR firstTimeSeen = '0' OR 
-                    firstTimeSeen IS NULL OR firstTimeSeen < (?) THEN (?) ELSE firstTimeSeen END WHERE bssid = (?)"""
-            if verbose:
-                print(sql, (firstTimeSeen, bssid))
-            cursor.execute(sql, (firstTimeSeen, firstTimeSeen, bssid.upper()))
+            if firstTimeSeen != 0:
+                sql = """UPDATE AP SET firstTimeSeen = CASE WHEN (firstTimeSeen = '' OR firstTimeSeen = '0' OR 
+                    firstTimeSeen IS NULL OR firstTimeSeen > (?)) AND (?) <> 0 AND firstTimeSeen <> 0 THEN (?) ELSE firstTimeSeen END WHERE bssid = (?)"""
+                if verbose:
+                    print(sql, (firstTimeSeen, bssid))
+                cursor.execute(sql, (firstTimeSeen, firstTimeSeen, firstTimeSeen, bssid.upper()))
 
 
             # Write if empty
@@ -166,8 +167,8 @@ def insertAP(cursor, verbose, bssid, essid, manuf, channel, freqmhz, carrier,
             return int(0)
     except sqlite3.Error as error:
         if verbose:
-           print("insertAP Error " + str(error))
-        return int(1)
+            print("insertAP Error " + str(error))
+            return int(1)
 
 
 def insertClients(cursor, verbose, mac, ssid, manuf,
@@ -185,11 +186,12 @@ def insertClients(cursor, verbose, mac, ssid, manuf,
 
             # If firstTimeSeen is before current firstTimeSeen update
             # Update `firstTimeSeen` column
-            sql = """UPDATE client SET firstTimeSeen = CASE WHEN firstTimeSeen = '' OR firstTimeSeen = '0' OR 
-                    firstTimeSeen IS NULL OR firstTimeSeen < (?) THEN (?) ELSE firstTimeSeen END WHERE mac = (?)"""
-            if verbose:
-                print(sql, (firstTimeSeen, mac))
-            cursor.execute(sql, (firstTimeSeen, firstTimeSeen, mac.upper()))
+            if firstTimeSeen != 0: 
+                sql = """UPDATE client SET firstTimeSeen = CASE WHEN (firstTimeSeen = '' OR firstTimeSeen = '0' OR 
+                    firstTimeSeen IS NULL OR firstTimeSeen > (?)) AND (?) <> 0 AND firstTimeSeen <> 0 THEN (?) ELSE firstTimeSeen END WHERE mac = (?)"""
+                if verbose:
+                    print(sql, (firstTimeSeen, mac))
+                cursor.execute(sql, (firstTimeSeen, firstTimeSeen, firstTimeSeen, mac.upper()))
 
 
             # Update `packetsTotal` column
