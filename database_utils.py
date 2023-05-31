@@ -173,33 +173,42 @@ def insertClients(cursor, verbose, mac, ssid, manuf,
         if verbose:
             print("insertClients " + str(error))
         try:
-            cursor.execute(
-                "UPDATE client SET packetsTotal = packetsTotal \
-                    + %s WHERE mac = '%s'" % (packets_total, mac.upper()))
+            # Update `packetsTotal` column
+            sql = """UPDATE client SET packetsTotal = packetsTotal + (?)
+                    WHERE mac = (?)"""
+            if verbose:
+                print(sql, (packets_total, mac.upper()))
+            cursor.execute(sql, (packets_total, mac.upper()))
 
             # Write if empty
-            cursor.execute(
-                "UPDATE client SET ssid = CASE WHEN ssid==''"
-                " THEN ('%s') "
-                "WHEN ssid IS NULL THEN ('%s') ELSE ssid END "
-                "WHERE mac = '%s'" % (ssid, ssid, mac.upper()))
+            # Update `ssid` column
+            sql = """UPDATE client SET ssid = CASE WHEN ssid = '' OR ssid IS NULL
+                    THEN (?) ELSE ssid END WHERE mac = (?)"""
+            if verbose:
+                print(sql, (ssid, mac.upper()))
+            cursor.execute(sql, (ssid, mac.upper()))
 
-            cursor.execute(
-                "UPDATE client SET manuf = CASE WHEN manuf=='' "
-                "THEN ('%s') WHEN manuf IS NULL "
-                "THEN ('%s') ELSE manuf END "
-                "WHERE mac = '%s'" % (manuf, manuf, mac.upper()))
+            # Update `manuf` column
+            sql = """UPDATE client SET manuf = CASE WHEN manuf = '' OR manuf IS NULL
+                    THEN (?) ELSE manuf END WHERE mac = (?)"""
+            if verbose:
+                print(sql, (manuf, mac.upper()))
+            cursor.execute(sql, (manuf, mac.upper()))
 
-            cursor.execute(
-                "UPDATE client SET type = CASE WHEN type=='' "
-                "THEN ('%s') WHEN type IS NULL THEN ('%s') "
-                "ELSE type END "
-                "WHERE mac = '%s'" % (type, type, mac.upper()))
 
-            cursor.execute(
-                "UPDATE client SET device = CASE WHEN device=='' "
-                "THEN ('%s') WHEN device IS NULL THEN ('%s') ELSE device END "
-                "WHERE mac = '%s'" % (device, device, mac.upper()))
+            # Update `type` column
+            sql = """UPDATE client SET type = CASE WHEN type = '' OR type IS NULL
+                    THEN (?) ELSE type END WHERE mac = (?)"""
+            if verbose:
+                print(sql, (type, mac.upper()))
+            cursor.execute(sql, (type, mac.upper()))
+
+            # Update `manuf` column
+            sql = """UPDATE client SET device = CASE WHEN device = '' OR device IS NULL
+                    THEN (?) ELSE device END WHERE mac = (?)"""
+            if verbose:
+                print(sql, (device, mac.upper()))
+            cursor.execute(sql, (device, mac.upper()))
 
             return int(0)
         except sqlite3.IntegrityError as error:
