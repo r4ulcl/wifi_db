@@ -170,7 +170,10 @@ def parse_kismet_csv(ouiMap, name, database, verbose):
                             essid = row[2]
                             essid = essid.replace("'", "''")
 
-                            firstTimeSeen = row[19]
+                            # firstTimeSeen
+                            firstTimeSeen_string = row[19]
+                            date_object = datetime.strptime(firstTimeSeen_string, "%a %b %d %H:%M:%S %Y")
+                            firstTimeSeen = date_object.strftime("%Y-%m-%d %H:%M:%S")
 
                             manuf = oui.get_vendor(ouiMap, bssid)
 
