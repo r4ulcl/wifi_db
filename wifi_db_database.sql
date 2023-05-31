@@ -13,6 +13,7 @@ CREATE TABLE IF NOT EXISTS AP
     lon_t REAL,
     mfpc BOOLEAN,
     mfpr BOOLEAN,
+    firstTimeSeen timestamp,
     CONSTRAINT Key1 PRIMARY KEY (bssid)
 );
 
@@ -24,6 +25,7 @@ CREATE TABLE IF NOT EXISTS Client
     type TEXT,
     packetsTotal int,
     device TEXT,
+    firstTimeSeen timestamp,
     CONSTRAINT Key1 PRIMARY KEY (mac)
 );
 

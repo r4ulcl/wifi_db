@@ -58,18 +58,27 @@ def createViews(database, verbose):
 
 
 def insertAP(cursor, verbose, bssid, essid, manuf, channel, freqmhz, carrier,
-             encryption, packets_total, lat, lon, cloaked, mfpc, mfpr):
+             encryption, packets_total, lat, lon, cloaked, mfpc, mfpr, firstTimeSeen):
     ''''''
     try:
-        cursor.execute('''INSERT INTO AP VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?) ''',
+        cursor.execute('''INSERT INTO AP VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?) ''',
                        (bssid.upper(), essid, cloaked, manuf, channel, freqmhz, carrier,
-                        encryption, packets_total, lat, lon, mfpc, mfpr))
+                        encryption, packets_total, lat, lon, mfpc, mfpr, firstTimeSeen))
         return int(0)
     except sqlite3.IntegrityError as error:
         # errors += 1
         try:
             if verbose:
                 print("insertAP " + str(error))
+
+            # If firstTimeSeen is before current firstTimeSeen update
+            # Update `firstTimeSeen` column
+            sql = """UPDATE AP SET firstTimeSeen = CASE WHEN firstTimeSeen = '' OR firstTimeSeen = '0' OR 
+                    firstTimeSeen IS NULL OR firstTimeSeen < (?) THEN (?) ELSE firstTimeSeen END WHERE bssid = (?)"""
+            if verbose:
+                print(sql, (firstTimeSeen, bssid))
+            cursor.execute(sql, (firstTimeSeen, firstTimeSeen, bssid.upper()))
+
 
             # Write if empty
             sql = """UPDATE AP SET ssid = CASE WHEN ssid = '' OR
@@ -157,22 +166,32 @@ def insertAP(cursor, verbose, bssid, essid, manuf, channel, freqmhz, carrier,
             return int(0)
     except sqlite3.Error as error:
         if verbose:
-            print("insertAP Error " + str(error))
+           print("insertAP Error " + str(error))
         return int(1)
 
 
 def insertClients(cursor, verbose, mac, ssid, manuf,
-                  type, packets_total, device):
+                  type, packets_total, device, firstTimeSeen):
     '''Function to insert clients in the database'''
     try:
-        cursor.execute('''INSERT INTO client VALUES(?,?,?,?,?,?)''',
-                       (mac.upper(), ssid, manuf, type, packets_total, device))
+        cursor.execute('''INSERT INTO client VALUES(?,?,?,?,?,?,?)''',
+                       (mac.upper(), ssid, manuf, type, packets_total, device, firstTimeSeen))
         return int(0)
     except sqlite3.IntegrityError as error:
         # errors += 1
         if verbose:
             print("insertClients " + str(error))
         try:
+
+            # If firstTimeSeen is before current firstTimeSeen update
+            # Update `firstTimeSeen` column
+            sql = """UPDATE client SET firstTimeSeen = CASE WHEN firstTimeSeen = '' OR firstTimeSeen = '0' OR 
+                    firstTimeSeen IS NULL OR firstTimeSeen < (?) THEN (?) ELSE firstTimeSeen END WHERE mac = (?)"""
+            if verbose:
+                print(sql, (firstTimeSeen, mac))
+            cursor.execute(sql, (firstTimeSeen, firstTimeSeen, mac.upper()))
+
+
             # Update `packetsTotal` column
             sql = """UPDATE client SET packetsTotal = packetsTotal + (?)
                     WHERE mac = (?)"""
@@ -258,7 +277,7 @@ def insertWPS(cursor, verbose, bssid, wlan_ssid, wps_version, wps_device_name,
         mfpc = 'False'
         mfpr = 'False'
         insertAP(cursor, verbose, bssid, essid, manuf, channel, freqmhz, carrier,
-                 encryption, packets_total, lat, lon, cloaked, mfpc, mfpr)
+                 encryption, packets_total, lat, lon, cloaked, mfpc, mfpr, 0)
 
         cursor.execute('''INSERT INTO WPS VALUES(?,?,?,?,?,?,?,?)''',
                        (bssid.upper(), wlan_ssid, wps_version, wps_device_name,
@@ -311,34 +330,34 @@ def insertMFP(cursor, verbose, bssid, mfpc, mfpr, file):
         lon = "0.0"
         cloaked = 'False'
         insertAP(cursor, verbose, bssid, essid, manuf, channel, freqmhz, carrier,
-                 encryption, packets_total, lat, lon, cloaked, mfpc, mfpr)
+                 encryption, packets_total, lat, lon, cloaked, mfpc, mfpr, 0)
 
         return int(0)
     except sqlite3.IntegrityError as error:
         # errors += 1
         if verbose:
-            print("insertHandshake" + str(error))
+            print("insertMFP" + str(error))
         return int(0)
     except sqlite3.Error as error:
         if verbose:
-            print("insertHandshake Error " + str(error))
+            print("insertMFP Error " + str(error))
         return int(1)
 
 
 def insertHandshake(cursor, verbose, bssid, mac, file):
     ''''''
     try:
+        error = 0
         # Insert file
-        insertFile(cursor, verbose, file)
-
+        error += insertFile(cursor, verbose, file)
         # insertHandshake Client and AP CONSTRAINT
         ssid = ""
         manuf = ""
         type = ""
         packets_total = "0"
         device = ""
-        insertClients(cursor, verbose, mac, ssid, manuf,
-                      type, packets_total, device)
+        error += insertClients(cursor, verbose, mac, ssid, manuf,
+                      type, packets_total, device, 0)
         essid = ""
         manuf = ""
         channel = ""
@@ -351,14 +370,13 @@ def insertHandshake(cursor, verbose, bssid, mac, file):
         cloaked = 'False'
         mfpc = 'False'
         mfpr = 'False'
-        insertAP(cursor, verbose, bssid, essid, manuf, channel, freqmhz, carrier,
-                 encryption, packets_total, lat, lon, cloaked, mfpc, mfpr)
-
+        error += insertAP(cursor, verbose, bssid, essid, manuf, channel, freqmhz, carrier,
+                          encryption, packets_total, lat, lon, cloaked, mfpc, mfpr, 0)
         # print(row[5].replace(' ', ''))
         cursor.execute(
             '''INSERT INTO handshake VALUES(?,?,?,?)''',
             (bssid.upper(), mac.upper(), file, ""))
-        return int(0)
+        return int(error)
     except sqlite3.IntegrityError as error:
         # errors += 1
         if verbose:
@@ -381,7 +399,7 @@ def insertIdentity(cursor, verbose, bssid, mac, identity, method):
         packets_total = "0"
         device = ""
         error += insertClients(cursor, verbose, mac, ssid, manuf,
-                               "", packets_total, device)
+                               "", packets_total, device, 0)
 
         essid = ""
         manuf = ""
@@ -396,7 +414,7 @@ def insertIdentity(cursor, verbose, bssid, mac, identity, method):
         mfpc = 'False'
         mfpr = 'False'
         error += insertAP(cursor, verbose, bssid, essid, manuf, channel, freqmhz, carrier,
-                          encryption, packets_total, lat, lon, cloaked, mfpc, mfpr)
+                          encryption, packets_total, lat, lon, cloaked, mfpc, mfpr, 0)
 
         if verbose:
             print('output ' + bssid.upper(), mac.upper(), identity, method)
