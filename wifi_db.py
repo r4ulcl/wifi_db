@@ -123,6 +123,7 @@ def main():
         print("verbosity turned on")
 
     if debug:
+        verbose = True
         print("debug turned on")
 
     database = database_utils.connectDatabase(name, verbose)
