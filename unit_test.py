@@ -41,6 +41,7 @@ class TestFunctions(unittest.TestCase):
         result = database_utils.insertAP(self.c, self.verbose, self.bssid, essid,
                                          manuf, channel, freqmhz, carrier, encryption,
                                          packets_total, lat, lon, cloaked, mfpc, mfpr, 0)
+
         self.assertEqual(result, 0)
         # TODO  Insert existing AP with new values
         # manuf = "Updated_Manufacturer"
@@ -59,6 +60,7 @@ class TestFunctions(unittest.TestCase):
         power = "-70"
         # Insert new client
         result = database_utils.insertClients(self.c, self.verbose, self.mac, ssid, manuf, packets_total, power, "Misc", 0)
+
         self.assertEqual(result, 0)
         # TODO Insert existing client with new values
         # manuf = "Updated_Manufacturer"
@@ -113,6 +115,7 @@ class TestFunctions(unittest.TestCase):
         result = database_utils.insertAP(self.c, self.verbose, self.bssid, essid,
                                          manuf, channel, freqmhz, carrier, encryption,
                                          packets_total, lat, lon, cloaked, mfpc, mfpr, 0)
+
         self.assertEqual(result, 0)
 
         ssid = ""
@@ -121,6 +124,7 @@ class TestFunctions(unittest.TestCase):
         power = "-70"
         # Insert new client
         result = database_utils.insertClients(self.c, self.verbose, self.mac, ssid, manuf, packets_total, power, "Misc", 0)
+
         self.assertEqual(result, 0)
 
         # Insert new connected device
@@ -162,6 +166,7 @@ class TestFunctions(unittest.TestCase):
         # Insert new client
         result = database_utils.insertClients(self.c, self.verbose, self.mac, ssid, manuf, packets_total, power, "Misc", 0)
 
+
         # Insert seenClient
         # station = "Test_Station"
         time = "2022-02-23 10:00:00"
@@ -196,6 +201,7 @@ class TestFunctions(unittest.TestCase):
         result = database_utils.insertAP(self.c, self.verbose, self.bssid, essid, manuf,
                                          channel, freqmhz, carrier, encryption, packets_total,
                                          lat, lon, cloaked, mfpc, mfpr, 0)
+
         self.assertEqual(result, 0)
 
         # Insert SeenAP
@@ -232,6 +238,7 @@ class TestFunctions(unittest.TestCase):
         result = database_utils.insertAP(self.c, self.verbose, self.bssid,
                                          essid, manuf, channel, freqmhz, carrier,
                                          encryption, packets_total, lat, lon, cloaked, mfpc, mfpr, 0)
+
         self.assertEqual(result, 0)
 
         ssid = ""
@@ -240,6 +247,7 @@ class TestFunctions(unittest.TestCase):
         power = "-70"
         # Insert new client
         result = database_utils.insertClients(self.c, self.verbose, self.mac, ssid, manuf, packets_total, power, "Misc", 0)
+
         self.assertEqual(result, 0)
 
         # insert Handshake
@@ -275,6 +283,7 @@ class TestFunctions(unittest.TestCase):
         result = database_utils.insertAP(self.c, self.verbose, self.bssid, essid,
                                          manufAP, channel, freqmhz, carrier, encryption,
                                          packets_total, lat, lon, cloaked, mfpc, mfpr, 0)
+
         self.assertEqual(result, 0)
 
         ssid = "null_ssid"
@@ -284,6 +293,7 @@ class TestFunctions(unittest.TestCase):
         # Insert new client
         result = database_utils.insertClients(self.c, self.verbose, self.mac, ssid,
                                               manufClient, packets_total, power, "Misc", 0)
+
         self.assertEqual(result, 0)
 
         # insert Handshake

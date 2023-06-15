@@ -14,6 +14,7 @@ CREATE TABLE IF NOT EXISTS AP
     mfpc BOOLEAN,
     mfpr BOOLEAN,
     firstTimeSeen timestamp,
+
     CONSTRAINT Key1 PRIMARY KEY (bssid)
 );
 

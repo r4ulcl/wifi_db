@@ -13,10 +13,12 @@ import subprocess
 import nest_asyncio
 import re
 
+
 # import nest_asyncio ; nest_asyncio.apply() ->
 # Fix RuntimeError: This event loop is already running”
 
-VERSION = '1.2-dev'
+VERSION = '1.2'
+
 
 
 def banner():
@@ -36,6 +38,7 @@ def printVersion():
 
 def replace_multiple_slashes(string):
     return re.sub('/+', '/', string)
+
 
 def main():
     nest_asyncio.apply()
@@ -140,6 +143,7 @@ def main():
         if capture.endswith('/'):
             capture = capture[:-1]
         capture = replace_multiple_slashes(capture)
+
 
         if source == "aircrack-ng":
             print("Parsing file:", capture)
