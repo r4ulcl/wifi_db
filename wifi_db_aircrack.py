@@ -14,6 +14,7 @@ import subprocess
 import binascii
 import datetime
 
+
 def parse_netxml(ouiMap, name, database, verbose):
     '''Function to parse the .kismet.netxml files'''
 
@@ -121,6 +122,7 @@ def parse_netxml(ouiMap, name, database, verbose):
                         freqmhz, carrier, encryption, packets_total, lat, lon,
                         cloaked, mfpc, mfpr, firstTimeSeen)
 
+
                     # client
                     clients = wireless.findall("wireless-client")
                     for client in clients:
@@ -191,6 +193,7 @@ def parse_kismet_csv(ouiMap, name, database, verbose):
                                 cursor, verbose, bssid, essid, manuf, channel,
                                 freqmhz, carrier, encryption, packets_total,
                                 lat, lon, cloaked, mfpc, mfpr, firstTimeSeen)
+
                             # manuf y carrier implementar
                         except Exception as error:
                             if verbose:
@@ -243,6 +246,7 @@ def parse_csv(ouiMap, name, database, verbose):
                                 cursor, verbose, bssid, essid[1:], manuf,
                                 channel, freq, carrier, encrypt,
                                 packets_total, 0, 0, cloaked, mfpc, mfpr, firstTimeSeen)
+
 
                         if row and row[0] == "Station MAC":
                             client = True
@@ -336,6 +340,7 @@ def parse_log_csv(ouiMap, name, database, verbose, fake_lat, fake_lon):
                             # if row[6] != "0.000000":
                             errors += database_utils.insertSeenAP(
                                 cursor, verbose, row[3], time,
+
                                 'aircrack-ng', row[4], lat, lon,
                                 '0.0', 0)
 
