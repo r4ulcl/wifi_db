@@ -12,6 +12,7 @@ import pyshark
 import subprocess
 # import platform
 import binascii
+import datetime
 
 
 def parse_netxml(ouiMap, name, database, verbose):
@@ -49,7 +50,7 @@ def parse_netxml(ouiMap, name, database, verbose):
 
                     errors += database_utils.insertClients(
                         cursor, verbose, bssid, '',
-                        manuf, 'W', packets_total, 'Misc')
+                        manuf, 'W', packets_total, 'Misc', 0)
 
                     # probe
                     ssid1 = wireless.find("wireless-client").find("SSID")
@@ -87,6 +88,11 @@ def parse_netxml(ouiMap, name, database, verbose):
                     freqmhz = wireless.find("freqmhz").text.split()[0]
                     carrier = wireless.find("carrier").text
 
+                    # firstTimeSeen
+                    firstTimeSeen_string = wireless.find("SSID").attrib['first-time']
+                    date_object = datetime.datetime.strptime(firstTimeSeen_string, "%a %b %d %H:%M:%S %Y")
+                    firstTimeSeen = date_object.strftime("%Y-%m-%d %H:%M:%S")
+                    
                     manuf = oui.get_vendor(ouiMap, bssid)
 
                     if wireless.find("SSID").find("encryption") is not None:
@@ -114,7 +120,8 @@ def parse_netxml(ouiMap, name, database, verbose):
                     errors += database_utils.insertAP(
                         cursor, verbose, bssid, essid, manuf, channel,
                         freqmhz, carrier, encryption, packets_total, lat, lon,
-                        cloaked, mfpc, mfpr)
+                        cloaked, mfpc, mfpr, firstTimeSeen)
+
 
                     # client
                     clients = wireless.findall("wireless-client")
@@ -122,12 +129,16 @@ def parse_netxml(ouiMap, name, database, verbose):
                         client_mac = client.find("client-mac").text
                         manuf = oui.get_vendor(ouiMap, client_mac)
 
+                        firstTimeSeen_string = client.attrib['first-time']
+                        date_object = datetime.datetime.strptime(firstTimeSeen_string, "%a %b %d %H:%M:%S %Y")
+                        firstTimeSeen = date_object.strftime("%Y-%m-%d %H:%M:%S")
+
                         packets = client.find("packets")
                         packets_total = packets.find("total").text
                         # print (client_mac, manuf, "W", packets_total)
                         errors += database_utils.insertClients(
                             cursor, verbose, client_mac, '', manuf,
-                            'W', packets_total, 'Misc')
+                            'W', packets_total, 'Misc', firstTimeSeen)
 
                         # connected
                         # print (bssid, client_mac)
@@ -161,6 +172,11 @@ def parse_kismet_csv(ouiMap, name, database, verbose):
                             essid = row[2]
                             essid = essid.replace("'", "''")
 
+                            # firstTimeSeen
+                            firstTimeSeen_string = row[19]
+                            date_object = datetime.datetime.strptime(firstTimeSeen_string, "%a %b %d %H:%M:%S %Y")
+                            firstTimeSeen = date_object.strftime("%Y-%m-%d %H:%M:%S")
+
                             manuf = oui.get_vendor(ouiMap, bssid)
 
                             channel = row[5]
@@ -176,7 +192,8 @@ def parse_kismet_csv(ouiMap, name, database, verbose):
                             errors += database_utils.insertAP(
                                 cursor, verbose, bssid, essid, manuf, channel,
                                 freqmhz, carrier, encryption, packets_total,
-                                lat, lon, cloaked, mfpc, mfpr)
+                                lat, lon, cloaked, mfpc, mfpr, firstTimeSeen)
+
                             # manuf y carrier implementar
                         except Exception as error:
                             if verbose:
@@ -211,6 +228,7 @@ def parse_csv(ouiMap, name, database, verbose):
                            and row[0] != "BSSID":
                             # insert AP de aqui tambien
                             bssid = row[0]
+                            firstTimeSeen = row[1]
                             essid = row[13]
                             essid = essid.replace("'", "''")
                             manuf = oui.get_vendor(ouiMap, bssid)
@@ -227,20 +245,22 @@ def parse_csv(ouiMap, name, database, verbose):
                             errors += database_utils.insertAP(
                                 cursor, verbose, bssid, essid[1:], manuf,
                                 channel, freq, carrier, encrypt,
-                                packets_total, 0, 0, cloaked, mfpc, mfpr)
+                                packets_total, 0, 0, cloaked, mfpc, mfpr, firstTimeSeen)
+
 
                         if row and row[0] == "Station MAC":
                             client = True
                         elif row and client and len(row) > 5:
                             # print(row[0])
                             mac = row[0]
+                            firstTimeSeen = row[1]
                             manuf = oui.get_vendor(ouiMap, mac)
                             packets = row[4]
                             # print(mac, manuf)
 
                             errors += database_utils.insertClients(
                                 cursor, verbose, mac, '', manuf, 'W',
-                                packets, 'Misc')
+                                packets, 'Misc', firstTimeSeen)
 
                             if len(row) > 5 and row[5] != " (not associated) ":
                                 a = database_utils.insertConnected(
@@ -276,20 +296,30 @@ def parse_log_csv(ouiMap, name, database, verbose, fake_lat, fake_lon):
             with open(name) as csv_file:
                 csv_reader = csv.reader(csv_file, delimiter=',')
                 for row in csv_reader:
-                    if row[0] != "LocalTime":
+                    time = row[0]
+                    if time != "LocalTime":
                         if len(row) > 10 and row[10] == "Client":
-                            manuf = oui.get_vendor(ouiMap, row[3])
-                            if row[6] != 0.0:
-                                lat = row[6]
-                                lon = row[7]
-                                if fake_lat != "":  # just write file in db
-                                    lat = fake_lat
-                                if fake_lon != "":
-                                    lon = fake_lon
-                                errors += database_utils.insertSeenClient(
-                                    cursor, verbose, row[3], row[0],
-                                    'aircrack-ng', row[4], lat, lon,
-                                    '0.0')
+                            mac = row[3]
+                            manuf = oui.get_vendor(ouiMap, mac)
+                            signal_rssi = row[4]
+                            lat = row[6]
+                            lon = row[7]
+                            if fake_lat != "":  # just write file in db
+                                lat = fake_lat
+                            if fake_lon != "":
+                                lon = fake_lon
+                            ssid = ""
+                            typeAux = ""
+                            packets_total = ""
+                            device = ""
+                            errors += database_utils.insertClients(
+                                cursor, verbose, mac, ssid, manuf,
+                                typeAux, packets_total, device, time)
+                                
+                            errors += database_utils.insertSeenClient(
+                                cursor, verbose, mac, time,
+                                'aircrack-ng', signal_rssi, lat, lon,
+                                '0.0')
 
                         if len(row) > 10 and row[10] == "AP":
                             lat = row[6]
@@ -305,11 +335,12 @@ def parse_log_csv(ouiMap, name, database, verbose, fake_lat, fake_lon):
                             errors += database_utils.insertAP(
                                 cursor, verbose, row[3], row[2],
                                 manuf, 0, 0, '', '', 0, lat, lon,
-                                cloaked, mfpc, mfpr)
+                                cloaked, mfpc, mfpr, time)
 
                             # if row[6] != "0.000000":
                             errors += database_utils.insertSeenAP(
-                                cursor, verbose, row[3], row[0],
+                                cursor, verbose, row[3], time,
+
                                 'aircrack-ng', row[4], lat, lon,
                                 '0.0', 0)
 
