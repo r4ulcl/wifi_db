@@ -64,6 +64,7 @@ def insertAP(cursor, verbose, bssid, essid, manuf, channel, freqmhz, carrier,
         cursor.execute('''INSERT INTO AP VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?) ''',
                        (bssid.upper(), essid, cloaked, manuf, channel, freqmhz, carrier,
                         encryption, packets_total, lat, lon, mfpc, mfpr, firstTimeSeen))
+
         return int(0)
     except sqlite3.IntegrityError as error:
         # errors += 1
@@ -281,6 +282,7 @@ def insertWPS(cursor, verbose, bssid, wlan_ssid, wps_version, wps_device_name,
         insertAP(cursor, verbose, bssid, essid, manuf, channel, freqmhz, carrier,
                  encryption, packets_total, lat, lon, cloaked, mfpc, mfpr, 0)
 
+
         cursor.execute('''INSERT INTO WPS VALUES(?,?,?,?,?,?,?,?)''',
                        (bssid.upper(), wlan_ssid, wps_version, wps_device_name,
                         wps_model_name, wps_model_number, wps_config_methods,
@@ -334,6 +336,7 @@ def insertMFP(cursor, verbose, bssid, mfpc, mfpr, file):
         insertAP(cursor, verbose, bssid, essid, manuf, channel, freqmhz, carrier,
                  encryption, packets_total, lat, lon, cloaked, mfpc, mfpr, 0)
 
+
         return int(0)
     except sqlite3.IntegrityError as error:
         # errors += 1
@@ -343,6 +346,7 @@ def insertMFP(cursor, verbose, bssid, mfpc, mfpr, file):
     except sqlite3.Error as error:
         if verbose:
             print("insertMFP Error " + str(error))
+
         return int(1)
 
 
@@ -352,6 +356,7 @@ def insertHandshake(cursor, verbose, bssid, mac, file):
         error = 0
         # Insert file
         error += insertFile(cursor, verbose, file)
+
         # insertHandshake Client and AP CONSTRAINT
         ssid = ""
         manuf = ""
@@ -374,6 +379,7 @@ def insertHandshake(cursor, verbose, bssid, mac, file):
         mfpr = 'False'
         error += insertAP(cursor, verbose, bssid, essid, manuf, channel, freqmhz, carrier,
                           encryption, packets_total, lat, lon, cloaked, mfpc, mfpr, 0)
+
         # print(row[5].replace(' ', ''))
         cursor.execute(
             '''INSERT INTO handshake VALUES(?,?,?,?)''',
@@ -403,6 +409,7 @@ def insertIdentity(cursor, verbose, bssid, mac, identity, method):
         error += insertClients(cursor, verbose, mac, ssid, manuf,
                                "", packets_total, device, 0)
 
+
         essid = ""
         manuf = ""
         channel = ""
@@ -417,6 +424,7 @@ def insertIdentity(cursor, verbose, bssid, mac, identity, method):
         mfpr = 'False'
         error += insertAP(cursor, verbose, bssid, essid, manuf, channel, freqmhz, carrier,
                           encryption, packets_total, lat, lon, cloaked, mfpc, mfpr, 0)
+
 
         if verbose:
             print('output ' + bssid.upper(), mac.upper(), identity, method)
