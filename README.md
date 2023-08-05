@@ -273,6 +273,12 @@ This program is a continuation of a part of: https://github.com/T1GR3S/airo-heat
 
 - Raúl Calvo Laorden (@r4ulcl)
 
+## Support this project
+
+### Buymeacoffee
+
+[<img src="https://cdn.buymeacoffee.com/buttons/v2/default-green.png">](https://www.buymeacoffee.com/r4ulcl)
+
 ## License
 
 [GNU General Public License v3.0](https://github.com/r4ulcl/wifi_db/blob/master/LICENSE)
