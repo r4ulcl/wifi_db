@@ -491,7 +491,7 @@ def setHashcat(cursor, verbose, bssid, mac, file, hashcat):
         hashMD5 = hashlib.md5(open(file,'rb').read()).hexdigest()
         if verbose:
             print("HASH: ", hash)
-        cursor.execute('''INSERT OR REPLACE INTO Handshake VALUES(?,?,?,?)''',
+        cursor.execute('''INSERT OR REPLACE INTO Handshake VALUES(?,?,?,?,?)''',
                        (bssid.upper(), mac.upper(), file, hashMD5, hashcat))
         return int(0)
     except sqlite3.IntegrityError as error:
