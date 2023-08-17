@@ -59,7 +59,7 @@ def load_vendors():
                 # catastrophic error. bail.
                 print(e)
             tmp.close()
-            os.unlink(tmp.name)
+            #os.unlink(tmp.name)
 
     with open(fileCSV, encoding='cp850') as csv_file:
         csv_reader = csv.reader(csv_file, delimiter=',')
