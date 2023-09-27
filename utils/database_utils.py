@@ -22,7 +22,7 @@ def connectDatabase(name, verbose):
 def createDatabase(database, verbose):
     '''Function to create the tables in the database'''
     script_path = os.path.dirname(os.path.abspath(__file__))
-    path = script_path + '/wifi_db_database.sql'
+    path = script_path + '/utils/wifi_db_database.sql'
     db_file = open(path, 'r')
     views = db_file.read()
     try:
@@ -41,7 +41,7 @@ def createDatabase(database, verbose):
 def createViews(database, verbose):
     '''Function to create the Views in the database'''
     script_path = os.path.dirname(os.path.abspath(__file__))
-    path = script_path + '/view.sql'
+    path = script_path + '/utils/view.sql'
     views_file = open(path, 'r')
     views = views_file.read()
     try:
