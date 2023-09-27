@@ -4,6 +4,7 @@
 
 import argparse
 import wifi_db_aircrack
+import update
 import database_utils
 import os
 import oui
@@ -39,9 +40,12 @@ def printVersion():
 def replace_multiple_slashes(string):
     return re.sub('/+', '/', string)
 
-
 def main():
     nest_asyncio.apply()
+    
+    #Check for update
+    update.check_for_update(VERSION)
+
     '''Function main. Parse argument and exec the functions '''
     # args
     parser = argparse.ArgumentParser()
