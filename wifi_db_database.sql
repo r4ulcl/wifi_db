@@ -14,7 +14,6 @@ CREATE TABLE IF NOT EXISTS AP
     mfpc BOOLEAN,
     mfpr BOOLEAN,
     firstTimeSeen timestamp,
-
     CONSTRAINT Key1 PRIMARY KEY (bssid)
 );
 
@@ -99,11 +98,12 @@ CREATE TABLE IF NOT EXISTS Handshake
     bssid TEXT NOT NULL,
     mac TEXT NOT NULL,
     file TEXT NOT NULL,
+    hashMD5 TEXT NOT NULL,
     hashcat TEXT,
     CONSTRAINT Key6 PRIMARY KEY (bssid,mac,file)
     CONSTRAINT FRelationship4 FOREIGN KEY (bssid) REFERENCES AP (bssid) ON UPDATE CASCADE ON DELETE CASCADE,
     CONSTRAINT FRelationship5 FOREIGN KEY (mac) REFERENCES Client (mac) ON UPDATE CASCADE ON DELETE CASCADE,
-    CONSTRAINT FRelationship8 FOREIGN KEY (file) REFERENCES Files (file) ON UPDATE CASCADE ON DELETE CASCADE
+    CONSTRAINT FRelationship8 FOREIGN KEY (file,hashMD5) REFERENCES Files (file,hashMD5) ON UPDATE CASCADE ON DELETE CASCADE
 );
 
 CREATE TABLE IF NOT EXISTS Identity
@@ -122,6 +122,7 @@ CREATE TABLE IF NOT EXISTS Files
 (
     file TEXT NOT NULL,
     processed BOOLEAN,
+    hashMD5 TEXT NOT NULL,
     time datetime,
-    CONSTRAINT Key8 PRIMARY KEY (file)
+    CONSTRAINT Key8 PRIMARY KEY (file,hashMD5)
 );
