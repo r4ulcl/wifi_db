@@ -5,9 +5,9 @@ import csv
 import xml.etree.ElementTree as ET
 import os
 import re
-import oui
+from utils import oui
 import ftfy
-import database_utils
+from utils import  database_utils
 import pyshark
 import subprocess
 # import platform

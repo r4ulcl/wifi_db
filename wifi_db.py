@@ -3,11 +3,11 @@
 # -*- coding: utf-8 -*-
 
 import argparse
-import wifi_db_aircrack
-import update
-import database_utils
+from utils import  wifi_db_aircrack
+from utils import update
+from utils import database_utils
+from utils import oui
 import os
-import oui
 from os import path
 import platform
 import subprocess
