@@ -6,6 +6,7 @@ import os
 import random
 import string
 import datetime
+import hashlib
 
 
 def connectDatabase(name, verbose):
@@ -357,6 +358,9 @@ def insertHandshake(cursor, verbose, bssid, mac, file):
         # Insert file
         error += insertFile(cursor, verbose, file)
 
+        # Get file hash MD5
+        hash = hashlib.md5(open(file,'rb').read()).hexdigest()
+
         # insertHandshake Client and AP CONSTRAINT
         ssid = ""
         manuf = ""
@@ -382,8 +386,8 @@ def insertHandshake(cursor, verbose, bssid, mac, file):
 
         # print(row[5].replace(' ', ''))
         cursor.execute(
-            '''INSERT INTO handshake VALUES(?,?,?,?)''',
-            (bssid.upper(), mac.upper(), file, ""))
+            '''INSERT INTO handshake VALUES(?,?,?,?,?)''',
+            (bssid.upper(), mac.upper(), file, hash, ""))
         return int(error)
     except sqlite3.IntegrityError as error:
         # errors += 1
@@ -482,10 +486,13 @@ def insertSeenAP(cursor, verbose, bssid, time, tool, signal_rsi,
         return int(1)
 
 
-def setHashcat(cursor, verbose, bssid, mac, file, hash):
+def setHashcat(cursor, verbose, bssid, mac, file, hashcat):
     try:
-        cursor.execute('''INSERT OR REPLACE INTO Handshake VALUES(?,?,?,?)''',
-                       (bssid.upper(), mac.upper(), file, hash))
+        hashMD5 = hashlib.md5(open(file,'rb').read()).hexdigest()
+        if verbose:
+            print("HASH: ", hash)
+        cursor.execute('''INSERT OR REPLACE INTO Handshake VALUES(?,?,?,?,?)''',
+                       (bssid.upper(), mac.upper(), file, hashMD5, hashcat))
         return int(0)
     except sqlite3.IntegrityError as error:
         print("setHashcat" + str(error))
@@ -494,8 +501,12 @@ def setHashcat(cursor, verbose, bssid, mac, file, hash):
 
 def insertFile(cursor, verbose, file):
     try:
-        cursor.execute('''INSERT OR REPLACE INTO Files VALUES(?,?,?)''',
-                       (file, "False", datetime.datetime.now()))
+        # Get MD5
+        hash = hashlib.md5(open(file,'rb').read()).hexdigest()
+        if verbose:
+            print("HASH: ", hash)
+        cursor.execute('''INSERT OR REPLACE INTO Files VALUES(?,?,?,?)''',
+                       (file, "False", hash, datetime.datetime.now()))
         return int(0)
     except sqlite3.IntegrityError as error:
         print("insertFile" + str(error))
@@ -513,8 +524,14 @@ def setFileProcessed(cursor, verbose, file):
 
 
 def checkFileProcessed(cursor, verbose, file):
+    if not os.path.exists(file):
+        if verbose:
+            print("File", file, "does not exist")
+        return int(0)
+    
+    hash = hashlib.md5(open(file,'rb').read()).hexdigest()
     try:
-        sql = "SELECT file from Files where file = '" + file + "' AND processed = 'True';"
+        sql = "SELECT file from Files where hashMD5 = '" + hash + "' AND processed = 'True';"
         cursor.execute(sql)
 
         output = cursor.fetchall()
