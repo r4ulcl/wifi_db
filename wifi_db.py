@@ -3,7 +3,7 @@
 # -*- coding: utf-8 -*-
 
 import argparse
-from utils import  wifi_db_aircrack
+from utils import wifi_db_aircrack
 from utils import update
 from utils import database_utils
 from utils import oui
@@ -21,29 +21,30 @@ import re
 VERSION = '1.4-dev'
 
 
-
 def banner():
     print('''
-           _   __  _             _  _     
-__      __(_) / _|(_)         __| || |__  
-\ \ /\ / /| || |_ | |        / _` || '_ \ 
+           _   __  _             _  _
+__      __(_) / _|(_)         __| || |__
+\ \ /\ / /| || |_ | |        / _` || '_ \\
  \ V  V / | ||  _|| |       | (_| || |_) |
-  \_/\_/  |_||_|  |_| _____  \__,_||_.__/ 
-                     |_____|          
-                               by r4ulcl           
+  \_/\_/  |_||_|  |_| _____  \__,_||_.__/
+                     |_____|
+                               by r4ulcl
 ''')
 
 
 def printVersion():
     print("wifi_db version:", VERSION)
 
+
 def replace_multiple_slashes(string):
     return re.sub('/+', '/', string)
 
+
 def main():
     nest_asyncio.apply()
-    
-    #Check for update
+
+    # Check for update
     update.check_for_update(VERSION)
 
     '''Function main. Parse argument and exec the functions '''
@@ -147,7 +148,6 @@ def main():
         if capture.endswith('/'):
             capture = capture[:-1]
         capture = replace_multiple_slashes(capture)
-
 
         if source == "aircrack-ng":
             print("Parsing file:", capture)
@@ -256,58 +256,73 @@ def process_capture(ouiMap, capture, database,
 
             captureFormat = capture + ".kismet.netxml"
             print("Parsing file:", captureFormat)
-            if database_utils.checkFileProcessed(cursor,
-                                                    verbose, captureFormat) == 1 and not force:
-                print("File","already processed\n")
+            if (
+                database_utils.checkFileProcessed(
+                    cursor, verbose, captureFormat
+                ) == 1 and not force
+            ):
+                print("File", "already processed\n")
             else:
                 database_utils.insertFile(cursor, verbose, captureFormat)
                 wifi_db_aircrack.parse_netxml(ouiMap, captureFormat,
-                                            database, verbose)
+                                              database, verbose)
                 database_utils.setFileProcessed(cursor, verbose, captureFormat)
 
             captureFormat = capture + ".kismet.csv"
             print("Parsing file:", captureFormat)
-            if database_utils.checkFileProcessed(cursor,
-                                                    verbose, captureFormat) == 1 and not force:
-                print("File","already processed\n")
+            if (
+                database_utils.checkFileProcessed(
+                    cursor, verbose, captureFormat
+                ) == 1 and not force
+            ):
+                print("File", "already processed\n")
             else:
                 database_utils.insertFile(cursor, verbose, captureFormat)
                 wifi_db_aircrack.parse_kismet_csv(ouiMap, captureFormat,
-                                                database, verbose)
+                                                  database, verbose)
                 database_utils.setFileProcessed(cursor, verbose, captureFormat)
 
             captureFormat = capture + ".csv"
             print("Parsing file:", captureFormat)
-            if database_utils.checkFileProcessed(cursor,
-                                                    verbose, captureFormat) == 1 and not force:
-                print("File","already processed\n")
+            if (
+                database_utils.checkFileProcessed(
+                    cursor, verbose, captureFormat
+                ) == 1 and not force
+            ):
+                print("File", "already processed\n")
             else:
                 database_utils.insertFile(cursor, verbose, captureFormat)
                 wifi_db_aircrack.parse_csv(ouiMap, captureFormat,
-                                            database, verbose)
+                                           database, verbose)
                 database_utils.setFileProcessed(cursor, verbose, captureFormat)
 
             captureFormat = capture + ".log.csv"
             print("Parsing file:", captureFormat)
-            if database_utils.checkFileProcessed(cursor,
-                                                    verbose, captureFormat) == 1 and not force:
-                print("File","already processed\n")
+            if (
+                database_utils.checkFileProcessed(
+                    cursor, verbose, captureFormat
+                ) == 1 and not force
+            ):
+                print("File", "already processed\n")
             else:
                 database_utils.insertFile(cursor, verbose, captureFormat)
                 wifi_db_aircrack.parse_log_csv(ouiMap, captureFormat,
-                                            database, verbose, fake_lat,
-                                            fake_lon)
+                                               database, verbose, fake_lat,
+                                               fake_lon)
                 database_utils.setFileProcessed(cursor, verbose, captureFormat)
 
             captureFormat = capture + ".cap"
             print("Parsing file:", captureFormat)
-            if database_utils.checkFileProcessed(cursor,
-                                                    verbose, captureFormat) == 1 and not force:
-                print("File","already processed\n")
+            if (
+                database_utils.checkFileProcessed(
+                    cursor, verbose, captureFormat
+                ) == 1 and not force
+            ):
+                print("File", "already processed\n")
             else:
                 database_utils.insertFile(cursor, verbose, captureFormat)
                 wifi_db_aircrack.parse_cap(captureFormat, database, verbose,
-                                        hcxpcapngtool, tshark)
+                                           hcxpcapngtool, tshark)
                 database_utils.setFileProcessed(cursor, verbose, captureFormat)
 
 

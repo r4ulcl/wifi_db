@@ -27,8 +27,8 @@ def load_vendors():
         if current_time - modification_time < 2 * 60 * 60:
             print("File was download within the last 2 hours - SKIP")
             redownload = False
-            
-    if redownload: # download again if >2h or file dont exists
+
+    if redownload:  # download again if >2h or file dont exists
         with tempfile.NamedTemporaryFile(delete=True) as tmp:
             print(tmp.name)
             try:
@@ -59,7 +59,7 @@ def load_vendors():
                 # catastrophic error. bail.
                 print(e)
             tmp.close()
-            #os.unlink(tmp.name)
+            # os.unlink(tmp.name)
 
     with open(fileCSV, encoding='cp850') as csv_file:
         csv_reader = csv.reader(csv_file, delimiter=',')
