@@ -19,7 +19,7 @@ def parse_netxml(ouiMap, name, database, verbose):
     '''Function to parse the .kismet.netxml files'''
 
     filename = name
-    exists = os.path.isfile(filename))
+    exists = os.path.isfile(filename)
     errors = 0
     try:
         cursor = database.cursor()
