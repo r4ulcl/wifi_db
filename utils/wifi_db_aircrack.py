@@ -5,9 +5,9 @@ import csv
 import xml.etree.ElementTree as ET
 import os
 import re
-import oui
+from utils import oui
 import ftfy
-import database_utils
+from utils import database_utils
 import pyshark
 import subprocess
 # import platform
@@ -89,10 +89,14 @@ def parse_netxml(ouiMap, name, database, verbose):
                     carrier = wireless.find("carrier").text
 
                     # firstTimeSeen
-                    firstTimeSeen_string = wireless.find("SSID").attrib['first-time']
-                    date_object = datetime.datetime.strptime(firstTimeSeen_string, "%a %b %d %H:%M:%S %Y")
+                    firstTimeSeen_string = wireless.find(
+                        "SSID"
+                    ).attrib['first-time']
+                    date_object = datetime.datetime.strptime(
+                        firstTimeSeen_string, "%a %b %d %H:%M:%S %Y"
+                    )
                     firstTimeSeen = date_object.strftime("%Y-%m-%d %H:%M:%S")
-                    
+
                     manuf = oui.get_vendor(ouiMap, bssid)
 
                     if wireless.find("SSID").find("encryption") is not None:
@@ -122,7 +126,6 @@ def parse_netxml(ouiMap, name, database, verbose):
                         freqmhz, carrier, encryption, packets_total, lat, lon,
                         cloaked, mfpc, mfpr, firstTimeSeen)
 
-
                     # client
                     clients = wireless.findall("wireless-client")
                     for client in clients:
@@ -130,8 +133,12 @@ def parse_netxml(ouiMap, name, database, verbose):
                         manuf = oui.get_vendor(ouiMap, client_mac)
 
                         firstTimeSeen_string = client.attrib['first-time']
-                        date_object = datetime.datetime.strptime(firstTimeSeen_string, "%a %b %d %H:%M:%S %Y")
-                        firstTimeSeen = date_object.strftime("%Y-%m-%d %H:%M:%S")
+                        date_object = datetime.datetime.strptime(
+                            firstTimeSeen_string, "%a %b %d %H:%M:%S %Y"
+                        )
+                        firstTimeSeen = date_object.strftime(
+                            "%Y-%m-%d %H:%M:%S"
+                        )
 
                         packets = client.find("packets")
                         packets_total = packets.find("total").text
@@ -174,8 +181,13 @@ def parse_kismet_csv(ouiMap, name, database, verbose):
 
                             # firstTimeSeen
                             firstTimeSeen_string = row[19]
-                            date_object = datetime.datetime.strptime(firstTimeSeen_string, "%a %b %d %H:%M:%S %Y")
-                            firstTimeSeen = date_object.strftime("%Y-%m-%d %H:%M:%S")
+
+                            date_object = datetime.datetime.strptime(
+                                firstTimeSeen_string, "%a %b %d %H:%M:%S %Y"
+                            )
+                            firstTimeSeen = date_object.strftime(
+                                "%Y-%m-%d %H:%M:%S"
+                            )
 
                             manuf = oui.get_vendor(ouiMap, bssid)
 
@@ -245,8 +257,8 @@ def parse_csv(ouiMap, name, database, verbose):
                             errors += database_utils.insertAP(
                                 cursor, verbose, bssid, essid[1:], manuf,
                                 channel, freq, carrier, encrypt,
-                                packets_total, 0, 0, cloaked, mfpc, mfpr, firstTimeSeen)
-
+                                packets_total, 0, 0, cloaked, mfpc, mfpr,
+                                firstTimeSeen)
 
                         if row and row[0] == "Station MAC":
                             client = True
@@ -315,7 +327,7 @@ def parse_log_csv(ouiMap, name, database, verbose, fake_lat, fake_lon):
                             errors += database_utils.insertClients(
                                 cursor, verbose, mac, ssid, manuf,
                                 typeAux, packets_total, device, time)
-                                
+
                             errors += database_utils.insertSeenClient(
                                 cursor, verbose, mac, time,
                                 'aircrack-ng', signal_rssi, lat, lon,
@@ -387,16 +399,19 @@ def parse_handshakes(name, database, verbose):
                     dst = pkt.wlan.da
                     flag = pkt.eapol.wlan_rsna_keydes_key_info
                     # print(flag)
-                    # IF is the second and the prev is the first one add handshake
+                    # IF is the second and the prev is the first one
+                    # add handshake
                     if flag.find('10a') != -1:
                         # print('handhsake 2 of 4')
                         if (prevFlag.find('08a')
-                                and dst == prevSrc and src == prevDst):  # first
+                                and dst == prevSrc and src == prevDst):
+                            # first
                             if verbose:
-                                print("Valid handshake from client " + prevSrc +
-                                      " to AP " + prevDst)
+                                print("Valid handshake from client " +
+                                      prevSrc + " to AP " + prevDst)
                             errors += database_utils.insertHandshake(cursor,
-                                                                     verbose, dst,
+                                                                     verbose,
+                                                                     dst,
                                                                      src, file)
                     else:
                         prevSrc = src
@@ -425,10 +440,14 @@ def parse_MFP(name, database, verbose):
         cursor = database.cursor()
         errors = 0
         file = name
-        # cap = pyshark.FileCapture(file, display_filter='wlan.fc.type_subtype == 0x0008')
+        # cap = pyshark.FileCapture(file,
+        # display_filter='wlan.fc.type_subtype == 0x0008')
         # Filter only with mfpr or mfpc enable
         cap = pyshark.FileCapture(file,
-                                  display_filter='((wlan.rsn.capabilities.mfpr == 1)||(wlan.rsn.capabilities.mfpc == 1))&&(wlan.fc.type_subtype == 0x0008)')
+                                  display_filter='\
+                                  ((wlan.rsn.capabilities.mfpr == 1)||\
+                                  (wlan.rsn.capabilities.mfpc == 1))&&\
+                                  (wlan.fc.type_subtype == 0x0008)')
         # cap.set_debug()
 
         for pkt in cap:
@@ -454,7 +473,8 @@ def parse_MFP(name, database, verbose):
                             print(f"MFPR: {mfpr}")
                         errors += database_utils.insertMFP(cursor,
                                                            verbose,
-                                                           src, mfpc, mfpr, file)
+                                                           src, mfpc,
+                                                           mfpr, file)
                 # wlan_options = pkt['wlan.mgt'].field_names
                 # print(wlan_options)
                 # print(pkt['wlan.mgt'])
@@ -482,7 +502,8 @@ def parse_WPS(name, database, verbose):
         errors = 0
         file = name
         cap = pyshark.FileCapture(
-            file, display_filter="wps.wifi_protected_setup_state == 0x02 and wlan.da == ff:ff:ff:ff:ff:ff")
+            file, display_filter="wps.wifi_protected_setup_state == 0x02 and\
+                                  wlan.da == ff:ff:ff:ff:ff:ff")
         # cap.set_debug()
 
         for pkt in cap:
@@ -503,8 +524,8 @@ def parse_WPS(name, database, verbose):
             except Exception:
                 errors += 1
             try:
-                wlan_ssid_hex = pkt[wmgt].wlan_ssid
-                wlan_ssid_bytes = binascii.unhexlify(wlan_ssid_hex.replace(':', ''))
+                w_s_hex = pkt[wmgt].wlan_ssid
+                wlan_ssid_bytes = binascii.unhexlify(w_s_hex.replace(':', ''))
                 wlan_ssid_decode = wlan_ssid_bytes.decode('ascii')
                 if wlan_ssid_decode != "":
                     wlan_ssid = wlan_ssid_decode
@@ -544,9 +565,10 @@ def parse_WPS(name, database, verbose):
             except Exception:
                 errors += 1
 
-            errors += database_utils.insertWPS(cursor, verbose, bssid, wlan_ssid,
-                                               wps_version, wps_device_name,
-                                               wps_model_name, wps_model_number,
+            errors += database_utils.insertWPS(cursor, verbose, bssid,
+                                               wlan_ssid, wps_version,
+                                               wps_device_name, wps_model_name,
+                                               wps_model_number,
                                                wps_config_methods,
                                                wps_config_methods_keypad)
 
@@ -576,7 +598,8 @@ def parse_identities(name, database, verbose):
         identity = ""
         method = ""
 
-        # The information is: Identity, method, method... , Identity2, method2, method2...
+        # The information is: Identity, method, method... ,
+        # Identity2, method2, method2...
         for pkt in cap:
             # print(pkt.eapol.field_names)
             try:
