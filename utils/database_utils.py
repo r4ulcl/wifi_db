@@ -81,7 +81,7 @@ def insertAP(cursor, verbose, bssid, essid, manuf, channel, freqmhz, carrier,
             if firstTimeSeen != 0:
                 sql = """UPDATE AP SET firstTimeSeen = CASE WHEN
                          firstTimeSeen = '' OR firstTimeSeen = '0' OR
-                         firstTimeSeen IS NULL OR firstTimeSeen > (?)) AND
+                         firstTimeSeen IS NULL OR firstTimeSeen > (?) AND
                          (?) <> 0 AND firstTimeSeen <> 0 THEN (?) ELSE
                          firstTimeSeen END WHERE bssid = (?)"""
                 if verbose:

@@ -19,7 +19,7 @@ def parse_netxml(ouiMap, name, database, verbose):
     '''Function to parse the .kismet.netxml files'''
 
     filename = name
-    exists = os.path.isfile(filename)
+    exists = os.path.isfile(filename))
     errors = 0
     try:
         cursor = database.cursor()
@@ -352,7 +352,6 @@ def parse_log_csv(ouiMap, name, database, verbose, fake_lat, fake_lon):
                             # if row[6] != "0.000000":
                             errors += database_utils.insertSeenAP(
                                 cursor, verbose, row[3], time,
-
                                 'aircrack-ng', row[4], lat, lon,
                                 '0.0', 0)
 
