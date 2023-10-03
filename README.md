@@ -1,6 +1,4 @@
-<p align="center">
-  <pre>
-
+```
            _   __  _             _  _     
 __      __(_) / _|(_)         __| || |__  
 \ \ /\ / /| || |_ | |        / _` || '_ \ 
@@ -8,7 +6,9 @@ __      __(_) / _|(_)         __| || |__
   \_/\_/  |_||_|  |_| _____  \__,_||_.__/ 
                      |_____|          
                                by r4ulcl
-  </pre>
+```
+
+<p>
    <a href="https://github.com/r4ulcl/wifi_db/releases">
     <img src="https://img.shields.io/github/v/release/r4ulcl/wifi_db" alt="GitHub releases">
   </a>
@@ -31,16 +31,6 @@ __      __(_) / _|(_)         __| || |__
 [![Docker Image](https://github.com/r4ulcl/wifi_db/actions/workflows/docker-image.yml/badge.svg)](https://hub.docker.com/r/r4ulcl/wifi_db) [![Docker Image dev](https://github.com/r4ulcl/wifi_db/actions/workflows/docker-image-dev.yml/badge.svg)](https://hub.docker.com/r/r4ulcl/wifi_db)
 
 Script to parse Aircrack-ng captures into a SQLite database and extract useful information like handshakes (in 22000 hashcat format), MGT identities, interesting relations between APs, clients and it's Probes, WPS information and a global view of all the APs seen.
-
-```
-           _   __  _             _  _     
-__      __(_) / _|(_)         __| || |__  
-\ \ /\ / /| || |_ | |        / _` || '_ \ 
- \ V  V / | ||  _|| |       | (_| || |_) |
-  \_/\_/  |_||_|  |_| _____  \__,_||_.__/ 
-                     |_____|          
-                               by r4ulcl
-```
 
 
 ## Features
