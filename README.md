@@ -1,3 +1,31 @@
+<p align="center">
+  <pre>
+
+           _   __  _             _  _     
+__      __(_) / _|(_)         __| || |__  
+\ \ /\ / /| || |_ | |        / _` || '_ \ 
+ \ V  V / | ||  _|| |       | (_| || |_) |
+  \_/\_/  |_||_|  |_| _____  \__,_||_.__/ 
+                     |_____|          
+                               by r4ulcl
+  </pre>
+   <a href="https://github.com/r4ulcl/wifi_db/releases">
+    <img src="https://img.shields.io/github/v/release/r4ulcl/wifi_db" alt="GitHub releases">
+  </a>
+  <a href="https://github.com/r4ulcl/wifi_db/stargazers">
+    <img src="https://img.shields.io/github/stars/r4ulcl/wifi_db.svg" alt="GitHub stars">
+  </a>
+  <a href="https://github.com/r4ulcl/wifi_db/network">
+    <img src="https://img.shields.io/github/forks/r4ulcl/wifi_db.svg" alt="GitHub forks">
+  </a>
+  <a href="https://github.com/r4ulcl/wifi_db/issues">
+    <img src="https://img.shields.io/github/issues/r4ulcl/wifi_db.svg" alt="GitHub issues">
+  </a>
+  <a href="https://github.com/r4ulcl/wifi_db/blob/main/LICENSE">
+    <img src="https://img.shields.io/github/license/r4ulcl/wifi_db.svg" alt="GitHub license">
+  </a>
+</p>
+
 # wifi_db
 
 [![Docker Image](https://github.com/r4ulcl/wifi_db/actions/workflows/docker-image.yml/badge.svg)](https://hub.docker.com/r/r4ulcl/wifi_db) [![Docker Image dev](https://github.com/r4ulcl/wifi_db/actions/workflows/docker-image-dev.yml/badge.svg)](https://hub.docker.com/r/r4ulcl/wifi_db)
@@ -13,6 +41,7 @@ __      __(_) / _|(_)         __| || |__
                      |_____|          
                                by r4ulcl
 ```
+
 
 ## Features
 
