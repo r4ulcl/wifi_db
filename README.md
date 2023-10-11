@@ -1,14 +1,8 @@
-```
-           _   __  _             _  _     
-__      __(_) / _|(_)         __| || |__  
-\ \ /\ / /| || |_ | |        / _` || '_ \ 
- \ V  V / | ||  _|| |       | (_| || |_) |
-  \_/\_/  |_||_|  |_| _____  \__,_||_.__/ 
-                     |_____|          
-                               by r4ulcl
-```
+<p align="center">
+  <img src="resources/wifi_db.png">
+</p>
 
-<p>
+<p align="center">
    <a href="https://github.com/r4ulcl/wifi_db/releases">
     <img src="https://img.shields.io/github/v/release/r4ulcl/wifi_db" alt="GitHub releases">
   </a>
