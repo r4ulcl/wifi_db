@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="resources/wifi_db.png">
+  <img src="resources/wifi_db_w.png">
 </p>
 
 <p align="center">
