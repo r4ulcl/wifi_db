@@ -23,25 +23,25 @@ def delete_ap(database, bssid, verbose):
     try:
         cursor = database.cursor()
 
-        sql = "DELETE from handshake where bssid=\"" + bssid + "\""
-        print(sql)
-        cursor.execute(sql)
+        sql = "DELETE from handshake where bssid = ?"
+        print(sql, bssid)
+        cursor.execute(sql, bssid)
 
-        sql = "DELETE from identityap where bssid=\"" + bssid + "\""
-        print(sql)
-        cursor.execute(sql)
+        sql = "DELETE from identityap where bssid = ? "
+        print(sql, bssid)
+        cursor.execute(sql, bssid)
 
-        sql = "DELETE from seenap where bssid=\"" + bssid + "\""
-        print(sql)
-        cursor.execute(sql)
+        sql = "DELETE from seenap where bssid = ? "
+        print(sql, bssid)
+        cursor.execute(sql, bssid)
 
-        sql = "DELETE from connected where bssid=\"" + bssid + "\""
-        print(sql)
-        cursor.execute(sql)
+        sql = "DELETE from connected where bssid = ? "
+        print(sql, bssid)
+        cursor.execute(sql, bssid)
 
-        sql = "DELETE from ap where bssid=\"" + bssid + "\""
-        print(sql)
-        cursor.execute(sql)
+        sql = "DELETE from ap where bssid = ? "
+        print(sql, bssid)
+        cursor.execute(sql, bssid)
 
         database.commit()
     except sqlite3.IntegrityError as error:
