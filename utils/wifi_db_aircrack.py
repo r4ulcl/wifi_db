@@ -2,7 +2,8 @@
 ''' Parse Aircrack, Kismet and Wigle output to a SQLite DB '''
 # -*- coding: utf-8 -*-
 import csv
-import xml.etree.ElementTree as ET
+#import xml.etree.ElementTree as ET # vuln! 
+import defusedxml.ElementTree as ET
 import os
 import re
 from utils import oui
@@ -658,7 +659,7 @@ def exec_hcxpcapngtool(name, database, verbose):
         arguments = fileName + ' -o test.22000'
 
         execution = subprocess.check_output("hcxpcapngtool --all " + arguments,
-                                            shell=True)
+                                            shell=False)
         if verbose:
             print(execution)
 
