@@ -2,7 +2,7 @@
 ''' Parse Aircrack, Kismet and Wigle output to a SQLite DB '''
 # -*- coding: utf-8 -*-
 import csv
-#import xml.etree.ElementTree as ET # vuln! 
+# import xml.etree.ElementTree as ET # vuln!
 import defusedxml.ElementTree as ET
 import os
 import re

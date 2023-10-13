@@ -553,7 +553,7 @@ def checkFileProcessed(cursor, verbose, file):
         hash = getHash(file_handle.read())
 
     try:
-        cursor.execute('''SELECT file FROM Files WHERE hashSHA = (?) 
+        cursor.execute('''SELECT file FROM Files WHERE hashSHA = (?)
                           AND processed = "True"''', (hash,))
 
         output = cursor.fetchall()
@@ -642,8 +642,8 @@ def clearWhitelist(database, verbose, whitelist):
             cursor.execute(
                 "DELETE from Probe where mac = (?) ", (mac.upper(),))
             cursor.execute(
-                "DELETE from Connected where bssid = (?)  OR mac = (?) "
-               , (mac.upper(), mac.upper(),))
+                "DELETE from Connected where bssid = (?)  OR mac = (?) ",
+                (mac.upper(), mac.upper(),))
             cursor.execute(
                 "DELETE from AP where bssid = (?) ", (mac.upper(),))
             cursor.execute(
