@@ -7,7 +7,7 @@ import re
 
 def is_git_installed():
     try:
-        subprocess.run(["git", "--version"], stdout=subprocess.PIPE,
+        subprocess.run(["/usr/bin/git", "--version"], stdout=subprocess.PIPE,
                        stderr=subprocess.PIPE, check=True)
         return True
     except FileNotFoundError:
@@ -54,7 +54,7 @@ def check_for_update(VERSION):
                                 ).strip().lower() or "y"
             if user_choice in ("", "y", "Y"):
                 print("Updating...")
-                update_process = subprocess.Popen(["git", "pull"],
+                update_process = subprocess.Popen(["/usr/bin/git", "pull"],
                                                   cwd=script_dir)
                 # Wait for the Git pull operation to complete
                 update_process.wait()

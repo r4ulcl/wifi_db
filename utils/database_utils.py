@@ -303,7 +303,6 @@ def insertWPS(cursor, verbose, bssid, wlan_ssid, wps_version, wps_device_name,
                         wps_config_methods_keypad))
         return int(0)
     except sqlite3.IntegrityError as error:
-        # TODO: Update info if there is more, like AP
         # errors += 1
         if verbose:
             print("insertWPS " + str(error))
@@ -373,7 +372,7 @@ def insertHandshake(cursor, verbose, bssid, mac, file):
 
         # Get file hash MD5
         with open(file, 'rb') as file_handle:
-            hash = hashlib.md5(file_handle.read()).hexdigest()
+            hash = getHash(file_handle.read())
 
         # insertHandshake Client and AP CONSTRAINT
         ssid = ""
@@ -503,12 +502,12 @@ def insertSeenAP(cursor, verbose, bssid, time, tool, signal_rsi,
 def setHashcat(cursor, verbose, bssid, mac, file, hashcat):
     try:
         with open(file, 'rb') as file_handle:
-            hashMD5 = hashlib.md5(file_handle.read()).hexdigest()
+            hash = getHash(file_handle.read())
         if verbose:
             print("HASH: ", hash)
         cursor.execute('''INSERT OR REPLACE INTO Handshake
                           VALUES(?,?,?,?,?)''',
-                       (bssid.upper(), mac.upper(), file, hashMD5, hashcat))
+                       (bssid.upper(), mac.upper(), file, hash, hashcat))
         return int(0)
     except sqlite3.IntegrityError as error:
         print("setHashcat" + str(error))
@@ -519,7 +518,7 @@ def insertFile(cursor, verbose, file):
     try:
         # Get MD5
         with open(file, 'rb') as file_handle:
-            hash = hashlib.md5(file_handle.read()).hexdigest()
+            hash = getHash(file_handle.read())
         if verbose:
             print("HASH: ", hash)
         cursor.execute('''INSERT OR REPLACE INTO Files VALUES(?,?,?,?)''',
@@ -530,9 +529,13 @@ def insertFile(cursor, verbose, file):
         return int(1)
 
 
+def getHash(file):
+    return hashlib.sha256(file).hexdigest()
+
+
 def setFileProcessed(cursor, verbose, file):
     try:
-        cursor.execute('''UPDATE Files SET processed = ? where file = ?''',
+        cursor.execute('''UPDATE Files SET processed = (?) where file = ?''',
                        ("True", file))
         return int(0)
     except sqlite3.IntegrityError as error:
@@ -547,12 +550,11 @@ def checkFileProcessed(cursor, verbose, file):
         return int(0)
 
     with open(file, 'rb') as file_handle:
-        hash = hashlib.md5(file_handle.read()).hexdigest()
+        hash = getHash(file_handle.read())
 
     try:
-        sql = "SELECT file from Files where hashMD5 = '" + hash + \
-              "' AND processed = 'True';"
-        cursor.execute(sql)
+        cursor.execute('''SELECT file FROM Files WHERE hashSHA = (?) 
+                          AND processed = "True"''', (hash,))
 
         output = cursor.fetchall()
         if len(output) > 0:
@@ -584,7 +586,7 @@ def obfuscateDB(database, verbose):
             new = (row[0][0:9] + ('XX:XX:XX') + '-' + aux)
             # print (new)
 
-            cursor.execute('''UPDATE AP set bssid = ? where bssid = ?''',
+            cursor.execute('''UPDATE AP set bssid = (?) where bssid = ?''',
                            (new, row[0]))
             database.commit()
 
@@ -609,7 +611,7 @@ def obfuscateDB(database, verbose):
             aux = ''.join(random.choice(letter) for _ in range(8))
             new = (row[0][0:9] + ('XX:XX:XX') + '-' + aux)
 
-            cursor.execute('''UPDATE Client set mac = ? where mac = ?''',
+            cursor.execute('''UPDATE Client set mac = (?) where mac = ?''',
                            (new.upper(), row[0].upper()))
             database.commit()
 
@@ -630,22 +632,22 @@ def clearWhitelist(database, verbose, whitelist):
         mac = mac.upper()
         try:
             cursor.execute(
-                "DELETE from Handshake where bssid='%s'" % (mac.upper()))
+                "DELETE from Handshake where bssid = (?) ", (mac.upper(),))
             cursor.execute(
-                "DELETE from Identity where bssid='%s'" % (mac.upper()))
+                "DELETE from Identity where bssid = (?) ", (mac.upper(),))
             cursor.execute(
-                "DELETE from SeenAP where bssid='%s'" % (mac.upper()))
+                "DELETE from SeenAP where bssid = (?) ", (mac.upper(),))
             cursor.execute(
-                "DELETE from SeenClient where mac='%s'" % (mac.upper()))
+                "DELETE from SeenClient where mac = (?) ", (mac.upper(),))
             cursor.execute(
-                "DELETE from Probe where mac='%s'" % (mac.upper()))
+                "DELETE from Probe where mac = (?) ", (mac.upper(),))
             cursor.execute(
-                "DELETE from Connected where bssid='%s' OR mac='%s'"
-                % (mac.upper(), mac.upper()))
+                "DELETE from Connected where bssid = (?)  OR mac = (?) "
+               , (mac.upper(), mac.upper(),))
             cursor.execute(
-                "DELETE from AP where bssid='%s'" % (mac.upper()))
+                "DELETE from AP where bssid = (?) ", (mac.upper(),))
             cursor.execute(
-                "DELETE from Client where mac='%s'" % (mac.upper()))
+                "DELETE from Client where mac = (?) ", (mac.upper(),))
 
             database.commit()
 
