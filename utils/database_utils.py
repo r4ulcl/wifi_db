@@ -553,9 +553,8 @@ def checkFileProcessed(cursor, verbose, file):
         hash = getHash(file_handle.read())
 
     try:
-        sql = "SELECT file from Files where hashSHA =  (?) "+ \
-              " AND processed = 'True';"
-        cursor.execute(sql, hash)
+        cursor.execute('''SELECT file from Files where hashSHA =  
+                          (?) AND processed = "True"''', hash)
 
         output = cursor.fetchall()
         if len(output) > 0:
