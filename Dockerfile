@@ -9,7 +9,7 @@ python3 python3-pip make git pkg-config libcurl4-openssl-dev libssl-dev pkg-conf
 && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt requirements.txt
-RUN pip3 install --no-cache-dir -r requirements.txt
+RUN python3 -m pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
