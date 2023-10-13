@@ -1,7 +1,6 @@
 #!/bin/python3
 # -*- coding: utf-8 -*-
 ''' Get macs vendor'''
-import json
 import tempfile
 from shutil import copyfile
 import csv
@@ -75,31 +74,10 @@ def load_vendors():
     return oui
 
 
-# In case use old macaddress.io-db.json file
-def load_local_vendors():
-    '''load vendors'''
-    oui = {}
-
-    with tempfile.NamedTemporaryFile() as tmp:
-        print(tmp.name)
-        # if not os.path.isfile(file):  #if file not exists in tmp...
-        # with open('/tmp/macaddress.io-db.json', "wb") as file:
-        print("Copy local file")
-        src = "./macaddress.io-db.json"
-        dst = tmp.name
-        copyfile(src, dst)
-
-        for line in tmp:
-            data_json = json.loads(line)
-            oui[data_json['macPrefix'].replace(':', '')] = \
-                data_json['vendorName']
-
-    return oui
-
-
 def get_vendor(oui, mac):
     '''Get vendors from mac in oui'''
     mac = mac.replace(':', '')[:-3]
     while mac not in oui and len(mac) >= 6:
+        print(mac)
         mac = mac[:-1]
     return oui.get(mac, 'Unknown')
