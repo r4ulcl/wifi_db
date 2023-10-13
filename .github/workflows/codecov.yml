@@ -1,0 +1,17 @@
+name: "CodeQL"
+
+on:
+  push:
+    branches: [ "dev" ]
+  pull_request:
+    # The branches below must be a subset of the branches above
+    branches: [ "dev" ]
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:        
+      - name: Upload coverage reports to Codecov
+        uses: codecov/codecov-action@v3
+        env:
+          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
