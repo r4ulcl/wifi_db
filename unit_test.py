@@ -3,6 +3,12 @@ import os
 import unittest
 # from database_utils import *
 from utils import database_utils
+from utils import oui
+from utils import update
+from utils import wifi_db_aircrack
+import wifi_db
+from unittest.mock import patch, MagicMock
+import json
 
 
 class TestFunctions(unittest.TestCase):
@@ -17,13 +23,40 @@ class TestFunctions(unittest.TestCase):
         self.c = self.database.cursor()
         self.bssid = "00:11:22:33:44:55"
         self.mac = "55:44:33:22:11:00"
+        self.test_database_name = 'test_database.db'
+        self.test_database_conn = None
 
     def tearDown(self):
         self.database.close()
         os.remove(self.database_name)
+        if self.test_database_conn:
+            self.test_database_conn.close()
+        if os.path.exists(self.test_database_name):
+            os.remove(self.test_database_name)
 
     def test_connectDatabase(self):
         self.assertIsNotNone(self.database)
+
+    def test_createDatabase(self):
+        self.test_database_conn = database_utils.connectDatabase(self.test_database_name, False)
+        database_utils.createDatabase(self.test_database_conn, self.verbose)
+        cursor = self.test_database_conn.cursor()
+        # Verify that the tables were created
+        cursor.execute("SELECT name FROM sqlite_master WHERE type='table';")
+        tables = cursor.fetchall()
+        expected_tables = [('AP',), ('Client',), ('SeenClient',), ('Connected',), ('WPS',), ('SeenAp',), ('Probe',), ('Handshake',), ('Identity',), ('Files',)]  # Replace with actual expected tables
+        self.assertEqual(tables, expected_tables)
+
+    def test_createViews(self):
+        self.test_database_conn = database_utils.connectDatabase(self.test_database_name, False)
+        database_utils.createDatabase(self.test_database_conn, False)  # Create tables first
+        database_utils.createViews(self.test_database_conn, self.verbose)
+        cursor = self.test_database_conn.cursor()
+        # Verify that the views were created
+        cursor.execute("SELECT name FROM sqlite_master WHERE type='view';")
+        views = cursor.fetchall()
+        expected_views = [('ProbeClients',), ('ConnectedAP',), ('ProbeClientsConnected',), ('HandshakeAP',), ('HandshakeAPUnique',), ('IdentityAP',), ('SummaryAP',)]  # Replace with actual expected views
+        self.assertEqual(views, expected_views)
 
     def test_insertAP(self):
         essid = "Test_AP"
@@ -359,6 +392,20 @@ class TestFunctions(unittest.TestCase):
         self.assertEqual(rows[0][1], ssid)
         self.assertEqual(rows[0][2], manufClient)
         self.assertEqual(rows[0][3], packets_total)
+
+
+class MyModuleTestCase(unittest.TestCase):
+
+    def test_load_vendors(self):
+        ouiAux = oui.load_vendors()
+        vendor = oui.get_vendor(ouiAux, '00:00:00:00:00:01')
+        self.assertEqual(vendor, 'XEROX CORPORATION')
+
+    def test_get_vendor(self):
+        ouiAux = {'000000': 'company1',
+                  'FFFFFF': 'company2'}
+        vendor = oui.get_vendor(ouiAux, '00:00:00:00:00:01')
+        self.assertEqual(vendor, 'company1')
 
 
 if __name__ == '__main__':
