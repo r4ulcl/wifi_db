@@ -535,7 +535,7 @@ def getHash(file):
 
 def setFileProcessed(cursor, verbose, file):
     try:
-        cursor.execute('''UPDATE Files SET processed = ? where file = ?''',
+        cursor.execute('''UPDATE Files SET processed = (?) where file = ?''',
                        ("True", file))
         return int(0)
     except sqlite3.IntegrityError as error:
@@ -553,8 +553,8 @@ def checkFileProcessed(cursor, verbose, file):
         hash = getHash(file_handle.read())
 
     try:
-        cursor.execute('''SELECT file from Files where hashSHA =  
-                          (?) AND processed = "True"''', hash)
+        cursor.execute('''SELECT file FROM Files WHERE hashSHA = (?) 
+                          AND processed = "True"''', (hash,))
 
         output = cursor.fetchall()
         if len(output) > 0:
@@ -586,7 +586,7 @@ def obfuscateDB(database, verbose):
             new = (row[0][0:9] + ('XX:XX:XX') + '-' + aux)
             # print (new)
 
-            cursor.execute('''UPDATE AP set bssid = ? where bssid = ?''',
+            cursor.execute('''UPDATE AP set bssid = (?) where bssid = ?''',
                            (new, row[0]))
             database.commit()
 
@@ -611,7 +611,7 @@ def obfuscateDB(database, verbose):
             aux = ''.join(random.choice(letter) for _ in range(8))
             new = (row[0][0:9] + ('XX:XX:XX') + '-' + aux)
 
-            cursor.execute('''UPDATE Client set mac = ? where mac = ?''',
+            cursor.execute('''UPDATE Client set mac = (?) where mac = ?''',
                            (new.upper(), row[0].upper()))
             database.commit()
 
@@ -632,22 +632,22 @@ def clearWhitelist(database, verbose, whitelist):
         mac = mac.upper()
         try:
             cursor.execute(
-                "DELETE from Handshake where bssid = ?", (mac.upper()))
+                "DELETE from Handshake where bssid = (?) ", (mac.upper(),))
             cursor.execute(
-                "DELETE from Identity where bssid = ? ", (mac.upper()))
+                "DELETE from Identity where bssid = (?) ", (mac.upper(),))
             cursor.execute(
-                "DELETE from SeenAP where bssid = ? ", (mac.upper()))
+                "DELETE from SeenAP where bssid = (?) ", (mac.upper(),))
             cursor.execute(
-                "DELETE from SeenClient where mac = ? ", (mac.upper()))
+                "DELETE from SeenClient where mac = (?) ", (mac.upper(),))
             cursor.execute(
-                "DELETE from Probe where mac = ? ", (mac.upper()))
+                "DELETE from Probe where mac = (?) ", (mac.upper(),))
             cursor.execute(
-                "DELETE from Connected where bssid = ?  OR mac = ? "
-               , (mac.upper(), mac.upper()))
+                "DELETE from Connected where bssid = (?)  OR mac = (?) "
+               , (mac.upper(), mac.upper(),))
             cursor.execute(
-                "DELETE from AP where bssid = ? ", (mac.upper()))
+                "DELETE from AP where bssid = (?) ", (mac.upper(),))
             cursor.execute(
-                "DELETE from Client where mac = ? ", (mac.upper()))
+                "DELETE from Client where mac = (?) ", (mac.upper(),))
 
             database.commit()
 
