@@ -15,12 +15,16 @@
   <a href="https://github.com/r4ulcl/wifi_db/issues">
     <img src="https://img.shields.io/github/issues/r4ulcl/wifi_db.svg" alt="GitHub issues">
   </a>
-  <a href="https://github.com/r4ulcl/wifi_db/blob/main/LICENSE">
-    <img src="https://img.shields.io/github/license/r4ulcl/wifi_db.svg" alt="GitHub license">
+  <a href="https://www.codefactor.io/repository/github/r4ulcl/wifi_db">
+    <img src="https://www.codefactor.io/repository/github/r4ulcl/wifi_db/badge" alt="CodeFactor" />
+  </a>
+    <a href="https://github.com/r4ulcl/wifi_db">
+    <img src="https://tokei.rs/b1/github/r4ulcl/wifi_db" alt="LoC" />
   </a>
   <a href="https://github.com/r4ulcl/wifi_db/blob/main/LICENSE">
     <img src="https://img.shields.io/github/license/r4ulcl/wifi_db.svg" alt="GitHub license">
   </a>
+
   <br>
   <a href="https://hub.docker.com/r/r4ulcl/wifi_db">
     <img src="https://github.com/r4ulcl/wifi_db/actions/workflows/docker-image.yml/badge.svg" alt="Docker Image">
