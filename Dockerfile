@@ -1,16 +1,16 @@
-FROM ubuntu
+FROM ubuntu:latest
 #FROM wireshark/wireshark-ubuntu-dev
 #:3.8-slim-buster
 
 WORKDIR /app
 
 RUN apt-get update
-RUN DEBIAN_FRONTEND=noninteractive apt-get install tshark -y --allow-change-held-packages
-RUN apt-get install python3 python3-pip make git -y
-RUN apt-get install pkg-config -y
-RUN apt-get install libcurl4-openssl-dev libssl-dev pkg-config -y #Dependencies
+RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install tshark -y --allow-change-held-packages \ 
+python3 python3-pip make git pkg-config libcurl4-openssl-dev libssl-dev pkg-config && apt-get clean \
+&& rm -rf /var/lib/apt/lists/*
+
 COPY requirements.txt requirements.txt
-RUN pip3 install -r requirements.txt
+RUN pip3 install --no-cache-dir -r requirements.txt
 
 COPY . .
 
