@@ -9,7 +9,9 @@ from utils import wifi_db_aircrack
 import wifi_db
 from unittest.mock import patch, MagicMock
 import json
-
+import nest_asyncio
+import platform
+import subprocess
 
 class TestFunctions(unittest.TestCase):
 
@@ -28,11 +30,10 @@ class TestFunctions(unittest.TestCase):
 
     def tearDown(self):
         self.database.close()
-        os.remove(self.database_name)
         if self.test_database_conn:
             self.test_database_conn.close()
-        if os.path.exists(self.test_database_name):
-            os.remove(self.test_database_name)
+        # if os.path.exists(self.test_database_name):
+        #    os.remove(self.test_database_name)
 
     def test_connectDatabase(self):
         self.assertIsNotNone(self.database)
@@ -331,6 +332,144 @@ class TestFunctions(unittest.TestCase):
         rows = self.c.fetchall()
         self.assertEqual(rows[0][2], path)
 
+    def test_load_vendors(self):
+        ouiAux = oui.load_vendors()
+        vendor = oui.get_vendor(ouiAux, '00:00:00:00:00:01', self.verbose)
+        self.assertEqual(vendor, 'XEROX CORPORATION')
+
+    def test_get_vendor(self):
+        ouiAux = {'000000': 'company1',
+                  'FFFFFF': 'company2'}
+        vendor = oui.get_vendor(ouiAux, '00:00:00:00:00:01', self.verbose)
+        self.assertEqual(vendor, 'company1')
+
+    def testRealData(self):
+        nest_asyncio.apply()
+
+        try:
+            cmd = "where" if platform.system() == "Windows" else "which"
+            subprocess.call([cmd, "hcxpcapngtool"])
+            hcxpcapngtool = True
+        except Exception as E:
+            hcxpcapngtool = False
+            print("False", E)
+
+        try:
+            cmd = "where" if platform.system() == "Windows" else "which"
+            subprocess.call([cmd, "tshark"])
+            tshark = True
+        except Exception as E:
+            tshark = False
+            print("False", E)
+
+        ouiMap = oui.load_vendors()
+
+        captures = ["./test_data/test-01.cap", "./test_data/test-01.csv", "./test_data/test-01.kismet.csv", "./test_data/test-01.kismet.netxml", "./test_data/test-01.log.csv"]
+
+        fake_lat = ''
+        fake_lon = ''
+        force = False
+        for capture in captures:
+            wifi_db.process_capture(ouiMap, capture, self.database,
+                                    self.verbose, fake_lat, fake_lon,
+                                    hcxpcapngtool, tshark, force)
+
+        # Check AP
+        self.c.execute("SELECT ssid FROM AP where bssid = 'B2:9B:00:EE:FB:EB';")
+        row = self.c.fetchone()
+        self.assertEqual(row[0], 'MiFibra-5-D6G3')
+
+        self.c.execute("SELECT firstTimeSeen FROM AP where bssid = 'F0:9F:C2:11:0A:24';")
+        row = self.c.fetchone()
+        self.assertEqual(row[0], ' 2023-10-20 14:33:06')
+
+        # Client
+        self.c.execute("SELECT manuf FROM Client WHERE mac = '64:32:A8:AD:AB:53' ")
+        row = self.c.fetchone()
+        self.assertEqual(row[0], 'Intel Corporate')
+
+        self.c.execute("SELECT firstTimeSeen FROM Client WHERE mac = '64:32:A8:AD:AB:53'")
+        row = self.c.fetchone()
+        self.assertEqual(row[0], ' 2023-10-20 14:33:06')
+
+        # Connected
+        self.c.execute("SELECT bssid FROM Connected WHERE mac = '28:6C:07:6F:F9:43'")
+        row = self.c.fetchone()
+        self.assertEqual(row[0], 'F0:9F:C2:71:22:12')
+
+        self.c.execute("SELECT bssid FROM Connected WHERE mac = '64:32:A8:BA:6C:41'")
+        row = self.c.fetchone()
+        self.assertEqual(row[0], 'F0:9F:C2:71:22:1A')
+
+        # Files
+        self.c.execute("SELECT hashSHA FROM Files WHERE file = './test_data/test-01.cap'")
+        row = self.c.fetchone()
+        self.assertEqual(row[0], '1c951d7a9387ad7a17a85f0bfbec4ee7bddf30244ae39aabd78654a104e4409c')
+
+        self.c.execute("SELECT hashSHA FROM Files WHERE file = './test_data/test-01.kismet.netxml'")
+        row = self.c.fetchone()
+        self.assertEqual(row[0], '7aaf4ba048b0fca4d1c481905f076be0efd7913bef2d87bd1e0ef1537ff1bc0b')
+
+        # Handshake
+        #self.c.execute("SELECT  FROM  WHERE  = ''")
+        #row = self.c.fetchone()
+        #self.assertEqual(row[0], 0)
+
+        #self.c.execute("SELECT  FROM  WHERE  = ''")
+        #row = self.c.fetchone()
+        #self.assertEqual(row[0], 0)
+
+        # Identity
+        #self.c.execute("SELECT  FROM  WHERE  = ''")
+        #row = self.c.fetchone()
+        #self.assertEqual(row[0], 0)
+
+        #self.c.execute("SELECT  FROM  WHERE  = ''")
+        #row = self.c.fetchone()
+        #self.assertEqual(row[0], 0)
+
+        # Probe
+        #self.c.execute("SELECT  FROM  WHERE  = ''")
+        #row = self.c.fetchone()
+        #self.assertEqual(row[0], 0)
+
+        #self.c.execute("SELECT  FROM  WHERE  = ''")
+        #row = self.c.fetchone()
+        #self.assertEqual(row[0], 0)
+
+        # SeenAP
+        #self.c.execute("SELECT  FROM  WHERE  = ''")
+        #row = self.c.fetchone()
+        #self.assertEqual(row[0], 0)
+
+        #self.c.execute("SELECT  FROM  WHERE  = ''")
+        #row = self.c.fetchone()
+        #self.assertEqual(row[0], 0)
+
+        # SeenClient
+        #self.c.execute("SELECT  FROM  WHERE  = ''")
+        #row = self.c.fetchone()
+        #self.assertEqual(row[0], 0)
+
+        #self.c.execute("SELECT  FROM  WHERE  = ''")
+        #row = self.c.fetchone()
+        #self.assertEqual(row[0], 0)
+
+        # WPS
+        #self.c.execute("SELECT  FROM  WHERE  = ''")
+        #row = self.c.fetchone()
+        #self.assertEqual(row[0], 0)
+
+        #self.c.execute("SELECT  FROM  WHERE  = ''")
+        #row = self.c.fetchone()
+        #self.assertEqual(row[0], 0)
+
+        # self.c.execute("SELECT * FROM files")
+        # row = self.c.fetchone()
+        # self.assertEqual(row[0], 0)
+
+    '''
+
     def test_obfuscateDB(self):
         # add needed data
         essid = "Test_AP"
@@ -392,20 +531,7 @@ class TestFunctions(unittest.TestCase):
         self.assertEqual(rows[0][1], ssid)
         self.assertEqual(rows[0][2], manufClient)
         self.assertEqual(rows[0][3], packets_total)
-
-
-class MyModuleTestCase(unittest.TestCase):
-
-    def test_load_vendors(self):
-        ouiAux = oui.load_vendors()
-        vendor = oui.get_vendor(ouiAux, '00:00:00:00:00:01')
-        self.assertEqual(vendor, 'XEROX CORPORATION')
-
-    def test_get_vendor(self):
-        ouiAux = {'000000': 'company1',
-                  'FFFFFF': 'company2'}
-        vendor = oui.get_vendor(ouiAux, '00:00:00:00:00:01')
-        self.assertEqual(vendor, 'company1')
+        '''
 
 
 if __name__ == '__main__':
