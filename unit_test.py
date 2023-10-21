@@ -32,8 +32,8 @@ class TestFunctions(unittest.TestCase):
         self.database.close()
         if self.test_database_conn:
             self.test_database_conn.close()
-        # if os.path.exists(self.test_database_name):
-        #    os.remove(self.test_database_name)
+        if os.path.exists(self.test_database_name):
+            os.remove(self.test_database_name)
 
     def test_connectDatabase(self):
         self.assertIsNotNone(self.database)
