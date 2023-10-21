@@ -16,6 +16,11 @@ RUN pip3 install --no-cache-dir -r requirements.txt
 
 COPY . .
 
+# Checek the code
+RUN python3 -m pytest
+
+RUN rm -r test_data
+
 # Install hcxtools
 RUN git clone https://github.com/ZerBea/hcxtools.git ; cd hcxtools ; make ; make install
 
