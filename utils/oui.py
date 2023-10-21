@@ -74,10 +74,11 @@ def load_vendors():
     return oui
 
 
-def get_vendor(oui, mac):
+def get_vendor(oui, mac, verbose):
     '''Get vendors from mac in oui'''
     mac = mac.replace(':', '')[:-3]
     while mac not in oui and len(mac) >= 6:
-        print(mac)
+        if verbose:
+            print(mac)
         mac = mac[:-1]
     return oui.get(mac, 'Unknown')
