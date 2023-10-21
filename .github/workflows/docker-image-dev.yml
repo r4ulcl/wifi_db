@@ -2,8 +2,8 @@ name: Docker Image Dev
 
 on:
   push:
-    branches: [ dev ]
-    
+    branches: [ dev, Test-with-real-data]    
+
 jobs:
   docker:
     runs-on: ubuntu-latest
