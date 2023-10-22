@@ -656,7 +656,7 @@ def exec_hcxpcapngtool(name, database, verbose):
         errors = 0
         fileName = name
         # exec_hcxpcapngtool
-        execute_process = subprocess.Popen(["/usr/bin/hcxpcapngtool", "--all", fileName, "-o", "test.22000"])
+        execute_process = subprocess.Popen(["/usr/bin/hcxpcapngtool", "--all", fileName, "-o", "test.22000"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         execute_process.wait()  # Wait for the installation process to complete
         # Read output (fileName) each line
         file_exists = os.path.exists('test.22000')
