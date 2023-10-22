@@ -539,7 +539,7 @@ class TestFunctionsRealData(unittest.TestCase):
                                  'b840000000000000000000000000000000000000' +
                                  '0000000000000000000000000000000000000000' +
                                  '0000000000000000000001630140100000fac020' +
-                                 '100000fac040100000fac020000*80')
+                                 '100000fac040100000fac020000*00')
 
     def testRealIdentity(self):
         # Identity
