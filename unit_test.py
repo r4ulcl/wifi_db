@@ -86,10 +86,12 @@ class TestFunctions(unittest.TestCase):
         #                   freqmhz, carrier,
         # encryption, packets_total, lat, lon, cloaked)
         # self.assertEqual(result, 0)
-        # self.c.execute("SELECT * FROM AP WHERE bssid=?", (bssid,))
-        # rows = self.c.fetchall()
-        # self.assertEqual(len(rows), 1)
-        # self.assertEqual(rows[0][3], "Updated_Manufacturer")
+        self.c.execute("SELECT ssid FROM AP WHERE bssid=?", (self.bssid,))
+        rows = self.c.fetchall()
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0][0], essid)
+
+
 
     def test_insertClients(self):
         ssid = "Test_AP"
@@ -111,7 +113,11 @@ class TestFunctions(unittest.TestCase):
         # rows = self.c.fetchall()
         # self.assertEqual(len(rows), 1)
         # self.assertEqual(rows[0][2], "Updated_Manufacturer")
-
+        self.c.execute("SELECT manuf FROM Client WHERE mac=?", (self.mac,))
+        rows = self.c.fetchall()
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0][0], manuf)
+    
     def test_insertWPS(self):
         # Define WPS parameters
         wlan_ssid = "Test_SSID"
@@ -142,6 +148,10 @@ class TestFunctions(unittest.TestCase):
         # rows = self.c.fetchall()
         # self.assertEqual(len(rows), 1)
         # self.assertEqual(rows[0][3], "Updated_Device")
+        self.c.execute("SELECT wlan_ssid FROM WPS WHERE bssid=?", (self.bssid,))
+        rows = self.c.fetchall()
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0][0], wlan_ssid)
 
     def test_insertConnected(self):
         # add needed data
@@ -181,12 +191,23 @@ class TestFunctions(unittest.TestCase):
                                                 self.bssid, self.mac)
         self.assertEqual(result, 0)
 
+        self.c.execute("SELECT bssid FROM Connected WHERE mac=?", (self.mac,))
+        rows = self.c.fetchall()
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0][0], self.bssid)
+
+
     def test_inserFile(self):
         script_path = os.path.dirname(os.path.abspath(__file__))
         path = script_path+"/README.md"
 
         result = database_utils.insertFile(self.c, self.verbose, path)
         self.assertEqual(result, 0)
+
+        self.c.execute("SELECT file FROM Files WHERE file=?", (path,))
+        rows = self.c.fetchall()
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0][0], path)
 
     def test_insertHandshake(self):
         script_path = os.path.dirname(os.path.abspath(__file__))
@@ -200,6 +221,7 @@ class TestFunctions(unittest.TestCase):
         rows = self.c.fetchall()
         self.assertEqual(len(rows), 1)
         self.assertEqual(rows[0][2], path)
+        
 
     def test_insertIdentity(self):
         identity = "DOMAIN\\username"
@@ -212,6 +234,7 @@ class TestFunctions(unittest.TestCase):
                        (self.mac,))
         row = self.c.fetchone()
         self.assertEqual(row[0], identity)
+
 
     def test_insertSeenClient(self):
         # add needed data
@@ -547,10 +570,6 @@ class TestFunctionsRealData(unittest.TestCase):
         # self.c.execute("SELECT * FROM files")
         # row = self.c.fetchone()
         # self.assertEqual(row[0], 0)
-
-    '''
-
-        '''
 
 
 if __name__ == '__main__':
