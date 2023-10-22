@@ -656,8 +656,6 @@ def exec_hcxpcapngtool(name, database, verbose):
         errors = 0
         fileName = name
         # exec_hcxpcapngtool
-        arguments = " --all " + fileName + ' -o test.22000'
-        subprocess.call(["hcxpcapngtool", arguments])
         execute_process = subprocess.Popen(["hcxpcapngtool", "--all", fileName, "-o", "test.22000"])
         execute_process.wait()  # Wait for the installation process to complete
         # Read output (fileName) each line
