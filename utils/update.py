@@ -36,7 +36,7 @@ def check_for_update(VERSION):
 
     if not is_git_installed():
         print("Git is not installed on your system. Please install Git.")
-        sys.exit(1)
+        #sys.exit(1)
 
     latest_release_tag = get_latest_github_release(repo_url)
 
