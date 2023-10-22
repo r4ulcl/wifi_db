@@ -61,7 +61,7 @@ def check_for_update(VERSION):
                 # Install dependencies
                 requirements_file = "requirements.txt"
                 # Install required packages using pip
-                install_process = subprocess.Popen(["python3", "-m", "pip", "install", "-r", requirements_file])
+                install_process = subprocess.Popen(["/usr/bin/python3", "-m", "pip", "install", "-r", requirements_file])
                 install_process.wait()  # Wait for the installation process to complete
 
                 print("Update complete. Please run again the script.")
