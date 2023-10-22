@@ -501,6 +501,8 @@ def insertSeenAP(cursor, verbose, bssid, time, tool, signal_rsi,
 
 def setHashcat(cursor, verbose, bssid, mac, file, hashcat):
     try:
+        # Remove enter at the end
+        hashcat = hashcat.strip()
         with open(file, 'rb') as file_handle:
             hash = getHash(file_handle.read())
         if verbose:

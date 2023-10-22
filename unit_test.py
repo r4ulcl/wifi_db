@@ -344,6 +344,68 @@ class TestFunctions(unittest.TestCase):
         vendor = oui.get_vendor(ouiAux, '00:00:00:00:00:01', self.verbose)
         self.assertEqual(vendor, 'company1')
 
+    def test_obfuscateDB(self):
+        # add needed data
+        essid = "Test_AP"
+        manufAP = "Test_Manufacturer_AP"
+        channel = "6"
+        freqmhz = "2437"
+        carrier = "test"
+        encryption = "WPA2"
+        packets_total = "10"
+        lat = "37.7749"
+        lon = "-122.4194"
+        cloaked = False
+        mfpc = 'False'
+        mfpr = 'False'
+        # Insert new AP
+        result = database_utils.insertAP(self.c, self.verbose, self.bssid,
+                                         essid, manufAP, channel, freqmhz,
+                                         carrier, encryption, packets_total,
+                                         lat, lon, cloaked, mfpc, mfpr, 0)
+
+        self.assertEqual(result, 0)
+
+        ssid = "null_ssid"
+        manufClient = "Test_Manufacturer_Client"
+        packets_total = "10"
+        power = "-70"
+        # Insert new client
+        result = database_utils.insertClients(self.c, self.verbose, self.mac,
+                                              ssid, manufClient, packets_total,
+                                              power, "Misc", 0)
+
+        self.assertEqual(result, 0)
+
+        # insert Handshake
+        script_path = os.path.dirname(os.path.abspath(__file__))
+        path = script_path+"/README.md"
+
+        result = database_utils.insertHandshake(self.c, self.verbose,
+                                                self.bssid, self.mac, path)
+        self.assertEqual(result, 0)
+
+        # obfuscateDB
+        result = database_utils.obfuscateDB(self.database, self.verbose)
+        self.assertEqual(result, 0)
+
+        # self.c.execute("SELECT * FROM handshake WHERE bssid=?",
+        #                (self.bssid,))
+        self.c.execute("SELECT * FROM AP WHERE ssid=?", (essid,))
+        rows = self.c.fetchall()
+        # Same ESSID but different BSSID
+        self.assertEqual(rows[0][1], essid)
+        self.assertEqual(rows[0][3], manufAP)
+        self.assertEqual(rows[0][4], int(channel))
+        self.assertNotEqual(rows[0][0], self.bssid)
+
+        self.c.execute("SELECT * FROM CLIENT WHERE ssid=?", (ssid,))
+        rows = self.c.fetchall()
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0][1], ssid)
+        self.assertEqual(rows[0][2], manufClient)
+        self.assertEqual(rows[0][3], packets_total)
+
 
 class TestFunctionsRealData(unittest.TestCase):
     def setUp(self):
@@ -428,10 +490,9 @@ class TestFunctionsRealData(unittest.TestCase):
         row = self.c.fetchone()
         self.assertEqual(row[0], '1c951d7a9387ad7a17a85f0bfbec4ee7bddf30244ae39aabd78654a104e4409c')
 
-        # TODO CHECK hash to crack
-        #self.c.execute("SELECT hashcat FROM Handshake WHERE bssid = 'F0:9F:C2:7A:33:28'")
-        #row = self.c.fetchone()
-        #self.assertEqual(row[0], '')
+        self.c.execute("SELECT hashcat FROM Handshake WHERE mac = '28:6C:07:6F:F9:44'")
+        row = self.c.fetchone()
+        self.assertEqual(row[0], 'WPA*02*45a64e58157df9397ffaca67b16fc898*f09fc2712212*286c076ff944*776966692d6d6f62696c65*babf7d3ce7f859d4b2a86b7fa704cea0177c9a42202ebc68a1ab3c779a97c37a*0103007502010a000000000000000000011e04b195770b11f0378fc9977f3a4342475f0073d746781530f3a71dbb5e4b84000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001630140100000fac020100000fac040100000fac020000*00')
 
     def testRealIdentity(self):
         # Identity
@@ -489,67 +550,6 @@ class TestFunctionsRealData(unittest.TestCase):
 
     '''
 
-    def test_obfuscateDB(self):
-        # add needed data
-        essid = "Test_AP"
-        manufAP = "Test_Manufacturer_AP"
-        channel = "6"
-        freqmhz = "2437"
-        carrier = "test"
-        encryption = "WPA2"
-        packets_total = "10"
-        lat = "37.7749"
-        lon = "-122.4194"
-        cloaked = False
-        mfpc = 'False'
-        mfpr = 'False'
-        # Insert new AP
-        result = database_utils.insertAP(self.c, self.verbose, self.bssid,
-                                         essid, manufAP, channel, freqmhz,
-                                         carrier, encryption, packets_total,
-                                         lat, lon, cloaked, mfpc, mfpr, 0)
-
-        self.assertEqual(result, 0)
-
-        ssid = "null_ssid"
-        manufClient = "Test_Manufacturer_Client"
-        packets_total = "10"
-        power = "-70"
-        # Insert new client
-        result = database_utils.insertClients(self.c, self.verbose, self.mac,
-                                              ssid, manufClient, packets_total,
-                                              power, "Misc", 0)
-
-        self.assertEqual(result, 0)
-
-        # insert Handshake
-        script_path = os.path.dirname(os.path.abspath(__file__))
-        path = script_path+"/README.md"
-
-        result = database_utils.insertHandshake(self.c, self.verbose,
-                                                self.bssid, self.mac, path)
-        self.assertEqual(result, 0)
-
-        # obfuscateDB
-        result = database_utils.obfuscateDB(self.database, self.verbose)
-        self.assertEqual(result, 0)
-
-        # self.c.execute("SELECT * FROM handshake WHERE bssid=?",
-        #                (self.bssid,))
-        self.c.execute("SELECT * FROM AP WHERE ssid=?", (essid,))
-        rows = self.c.fetchall()
-        # Same ESSID but different BSSID
-        self.assertEqual(rows[0][1], essid)
-        self.assertEqual(rows[0][3], manufAP)
-        self.assertEqual(rows[0][4], int(channel))
-        self.assertNotEqual(rows[0][0], self.bssid)
-
-        self.c.execute("SELECT * FROM CLIENT WHERE ssid=?", (ssid,))
-        rows = self.c.fetchall()
-        self.assertEqual(len(rows), 1)
-        self.assertEqual(rows[0][1], ssid)
-        self.assertEqual(rows[0][2], manufClient)
-        self.assertEqual(rows[0][3], packets_total)
         '''
 
 
