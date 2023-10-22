@@ -36,7 +36,7 @@ def check_for_update(VERSION):
 
     if not is_git_installed():
         print("Git is not installed on your system. Please install Git.")
-        #sys.exit(1)
+        # sys.exit(1)
 
     latest_release_tag = get_latest_github_release(repo_url)
 
@@ -61,8 +61,10 @@ def check_for_update(VERSION):
                 # Install dependencies
                 requirements_file = "requirements.txt"
                 # Install required packages using pip
-                install_process = subprocess.Popen(["/usr/bin/python3", "-m", "pip", "install", "-r", requirements_file])
-                install_process.wait()  # Wait for the installation process to complete
+                install_process = subprocess.Popen(["/usr/bin/python3", "-m",
+                                                   "pip", "install", "-r",
+                                                    requirements_file])
+                install_process.wait()  # Wait for the installation
 
                 print("Update complete. Please run again the script.")
                 sys.exit()
