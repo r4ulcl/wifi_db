@@ -80,6 +80,9 @@ Dependencies:
 sudo apt install tshark
 sudo apt install python3 python3-pip
 
+sudo apt install pkg-config libcurl4-openssl-dev libssl-dev zlib1g-dev make gcc
+
+
 git clone https://github.com/ZerBea/hcxtools.git
 cd hcxtools
 make 

@@ -3,7 +3,7 @@ name: Docker Image Dev
 on:
   push:
     branches: [ dev ]
-    
+
 jobs:
   docker:
     runs-on: ubuntu-latest
