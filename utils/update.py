@@ -58,6 +58,12 @@ def check_for_update(VERSION):
                                                   cwd=script_dir)
                 # Wait for the Git pull operation to complete
                 update_process.wait()
+                # Install dependencies
+                requirements_file = "requirements.txt"
+                # Install required packages using pip
+                install_process = subprocess.Popen(["python3", "-m", "pip", "install", "-r", requirements_file])
+                install_process.wait()  # Wait for the installation process to complete
+
                 print("Update complete. Please run again the script.")
                 sys.exit()
             else:
