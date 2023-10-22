@@ -10,7 +10,7 @@ RUN apt-get update \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # Clone hcxtools and install
-RUN git clone https://github.com/ZerBea/hcxtools.git /app/hcxtools \
+RUN git clone -b 6.3.1 https://github.com/ZerBea/hcxtools.git /app/hcxtools \
     && cd /app/hcxtools \
     && make \
     && make install \
