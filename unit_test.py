@@ -12,6 +12,7 @@ import json
 import nest_asyncio
 import platform
 import subprocess
+import pytest
 
 class TestFunctions(unittest.TestCase):
 
@@ -343,29 +344,28 @@ class TestFunctions(unittest.TestCase):
         vendor = oui.get_vendor(ouiAux, '00:00:00:00:00:01', self.verbose)
         self.assertEqual(vendor, 'company1')
 
-    def testRealData(self):
+
+class TestFunctionsRealData(unittest.TestCase):
+    def setUp(self):
+        self.verbose = False
+        self.database_name = 'test_database.db'
+        self.database = database_utils.connectDatabase(self.database_name,
+                                                       self.verbose)
+        database_utils.createDatabase(self.database, self.verbose)
+        database_utils.createViews(self.database, self.verbose)
+        self.c = self.database.cursor()
+        self.bssid = "00:11:22:33:44:55"
+        self.mac = "55:44:33:22:11:00"
+        self.test_database_name = 'test_database.db'
+        self.test_database_conn = None
+
+        # Load real data
         nest_asyncio.apply()
 
-        try:
-            cmd = "where" if platform.system() == "Windows" else "which"
-            subprocess.call([cmd, "hcxpcapngtool"])
-            hcxpcapngtool = True
-        except Exception as E:
-            hcxpcapngtool = False
-            print("False", E)
-
-        try:
-            cmd = "where" if platform.system() == "Windows" else "which"
-            subprocess.call([cmd, "tshark"])
-            tshark = True
-        except Exception as E:
-            tshark = False
-            print("False", E)
-
+        tshark = True
+        hcxpcapngtool = True
         ouiMap = oui.load_vendors()
-
         captures = ["./test_data/test-01.cap", "./test_data/test-01.csv", "./test_data/test-01.kismet.csv", "./test_data/test-01.kismet.netxml", "./test_data/test-01.log.csv"]
-
         fake_lat = ''
         fake_lon = ''
         force = False
@@ -373,6 +373,15 @@ class TestFunctions(unittest.TestCase):
             wifi_db.process_capture(ouiMap, capture, self.database,
                                     self.verbose, fake_lat, fake_lon,
                                     hcxpcapngtool, tshark, force)
+
+    def tearDown(self):
+        self.database.close()
+        if self.test_database_conn:
+            self.test_database_conn.close()
+        if os.path.exists(self.test_database_name):
+            os.remove(self.test_database_name)
+
+    def testRealAP(self):
 
         # Check AP
         self.c.execute("SELECT ssid FROM AP where bssid = 'B2:9B:00:EE:FB:EB';")
@@ -383,6 +392,7 @@ class TestFunctions(unittest.TestCase):
         row = self.c.fetchone()
         self.assertEqual(row[0], ' 2023-10-20 14:33:06')
 
+    def testRealClient(self):
         # Client
         self.c.execute("SELECT manuf FROM Client WHERE mac = '64:32:A8:AD:AB:53' ")
         row = self.c.fetchone()
@@ -392,6 +402,7 @@ class TestFunctions(unittest.TestCase):
         row = self.c.fetchone()
         self.assertEqual(row[0], ' 2023-10-20 14:33:06')
 
+    def testRealConnected(self):
         # Connected
         self.c.execute("SELECT bssid FROM Connected WHERE mac = '28:6C:07:6F:F9:43'")
         row = self.c.fetchone()
@@ -401,6 +412,7 @@ class TestFunctions(unittest.TestCase):
         row = self.c.fetchone()
         self.assertEqual(row[0], 'F0:9F:C2:71:22:1A')
 
+    def testRealFiles(self):
         # Files
         self.c.execute("SELECT hashSHA FROM Files WHERE file = './test_data/test-01.cap'")
         row = self.c.fetchone()
@@ -410,52 +422,59 @@ class TestFunctions(unittest.TestCase):
         row = self.c.fetchone()
         self.assertEqual(row[0], '7aaf4ba048b0fca4d1c481905f076be0efd7913bef2d87bd1e0ef1537ff1bc0b')
 
+    def testRealHandshake(self):
         # Handshake
-        #self.c.execute("SELECT  FROM  WHERE  = ''")
-        #row = self.c.fetchone()
-        #self.assertEqual(row[0], 0)
+        self.c.execute("SELECT hashSHA FROM Handshake WHERE bssid = 'F0:9F:C2:7A:33:28'")
+        row = self.c.fetchone()
+        self.assertEqual(row[0], '1c951d7a9387ad7a17a85f0bfbec4ee7bddf30244ae39aabd78654a104e4409c')
 
-        #self.c.execute("SELECT  FROM  WHERE  = ''")
+        # TODO CHECK hash to crack
+        #self.c.execute("SELECT hashcat FROM Handshake WHERE bssid = 'F0:9F:C2:7A:33:28'")
         #row = self.c.fetchone()
-        #self.assertEqual(row[0], 0)
+        #self.assertEqual(row[0], '')
 
+    def testRealIdentity(self):
         # Identity
-        #self.c.execute("SELECT  FROM  WHERE  = ''")
-        #row = self.c.fetchone()
-        #self.assertEqual(row[0], 0)
+        self.c.execute("SELECT identity FROM Identity WHERE mac = '64:32:A8:AC:53:50'")
+        row = self.c.fetchone()
+        self.assertEqual(row[0], 'CONTOSOREG\\anonymous')
 
-        #self.c.execute("SELECT  FROM  WHERE  = ''")
-        #row = self.c.fetchone()
-        #self.assertEqual(row[0], 0)
+        self.c.execute("SELECT identity FROM Identity WHERE mac = '64:32:A8:BA:6C:41'")
+        row = self.c.fetchone()
+        self.assertEqual(row[0], 'CONTOSO\\anonymous')
 
+    def testRealProbe(self):
         # Probe
-        #self.c.execute("SELECT  FROM  WHERE  = ''")
-        #row = self.c.fetchone()
-        #self.assertEqual(row[0], 0)
+        self.c.execute("SELECT ssid FROM Probe WHERE mac = '64:32:A8:AC:53:50'")
+        row = self.c.fetchone()
+        self.assertEqual(row[0], 'wifi-regional')
 
-        #self.c.execute("SELECT  FROM  WHERE  = ''")
-        #row = self.c.fetchone()
-        #self.assertEqual(row[0], 0)
+        self.c.execute("SELECT ssid FROM Probe WHERE mac = 'B4:99:BA:6F:F9:45' AND ssid LIKE 'wifi-%'")
+        row = self.c.fetchone()
+        self.assertEqual(row[0], 'wifi-offices')
 
+    def testRealSeenAP(self):
         # SeenAP
-        #self.c.execute("SELECT  FROM  WHERE  = ''")
-        #row = self.c.fetchone()
-        #self.assertEqual(row[0], 0)
+        self.c.execute("SELECT signal_rssi FROM seenAP WHERE time = '2023-10-20 14:34:43' AND bssid = 'F0:9F:C2:AA:19:29'")
+        row = self.c.fetchone()
+        self.assertEqual(row[0], -29)
 
-        #self.c.execute("SELECT  FROM  WHERE  = ''")
-        #row = self.c.fetchone()
-        #self.assertEqual(row[0], 0)
+        self.c.execute("SELECT tool FROM seenAP WHERE time = '2023-10-20 14:35:01' AND bssid = 'F0:9F:C2:71:22:10'")
+        row = self.c.fetchone()
+        self.assertEqual(row[0], 'aircrack-ng')
 
+    def testRealSeenClient(self):
         # SeenClient
-        #self.c.execute("SELECT  FROM  WHERE  = ''")
+        self.c.execute("SELECT tool FROM seenClient WHERE time = '2023-10-20 14:33:06' AND mac = '4E:E6:C2:58:FC:24'")
         #row = self.c.fetchone()
-        #self.assertEqual(row[0], 0)
+        #self.assertEqual(row[0], 'aircrack-ng')
 
-        #self.c.execute("SELECT  FROM  WHERE  = ''")
-        #row = self.c.fetchone()
-        #self.assertEqual(row[0], 0)
+        self.c.execute("SELECT signal_rssi FROM seenClient WHERE time = '2023-10-20 14:35:02' AND mac = 'B4:99:BA:6F:F9:45'")
+        row = self.c.fetchone()
+        self.assertEqual(row[0], -49)
 
-        # WPS
+    #def testReal(self):
+        # WPS TODO
         #self.c.execute("SELECT  FROM  WHERE  = ''")
         #row = self.c.fetchone()
         #self.assertEqual(row[0], 0)
