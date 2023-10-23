@@ -99,6 +99,22 @@ cd wifi_db
 pip3 install -r requirements.txt 
 ```
 
+##### Install using venv
+
+``` bash 
+# Download repo
+git clone https://github.com/r4ulcl/wifi_db
+cd wifi_db
+
+# Create venv
+sudo apt update ; sudo apt install python3-venv
+python3 -m venv wifi_db_env
+source wifi_db_env/bin/activate
+
+# Install dependencies
+pip3 install -r requirements.txt 
+```
+
 #### Arch
 
 Dependencies:
