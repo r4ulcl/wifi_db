@@ -31,9 +31,14 @@ jobs:
           push: true
           tags: ${{ secrets.DOCKERHUB_USERNAME }}/wifi_db:dev
 
-      - name: Log in to GitHub Container Registry
-        run: echo ${{ secrets.GHCR_TOKEN }} | docker login ghcr.io -u r4ulcl --password-stdin
+    - name: Set up Docker Login for GitHub Packages Registry
+      run: echo "//docker.pkg.github.com/:_authToken=${{secrets.GITHUB_TOKEN}}" > ~/.docker/config.json
 
-      - name: Push Docker Image to GHCR
-        run: docker push ghcr.io/${{ secrets.DOCKERHUB_USERNAME }}/wifi_db:dev
+    - name: Pull and push Docker image to GitHub Packages Registry
+      env:
+        GITHUB_ACTOR: ${{ secrets.GITHUB_ACTOR }}
+      run: |
+        docker pull r4ulcl/wifi_db:dev
+        docker tag r4ulcl/wifi_db:dev docker.pkg.github.com/r4ulcl/wifi_db:dev
+        docker push docker.pkg.github.com/r4ulcl/wifi_db:dev
           
