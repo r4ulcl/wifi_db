@@ -32,7 +32,7 @@ jobs:
           tags: ${{ secrets.DOCKERHUB_USERNAME }}/wifi_db:dev
 
       - name: Log in to GitHub Container Registry
-        run: echo ${{ secrets.GHCR_TOKEN }} | docker login ghcr.io -u username --password-stdin
+        run: echo ${{ secrets.GHCR_TOKEN }} | docker login ghcr.io -u r4ulcl --password-stdin
 
       - name: Push Docker Image to GHCR
         run: docker push ghcr.io/${{ secrets.DOCKERHUB_USERNAME }}/wifi_db:dev
