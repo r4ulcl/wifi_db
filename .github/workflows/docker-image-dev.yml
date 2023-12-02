@@ -31,14 +31,14 @@ jobs:
           push: true
           tags: ${{ secrets.DOCKERHUB_USERNAME }}/wifi_db:dev
 
-    - name: Set up Docker Login for GitHub Packages Registry
-      run: echo "//docker.pkg.github.com/:_authToken=${{secrets.GITHUB_TOKEN}}" > ~/.docker/config.json
+      - name: Set up Docker Login for GitHub Packages Registry
+        run: echo "//docker.pkg.github.com/:_authToken=${{secrets.GITHUB_TOKEN}}" > ~/.docker/config.json
 
-    - name: Pull and push Docker image to GitHub Packages Registry
-      env:
-        GITHUB_ACTOR: ${{ secrets.GITHUB_ACTOR }}
-      run: |
-        docker pull r4ulcl/wifi_db:dev
-        docker tag r4ulcl/wifi_db:dev docker.pkg.github.com/r4ulcl/wifi_db:dev
-        docker push docker.pkg.github.com/r4ulcl/wifi_db:dev
+      - name: Pull and push Docker image to GitHub Packages Registry
+        env:
+          GITHUB_ACTOR: ${{ secrets.GITHUB_ACTOR }}
+        run: |
+          docker pull r4ulcl/wifi_db:dev
+          docker tag r4ulcl/wifi_db:dev docker.pkg.github.com/r4ulcl/wifi_db:dev
+          docker push docker.pkg.github.com/r4ulcl/wifi_db:dev
           
