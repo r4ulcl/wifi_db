@@ -29,8 +29,8 @@ jobs:
       - name: Publish to Registry
         uses: elgohr/Publish-Docker-Github-Action@v5
         with:
-          name: r4ulcl/wifi_db:${{ steps.meta.outputs.labels }}
+          name: r4ulcl/wifi_db: ${{ steps.meta.outputs.tags }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
           registry: ghcr.io
-          tags: ${{ steps.meta.outputs.tags }}
+          tags: ${{ steps.meta.outputs.labels }}
