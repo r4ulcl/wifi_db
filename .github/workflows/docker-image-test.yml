@@ -17,20 +17,24 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v3   
 
-      - name: Extract metadata (tags, labels) for Docker
-        id: meta
-        uses: docker/metadata-action@98669ae865ea3cffbcbaa878cf57c20bbf1c6c38
-        with:
-          images: ${{ secrets.DOCKERHUB_USERNAME }}/wifi_db
-        
       - name: Login to GitHub Packages
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login -u ${{ github.actor }} docker.pkg.github.com --password-stdin
 
-      - name: Publish to Registry
-        uses: elgohr/Publish-Docker-Github-Action@v5
-        with:
-          name: r4ulcl/wifi_db:${{ steps.meta.outputs.tags }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-          registry: ghcr.io
-          tags: ${{ steps.meta.outputs.labels }}
+    - name: Get latest tag
+      id: get_tag
+      run: |
+        latest_tag=$(git describe --tags --abbrev=0)
+        echo "Latest tag: $latest_tag"
+        echo "::set-output name=tag::$latest_tag"
+
+    - name: Login to GitHub Packages
+      run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login -u ${{ github.actor }} docker.pkg.github.com --password-stdin
+
+    - name: Publish to Registry
+      uses: elgohr/Publish-Docker-Github-Action@v5
+      with:
+        name: r4ulcl/wifi_db:latest
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+        registry: ghcr.io
+        tag: ${{ steps.get_tag.outputs.tag }}
