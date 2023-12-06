@@ -35,7 +35,7 @@ jobs:
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login -u ${{ github.actor }} docker.pkg.github.com --password-stdin
 
       - name: Build and push github
-        id: docker_build
+        id: docker_build_github
         uses: docker/build-push-action@v2
         with:
           context: .
