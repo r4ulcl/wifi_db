@@ -32,7 +32,7 @@ jobs:
         with:
           images: ${{ secrets.DOCKERHUB_USERNAME }}/wifi_db
         
-      - name: Build and push
+      - name: Build and push docker
         id: docker_build
         uses: docker/build-push-action@v2
         with:
@@ -46,10 +46,15 @@ jobs:
       - name: Login to GitHub Packages
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login -u ${{ github.actor }} docker.pkg.github.com --password-stdin
 
-      - name: Publish to Registry
-        uses: elgohr/Publish-Docker-Github-Action@v5
+      - name: Build and push github
+        id: docker_build
+        uses: docker/build-push-action@v2
         with:
-          name: r4ulcl/wifi_db:latest
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          context: .
+          platforms: linux/amd64
+          push: true
           registry: ghcr.io
+          #tags: ${{ secrets.DOCKERHUB_USERNAME }}/wifi_db:latest,${{ secrets.DOCKERHUB_USERNAME }}/wifi_db:main
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+
