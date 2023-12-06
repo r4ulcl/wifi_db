@@ -42,3 +42,16 @@ jobs:
           #tags: ${{ secrets.DOCKERHUB_USERNAME }}/wifi_db:latest,${{ secrets.DOCKERHUB_USERNAME }}/wifi_db:main
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+
+
+      - name: Login to GitHub Packages
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login -u ${{ github.actor }} docker.pkg.github.com --password-stdin
+
+      - name: Publish to Registry
+        uses: elgohr/Publish-Docker-Github-Action@v5
+        with:
+          name: r4ulcl/wifi_db:${{ steps.meta.outputs.labels }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+          registry: ghcr.io
+          tags: ${{ steps.meta.outputs.tags }}
