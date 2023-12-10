@@ -29,6 +29,18 @@ def get_latest_github_release(repo_url):
         return None
 
 
+# Check if the user downloaded the repo using git or the ZIP.
+def is_git_repo():
+    script_path = os.path.abspath(__file__)
+    script_dir = os.path.dirname(script_path)
+    path_git = script_dir + "/.git"
+    # check if folder .git exists, if yes git pull
+    # if not download zip and replace all
+    git_path_exists = os.paths.exist(path_git)
+    print(git_path_exists)
+    return git_path_exists
+
+
 def check_for_update(VERSION):
     repo_url = "https://api.github.com/repos/r4ulcl/wifi_db"
     script_path = os.path.abspath(__file__)
@@ -36,7 +48,13 @@ def check_for_update(VERSION):
 
     if not is_git_installed():
         print("Git is not installed on your system. Please install Git.")
+        return
         # sys.exit(1)
+
+    if not is_git_repo():
+        print("The program is not in a Git folder. \
+               Update manually from GitHub.")
+        return
 
     latest_release_tag = get_latest_github_release(repo_url)
 
