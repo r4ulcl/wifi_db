@@ -155,8 +155,7 @@ def insertAP(cursor, verbose, bssid, essid, manuf, channel, freqmhz, carrier,
             cursor.execute(sql, (lat, lon, bssid.upper()))
 
             # Update `cloaked` column
-            sql = """UPDATE AP SET cloaked = CASE WHEN cloaked = 'False'
-                    THEN (?) ELSE cloaked END WHERE bssid = (?)"""
+            sql = """UPDATE AP SET cloaked = (?) WHERE bssid = (?)"""
             if verbose:
                 print(sql, (cloaked, bssid.upper()))
             cursor.execute(sql, (cloaked, bssid.upper()))
