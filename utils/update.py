@@ -33,11 +33,11 @@ def get_latest_github_release(repo_url):
 def is_git_repo():
     script_path = os.path.abspath(__file__)
     script_dir = os.path.dirname(script_path)
-    path_git = script_dir + "/.git"
+    # script_dir is utils
+    path_git = script_dir + "/../.git"
     # check if folder .git exists, if yes git pull
     # if not download zip and replace all
-    git_path_exists = os.paths.exist(path_git)
-    print(git_path_exists)
+    git_path_exists = os.path.exists(path_git)
     return git_path_exists
 
 
