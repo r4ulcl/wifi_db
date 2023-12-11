@@ -150,11 +150,9 @@ def main():
         capture = replace_multiple_slashes(capture)
 
         if source == "aircrack-ng":
-            print("Parsing file:", capture)
-            # Remove format if any
-
             # If it is a folder...
             if path.isdir(capture):
+                print("Parsing folder:", capture)
                 files = []
                 dirpath = os.getcwd()
                 if os.path.isabs(capture):
@@ -187,6 +185,7 @@ def main():
                                     hcxpcapngtool, tshark, force)
 
             else:  # it is a file
+                print("Parsing file:", capture)
                 process_capture(ouiMap, capture, database,
                                 verbose, fake_lat, fake_lon,
                                 hcxpcapngtool, tshark, force)
