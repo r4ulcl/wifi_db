@@ -11,12 +11,16 @@ import hashlib
 
 def connectDatabase(name, verbose):
     '''Function to connect to the database'''
-    database = sqlite3.connect(name)
-    database.text_factory = str
-    database.execute("PRAGMA foreign_keys = 1")
-    if verbose:
-        print("DB connected OK")
-    return database
+    try:
+        database = sqlite3.connect(name)
+        database.text_factory = str
+        database.execute("PRAGMA foreign_keys = 1")
+        if verbose:
+            print("DB connected OK")
+        return database
+    except Exception as error:
+        print("FATAL ERROR createDatabase: " + str(error))
+        exit()
 
 
 def createDatabase(database, verbose):
