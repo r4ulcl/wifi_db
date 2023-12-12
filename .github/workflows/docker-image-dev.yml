@@ -41,7 +41,6 @@ jobs:
           context: .
           platforms: linux/amd64
           push: true
-          registry: ghcr.io
-          tags: ${{ secrets.DOCKERHUB_USERNAME }}/wifi_db:dev
+          tags: hcr.io/${{ secrets.DOCKERHUB_USERNAME }}/wifi_db:dev
           
           
