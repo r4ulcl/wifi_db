@@ -80,6 +80,9 @@ Dependencies:
 sudo apt install tshark
 sudo apt install python3 python3-pip
 
+sudo apt install pkg-config libcurl4-openssl-dev libssl-dev zlib1g-dev make gcc
+
+
 git clone https://github.com/ZerBea/hcxtools.git
 cd hcxtools
 make 
@@ -93,6 +96,22 @@ Installation
 ``` bash
 git clone https://github.com/r4ulcl/wifi_db
 cd wifi_db
+pip3 install -r requirements.txt 
+```
+
+##### Install using venv
+
+``` bash 
+# Download repo
+git clone https://github.com/r4ulcl/wifi_db
+cd wifi_db
+
+# Create venv
+sudo apt update ; sudo apt install python3-venv
+python3 -m venv wifi_db_env
+source wifi_db_env/bin/activate
+
+# Install dependencies
 pip3 install -r requirements.txt 
 ```
 

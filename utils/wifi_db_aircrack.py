@@ -2,7 +2,7 @@
 ''' Parse Aircrack, Kismet and Wigle output to a SQLite DB '''
 # -*- coding: utf-8 -*-
 import csv
-#import xml.etree.ElementTree as ET # vuln! 
+# import xml.etree.ElementTree as ET # vuln!
 import defusedxml.ElementTree as ET
 import os
 import re
@@ -44,7 +44,7 @@ def parse_netxml(ouiMap, name, database, verbose):
             for wireless in raiz:
                 if wireless.get("type") == "probe":
                     bssid = wireless.find("BSSID").text
-                    manuf = oui.get_vendor(ouiMap, bssid)
+                    manuf = oui.get_vendor(ouiMap, bssid, verbose)
                     packets_total = wireless.find("packets").find("total").text
                     if verbose:
                         print(bssid, manuf, "W", packets_total)
@@ -98,7 +98,7 @@ def parse_netxml(ouiMap, name, database, verbose):
                     )
                     firstTimeSeen = date_object.strftime("%Y-%m-%d %H:%M:%S")
 
-                    manuf = oui.get_vendor(ouiMap, bssid)
+                    manuf = oui.get_vendor(ouiMap, bssid, verbose)
 
                     if wireless.find("SSID").find("encryption") is not None:
                         encryption = ""
@@ -131,7 +131,7 @@ def parse_netxml(ouiMap, name, database, verbose):
                     clients = wireless.findall("wireless-client")
                     for client in clients:
                         client_mac = client.find("client-mac").text
-                        manuf = oui.get_vendor(ouiMap, client_mac)
+                        manuf = oui.get_vendor(ouiMap, client_mac, verbose)
 
                         firstTimeSeen_string = client.attrib['first-time']
                         date_object = datetime.datetime.strptime(
@@ -190,7 +190,7 @@ def parse_kismet_csv(ouiMap, name, database, verbose):
                                 "%Y-%m-%d %H:%M:%S"
                             )
 
-                            manuf = oui.get_vendor(ouiMap, bssid)
+                            manuf = oui.get_vendor(ouiMap, bssid, verbose)
 
                             channel = row[5]
                             freqmhz = 0
@@ -244,7 +244,7 @@ def parse_csv(ouiMap, name, database, verbose):
                             firstTimeSeen = row[1]
                             essid = row[13]
                             essid = essid.replace("'", "''")
-                            manuf = oui.get_vendor(ouiMap, bssid)
+                            manuf = oui.get_vendor(ouiMap, bssid, verbose)
                             channel = row[3]
                             freq = ""
                             carrier = ""
@@ -267,7 +267,7 @@ def parse_csv(ouiMap, name, database, verbose):
                             # print(row[0])
                             mac = row[0]
                             firstTimeSeen = row[1]
-                            manuf = oui.get_vendor(ouiMap, mac)
+                            manuf = oui.get_vendor(ouiMap, mac, verbose)
                             packets = row[4]
                             # print(mac, manuf)
 
@@ -313,7 +313,7 @@ def parse_log_csv(ouiMap, name, database, verbose, fake_lat, fake_lon):
                     if time != "LocalTime":
                         if len(row) > 10 and row[10] == "Client":
                             mac = row[3]
-                            manuf = oui.get_vendor(ouiMap, mac)
+                            manuf = oui.get_vendor(ouiMap, mac, verbose)
                             signal_rssi = row[4]
                             lat = row[6]
                             lon = row[7]
@@ -341,7 +341,7 @@ def parse_log_csv(ouiMap, name, database, verbose, fake_lat, fake_lon):
                                 lat = fake_lat
                             if fake_lon != "":
                                 lon = fake_lon
-                            manuf = oui.get_vendor(ouiMap, row[3])
+                            manuf = oui.get_vendor(ouiMap, row[3], verbose)
                             cloaked = 'False'
                             mfpc = 'False'
                             mfpr = 'False'
@@ -656,13 +656,11 @@ def exec_hcxpcapngtool(name, database, verbose):
         errors = 0
         fileName = name
         # exec_hcxpcapngtool
-        arguments = fileName + ' -o test.22000'
-
-        execution = subprocess.check_output("hcxpcapngtool --all " + arguments,
-                                            shell=False)
-        if verbose:
-            print(execution)
-
+        execute_process = subprocess.Popen(["/usr/bin/hcxpcapngtool", "--all",
+                                           fileName, "-o", "test.22000"],
+                                           stdout=subprocess.DEVNULL,
+                                           stderr=subprocess.DEVNULL)
+        execute_process.wait()  # Wait for the installation process to complete
         # Read output (fileName) each line
         file_exists = os.path.exists('test.22000')
         if not file_exists:

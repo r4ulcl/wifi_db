@@ -29,6 +29,18 @@ def get_latest_github_release(repo_url):
         return None
 
 
+# Check if the user downloaded the repo using git or the ZIP.
+def is_git_repo():
+    script_path = os.path.abspath(__file__)
+    script_dir = os.path.dirname(script_path)
+    # script_dir is utils
+    path_git = script_dir + "/../.git"
+    # check if folder .git exists, if yes git pull
+    # if not download zip and replace all
+    git_path_exists = os.path.exists(path_git)
+    return git_path_exists
+
+
 def check_for_update(VERSION):
     repo_url = "https://api.github.com/repos/r4ulcl/wifi_db"
     script_path = os.path.abspath(__file__)
@@ -36,7 +48,13 @@ def check_for_update(VERSION):
 
     if not is_git_installed():
         print("Git is not installed on your system. Please install Git.")
-        sys.exit(1)
+        return
+        # sys.exit(1)
+
+    if not is_git_repo():
+        print("The program is not in a Git folder. \
+               Update manually from GitHub.")
+        return
 
     latest_release_tag = get_latest_github_release(repo_url)
 
@@ -58,6 +76,14 @@ def check_for_update(VERSION):
                                                   cwd=script_dir)
                 # Wait for the Git pull operation to complete
                 update_process.wait()
+                # Install dependencies
+                requirements_file = "requirements.txt"
+                # Install required packages using pip
+                install_process = subprocess.Popen(["/usr/bin/python3", "-m",
+                                                   "pip", "install", "-r",
+                                                    requirements_file])
+                install_process.wait()  # Wait for the installation
+
                 print("Update complete. Please run again the script.")
                 sys.exit()
             else:

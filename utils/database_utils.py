@@ -11,12 +11,16 @@ import hashlib
 
 def connectDatabase(name, verbose):
     '''Function to connect to the database'''
-    database = sqlite3.connect(name)
-    database.text_factory = str
-    database.execute("PRAGMA foreign_keys = 1")
-    if verbose:
-        print("DB connected OK")
-    return database
+    try:
+        database = sqlite3.connect(name)
+        database.text_factory = str
+        database.execute("PRAGMA foreign_keys = 1")
+        if verbose:
+            print("DB connected OK")
+        return database
+    except Exception as error:
+        print("FATAL ERROR createDatabase: " + str(error))
+        exit()
 
 
 def createDatabase(database, verbose):
@@ -151,8 +155,7 @@ def insertAP(cursor, verbose, bssid, essid, manuf, channel, freqmhz, carrier,
             cursor.execute(sql, (lat, lon, bssid.upper()))
 
             # Update `cloaked` column
-            sql = """UPDATE AP SET cloaked = CASE WHEN cloaked = 'False'
-                    THEN (?) ELSE cloaked END WHERE bssid = (?)"""
+            sql = """UPDATE AP SET cloaked = (?) WHERE bssid = (?)"""
             if verbose:
                 print(sql, (cloaked, bssid.upper()))
             cursor.execute(sql, (cloaked, bssid.upper()))
@@ -501,6 +504,8 @@ def insertSeenAP(cursor, verbose, bssid, time, tool, signal_rsi,
 
 def setHashcat(cursor, verbose, bssid, mac, file, hashcat):
     try:
+        # Remove enter at the end
+        hashcat = hashcat.strip()
         with open(file, 'rb') as file_handle:
             hash = getHash(file_handle.read())
         if verbose:
@@ -553,7 +558,7 @@ def checkFileProcessed(cursor, verbose, file):
         hash = getHash(file_handle.read())
 
     try:
-        cursor.execute('''SELECT file FROM Files WHERE hashSHA = (?) 
+        cursor.execute('''SELECT file FROM Files WHERE hashSHA = (?)
                           AND processed = "True"''', (hash,))
 
         output = cursor.fetchall()
@@ -642,8 +647,8 @@ def clearWhitelist(database, verbose, whitelist):
             cursor.execute(
                 "DELETE from Probe where mac = (?) ", (mac.upper(),))
             cursor.execute(
-                "DELETE from Connected where bssid = (?)  OR mac = (?) "
-               , (mac.upper(), mac.upper(),))
+                "DELETE from Connected where bssid = (?)  OR mac = (?) ",
+                (mac.upper(), mac.upper(),))
             cursor.execute(
                 "DELETE from AP where bssid = (?) ", (mac.upper(),))
             cursor.execute(
