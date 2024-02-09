@@ -7,13 +7,13 @@
     <img src="https://img.shields.io/github/v/release/r4ulcl/wifi_db" alt="GitHub releases">
   </a>
   <a href="https://github.com/r4ulcl/wifi_db/stargazers">
-    <img src="https://img.shields.io/github/stars/r4ulcl/wifi_db.svg" alt="GitHub stars">
+    <img src="https://img.shields.io/github/stars/r4ulcl/wifi_db.svg?style=flat" alt="GitHub stars">
   </a>
   <a href="https://github.com/r4ulcl/wifi_db/network">
-    <img src="https://img.shields.io/github/forks/r4ulcl/wifi_db.svg" alt="GitHub forks">
+    <img src="https://img.shields.io/github/forks/r4ulcl/wifi_db.svg?style=flat" alt="GitHub forks">
   </a>
   <a href="https://github.com/r4ulcl/wifi_db/issues">
-    <img src="https://img.shields.io/github/issues/r4ulcl/wifi_db.svg" alt="GitHub issues">
+    <img src="https://img.shields.io/github/issues/r4ulcl/wifi_db.svg?style=flat" alt="GitHub issues">
   </a>
   <a href="https://www.codefactor.io/repository/github/r4ulcl/wifi_db">
     <img src="https://www.codefactor.io/repository/github/r4ulcl/wifi_db/badge" alt="CodeFactor" />
@@ -22,7 +22,7 @@
     <img src="https://tokei.rs/b1/github/r4ulcl/wifi_db" alt="LoC" />
   </a>
   <a href="https://github.com/r4ulcl/wifi_db/blob/main/LICENSE">
-    <img src="https://img.shields.io/github/license/r4ulcl/wifi_db.svg" alt="GitHub license">
+    <img src="https://img.shields.io/github/license/r4ulcl/wifi_db.svg?style=flat" alt="GitHub license">
   </a>
 
   <br>
