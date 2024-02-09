@@ -35,7 +35,7 @@ jobs:
         uses: docker/build-push-action@v2
         with:
           context: .
-          file: ./manager/Dockerfile
+          file: ./Dockerfile
           platforms: linux/amd64
           push: true
           tags: ${{ secrets.DOCKERHUB_USERNAME }}/wifi_db:dev
@@ -48,7 +48,7 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: .
-          file: ./manager/Dockerfile
+          file: ./Dockerfile
           platforms: linux/amd64
           push: true
           tags: ghcr.io/${{ github.actor }}/wifi_db:dev
