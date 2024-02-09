@@ -20,38 +20,38 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v3   
 
+      # manager docker
+      - name: Extract metadata (tags, labels) for Docker
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ github.actor }}/wifi_db
+
       - name: Login to DockerHub
         uses: docker/login-action@v1 
         with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          username: ${{ github.actor }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
-
-      - name: Extract metadata (tags, labels) for Docker
-        id: meta
-        uses: docker/metadata-action@98669ae865ea3cffbcbaa878cf57c20bbf1c6c38
-        with:
-          images: ${{ secrets.DOCKERHUB_USERNAME }}/wifi_db
-        
       - name: Build and push docker
         id: docker_build
         uses: docker/build-push-action@v2
         with:
           context: .
+          file: ./Dockerfile
           platforms: linux/amd64
           push: true
-          #tags: ${{ secrets.DOCKERHUB_USERNAME }}/wifi_db:latest,${{ secrets.DOCKERHUB_USERNAME }}/wifi_db:main
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
 
-      - name: Login to GitHub Packages
-        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login -u ${{ github.actor }} docker.pkg.github.com --password-stdin
+      - name: Login to GitHub Container Registry
+        run: echo ${{ secrets.GITHUB_TOKEN }} | docker login ghcr.io -u ${{ github.actor }} --password-stdin
 
       - name: Build and push github
         id: docker_build_ghcr
         uses: docker/build-push-action@v5
         with:
           context: .
-          file: ./manager/Dockerfile
+          file: ./Dockerfile
           platforms: linux/amd64
           push: true
           tags: ghcr.io/${{ github.actor }}/wifi_db:latest, ghcr.io/${{ steps.meta.outputs.tags }}
