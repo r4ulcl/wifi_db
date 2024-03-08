@@ -37,6 +37,9 @@
 
 # wifi_db
 
+[![Codacy Badge](https://api.codacy.com/project/badge/Grade/9e2121f569bb482e97cfad1f01f4e41d)](https://app.codacy.com/gh/r4ulcl/wifi_db?utm_source=github.com&utm_medium=referral&utm_content=r4ulcl/wifi_db&utm_campaign=Badge_Grade)
+
+
 Script to parse Aircrack-ng captures into a SQLite database and extract useful information like handshakes (in 22000 hashcat format), MGT identities, interesting relations between APs, clients and it's Probes, WPS information and a global view of all the APs seen.
 
 
