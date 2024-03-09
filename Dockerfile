@@ -34,7 +34,7 @@ COPY --from=hcxtools-builder /usr/bin/hcx* /usr/bin/
 
 # Copy and install Python dependencies
 
-RUN python3 -m pip install --no-cache-dir -U pip
+RUN python3 -m pip install --no-cache-dir --upgrade pip==20.0.2
     
 COPY requirements.txt requirements.txt
 RUN pip3 install --no-cache-dir -r requirements.txt
