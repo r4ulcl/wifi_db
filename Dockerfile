@@ -24,7 +24,8 @@ WORKDIR /app
 
 # Install dependencies
 ENV DEBIAN_FRONTEND noninteractive
-RUN DEBIAN_FRONTEND=noninteractive TZ=Etc/UTC apt-get update && apt-get install --no-install-recommends -y --no-install-recommends python3-pip tshark git libcurl4-openssl-dev libssl-dev -y \
+
+RUN DEBIAN_FRONTEND=noninteractive TZ=Etc/UTC apt-get update && apt-get install -y --no-install-recommends python3-pip tshark git libcurl4-openssl-dev libssl-dev -y \
     && apt-get clean && rm -rf /var/lib/apt/lists/* 
  
 # Copy hcxtools binaries
@@ -32,6 +33,7 @@ COPY --from=hcxtools-builder /usr/bin/hcx* /usr/bin/
 
 
 # Copy and install Python dependencies
+
 RUN python3 -m pip install --no-cache-dir -U pip
     
 COPY requirements.txt requirements.txt
