@@ -18,7 +18,7 @@ def is_git_installed():
 
 def get_latest_github_release(repo_url):
     try:
-        response = requests.get(f"{repo_url}/releases/latest")
+        response = requests.get(f"{repo_url}/releases/latest", timeout=5)
         if response.status_code == 200:
             latest_release_tag = response.json()["tag_name"]
             return latest_release_tag
