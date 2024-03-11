@@ -25,7 +25,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ${{ github.actor }}/wifi_db
+          images: ${{ github.repository }}
 
       - name: Login to DockerHub
         uses: docker/login-action@v1 
@@ -54,5 +54,5 @@ jobs:
           file: ./Dockerfile
           platforms: linux/amd64,linux/arm64
           push: true
-          tags: ghcr.io/${{ github.actor }}/wifi_db:latest, ghcr.io/${{ steps.meta.outputs.tags }}
+          tags: ghcr.io/${{ github.repository }}:latest, ghcr.io/${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
