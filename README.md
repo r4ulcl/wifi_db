@@ -148,7 +148,7 @@ pip3 install -r requirements.txt
 
 ## Usage
 
-### Usage example in [WiFiChallenge Lab](https://wifichallengelab.com/)
+### Usage example in [WiFiChallenge Lab](https://lab.wifichallenge.com/)
 
 - https://r4ulcl.com/posts/wifi_db-in-wifichallenge-lab/
 
