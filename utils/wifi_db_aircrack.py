@@ -624,6 +624,10 @@ def parse_identities(name, database, verbose):
                     method = "EAP-TLS"
                     database_utils.insertIdentity(cursor, verbose,
                                                   dst, src, identity, method)
+                elif pkt.eap.type == '4':  # Found EAP-MD5
+                    method = "EAP-MD5"
+                    database_utils.insertIdentity(cursor, verbose,
+                                                  dst, src, identity, method)
                 else:
                     method = "OTHER (NOT EAP-PEAP OR EAP-TLS) - ID: " + \
                         pkt.eap.type
