@@ -54,7 +54,8 @@ class TestFunctions(unittest.TestCase):
             ('Probe',),
             ('Handshake',),
             ('Identity',),
-            ('Files',)
+            ('Files',),
+            ('Certificate',)
         ]
         self.assertEqual(tables, expected_tables)
 
@@ -147,6 +148,68 @@ class TestFunctions(unittest.TestCase):
         rows = self.c.fetchall()
         self.assertEqual(len(rows), 1)
         self.assertEqual(rows[0][0], wlan_ssid)
+
+    def test_insertCertificate(self):
+        # Define a parsed certificate (as built by _extract_cert_fields)
+        cert = {
+            'cert_index': 0,
+            'version': 'v3',
+            'serial_number': 'abcdef',
+            'signature_algorithm': 'sha256WithRSAEncryption',
+            'issuer': 'CN=Test CA,O=Test Org',
+            'subject': 'CN=radius.test.local,O=Test Org',
+            'not_before': '2024-01-01 00:00:00',
+            'not_after': '2025-01-01 00:00:00',
+            'subject_cn': 'radius.test.local',
+            'subject_o': 'Test Org',
+            'subject_ou': 'IT',
+            'issuer_cn': 'Test CA',
+            'issuer_o': 'Test Org',
+            'issuer_ou': 'IT',
+            'public_key_algorithm': 'RSA',
+            'public_key_size': 2048,
+            'sha1_fingerprint': '00aa11bb22cc',
+            'sha256_fingerprint': '00aa11bb22cc33dd44ee',
+        }
+
+        # Insert new certificate (AP/server certificate)
+        result = database_utils.insertCertificate(self.c, self.verbose,
+                                                  self.bssid, self.mac,
+                                                  'AP', 'test.cap', cert)
+        self.assertEqual(result, 0)
+
+        self.c.execute("SELECT subject_cn, issuer_cn, cert_type, "
+                       "sha256_fingerprint "
+                       "FROM Certificate WHERE bssid = ?", (self.bssid,))
+        rows = self.c.fetchall()
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0][0], cert['subject_cn'])
+        self.assertEqual(rows[0][1], cert['issuer_cn'])
+        self.assertEqual(rows[0][2], 'AP')
+        self.assertEqual(rows[0][3], cert['sha256_fingerprint'])
+
+        # A client certificate (different fingerprint) is stored in the same
+        # table for the same AP, tagged with its own cert_type
+        client_cert = dict(cert)
+        client_cert['sha256_fingerprint'] = '99ff88ee77dd'
+        client_cert['subject_cn'] = 'user.test.local'
+        result = database_utils.insertCertificate(self.c, self.verbose,
+                                                  self.bssid, self.mac,
+                                                  'Client', 'test.cap',
+                                                  client_cert)
+        self.assertEqual(result, 0)
+        self.c.execute("SELECT cert_type FROM Certificate WHERE bssid = ? "
+                       "ORDER BY cert_type", (self.bssid,))
+        self.assertEqual([r[0] for r in self.c.fetchall()], ['AP', 'Client'])
+
+        # Inserting the same certificate again must not duplicate it
+        result = database_utils.insertCertificate(self.c, self.verbose,
+                                                  self.bssid, self.mac,
+                                                  'AP', 'test.cap', cert)
+        self.assertEqual(result, 0)
+        self.c.execute("SELECT COUNT(*) FROM Certificate WHERE bssid = ?",
+                       (self.bssid,))
+        self.assertEqual(self.c.fetchone()[0], 2)
 
     def test_insertConnected(self):
         # add needed data

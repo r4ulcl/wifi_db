@@ -47,6 +47,7 @@ Script to parse Aircrack-ng captures into a SQLite database and extract useful i
 -   Identifies client probes connected to APs, providing insight into potential security risks usin Rogue APs.
 -   Extracts handshakes for use with hashcat, facilitating password cracking.
 -   Displays identity information from enterprise networks, including the EAP method used for authentication.
+-   Extracts the X.509 certificates exchanged in enterprise (802.1X) EAP-TLS/PEAP/TTLS authentications (both AP/server and client certificates), storing all certificate fields per AP BSSID in the `Certificate` table.
 -   Generates a summary of each AP group by ESSID and encryption, giving an overview of the security status of nearby networks.
 -   Provides a WPS info table for each AP, detailing information about the Wi-Fi Protected Setup configuration of the network.
 -   Logs all instances when a client or AP has been seen with the GPS data and timestamp, enabling location-based analysis.
@@ -261,6 +262,8 @@ wifi_db contains several tables to store information related to wireless network
 -   `Handshake`: This table stores information about the handshakes captured during the captures, including the MAC address of the access point (`bssid`), the client (`mac`), the file name (`file`), and the hashcat format (`hashcat`). The table uses a combination of access point and client MAC addresses, and file name as a primary key, and has foreign key relationships with both the `AP` and `Client` tables.
 
 -  `Identity`: This table represents EAP (Extensible Authentication Protocol) identities and methods used in wireless authentication. The `bssid` and `mac` fields are foreign keys that reference the `AP` and `Client` tables, respectively. Other fields include the identity and method used in the authentication process.
+
+-  `Certificate`: This table stores the X.509 certificates exchanged in enterprise (WPA-Enterprise / 802.1X) EAP-TLS/PEAP/TTLS authentications, both the server certificate sent by the access point and the client certificate sent by the supplicant. Every row is associated with the access point through the `bssid` field (a foreign key referencing the `AP` table) and the client through the `mac` field; the `cert_type` field indicates whose certificate it is (`AP`, `Client`, or `Unknown` when the EAP direction cannot be determined). It also keeps the source capture `file`. The table stores all the relevant certificate fields: the position in the certificate chain (`cert_index`), `version`, `serial_number`, `signature_algorithm`, full `issuer` and `subject` distinguished names, validity dates (`not_before`, `not_after`), the broken-down subject (`subject_cn`, `subject_o`, `subject_ou`) and issuer (`issuer_cn`, `issuer_o`, `issuer_ou`) components, the `public_key_algorithm` and `public_key_size`, and the `sha1_fingerprint` and `sha256_fingerprint`. The table uses the combination of `bssid` and `sha256_fingerprint` as a primary key.
 
 
 ## Views

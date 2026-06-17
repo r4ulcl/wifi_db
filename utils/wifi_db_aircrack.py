@@ -14,6 +14,9 @@ import subprocess
 # import platform
 import binascii
 import datetime
+from cryptography import x509
+from cryptography.hazmat.primitives import hashes
+from cryptography.x509.oid import NameOID
 
 
 def parse_netxml(ouiMap, name, database, verbose):
@@ -373,6 +376,7 @@ def parse_cap(name, database, verbose, hcxpcapngtool, tshark):
         parse_WPS(name, database, verbose)
         parse_identities(name, database, verbose)
         parse_MFP(name, database, verbose)
+        parse_certificates(name, database, verbose)
     if hcxpcapngtool:
         exec_hcxpcapngtool(name, database, verbose)
 
@@ -649,6 +653,229 @@ def parse_identities(name, database, verbose):
         errors += 1
         print("Error in parse_identities (CAP): ", error)
         print(".cap Identity done, errors", errors)
+
+
+def _name_attribute(name, oid):
+    '''Return the first value of an X.509 Name attribute (OID) or ""'''
+    try:
+        attributes = name.get_attributes_for_oid(oid)
+        if attributes:
+            return attributes[0].value
+    except Exception:
+        pass
+    return ""
+
+
+def _public_key_algorithm(public_key):
+    '''Map a cryptography public key object to a readable algorithm name'''
+    class_name = type(public_key).__name__
+    if 'RSA' in class_name:
+        return 'RSA'
+    if 'EllipticCurve' in class_name:
+        return 'EC'
+    if 'DSA' in class_name:
+        return 'DSA'
+    if 'Ed25519' in class_name:
+        return 'Ed25519'
+    if 'Ed448' in class_name:
+        return 'Ed448'
+    return class_name
+
+
+def _extract_cert_fields(der, cert_index):
+    '''Parse a DER encoded X.509 certificate and return all its fields
+    as a dict ready to be inserted in the Certificate table.'''
+    cert = x509.load_der_x509_certificate(der)
+
+    try:
+        version = cert.version.name
+    except Exception:
+        version = ""
+
+    try:
+        serial_number = format(cert.serial_number, 'x')
+    except Exception:
+        serial_number = ""
+
+    try:
+        signature_algorithm = cert.signature_algorithm_oid._name
+    except Exception:
+        signature_algorithm = ""
+
+    try:
+        issuer = cert.issuer.rfc4514_string()
+    except Exception:
+        issuer = ""
+
+    try:
+        subject = cert.subject.rfc4514_string()
+    except Exception:
+        subject = ""
+
+    try:
+        not_before = cert.not_valid_before.strftime("%Y-%m-%d %H:%M:%S")
+    except Exception:
+        not_before = ""
+
+    try:
+        not_after = cert.not_valid_after.strftime("%Y-%m-%d %H:%M:%S")
+    except Exception:
+        not_after = ""
+
+    try:
+        public_key = cert.public_key()
+        public_key_algorithm = _public_key_algorithm(public_key)
+    except Exception:
+        public_key = None
+        public_key_algorithm = ""
+
+    try:
+        public_key_size = public_key.key_size
+    except Exception:
+        public_key_size = 0
+
+    try:
+        sha1_fingerprint = cert.fingerprint(hashes.SHA1()).hex()
+    except Exception:
+        sha1_fingerprint = ""
+
+    # sha256 fingerprint is part of the primary key, so it must exist
+    sha256_fingerprint = cert.fingerprint(hashes.SHA256()).hex()
+
+    return {
+        'cert_index': cert_index,
+        'version': version,
+        'serial_number': serial_number,
+        'signature_algorithm': signature_algorithm,
+        'issuer': issuer,
+        'subject': subject,
+        'not_before': not_before,
+        'not_after': not_after,
+        'subject_cn': _name_attribute(cert.subject, NameOID.COMMON_NAME),
+        'subject_o': _name_attribute(
+            cert.subject, NameOID.ORGANIZATION_NAME),
+        'subject_ou': _name_attribute(
+            cert.subject, NameOID.ORGANIZATIONAL_UNIT_NAME),
+        'issuer_cn': _name_attribute(cert.issuer, NameOID.COMMON_NAME),
+        'issuer_o': _name_attribute(cert.issuer, NameOID.ORGANIZATION_NAME),
+        'issuer_ou': _name_attribute(
+            cert.issuer, NameOID.ORGANIZATIONAL_UNIT_NAME),
+        'public_key_algorithm': public_key_algorithm,
+        'public_key_size': public_key_size,
+        'sha1_fingerprint': sha1_fingerprint,
+        'sha256_fingerprint': sha256_fingerprint,
+    }
+
+
+def _get_cert_hexes(pkt, verbose):
+    '''Return the list of colon separated hex strings of every X.509
+    certificate present in a TLS Certificate handshake packet.'''
+    hexes = []
+    try:
+        tls = pkt.tls
+    except Exception:
+        return hexes
+
+    field = None
+    try:
+        field = tls.get_field('handshake_certificate')
+    except Exception:
+        field = None
+    if field is None:
+        try:
+            field = tls.handshake_certificate
+        except Exception:
+            field = None
+    if field is None:
+        return hexes
+
+    # A single Certificate message can carry a full chain (server, CA, ...),
+    # so iterate over all the values of the field.
+    try:
+        for sub_field in field.all_fields:
+            value = sub_field.get_default_value()
+            if value:
+                hexes.append(value)
+    except Exception:
+        try:
+            value = str(field)
+            if value:
+                hexes.append(value)
+        except Exception:
+            if verbose:
+                print("Could not read certificate field")
+    return hexes
+
+
+# Get X.509 certificates from EAP-TLS/PEAP/TTLS in .cap
+def parse_certificates(name, database, verbose):
+    try:
+        cursor = database.cursor()
+        errors = 0
+        file = name
+        cap = pyshark.FileCapture(
+            file, display_filter="tls.handshake.certificate")
+        # cap.set_debug()
+
+        for pkt in cap:
+            try:
+                src = pkt.wlan.sa
+                dst = pkt.wlan.da
+            except Exception:
+                if verbose:
+                    print("Certificate packet without wlan addresses, skip")
+                continue
+
+            # Use the EAP direction to know whose certificate this is. The
+            # authenticator (AP) sends EAP-Request packets (code 1) carrying
+            # the server certificate, while the supplicant sends EAP-Response
+            # packets (code 2) carrying the client certificate. Either way the
+            # BSSID stored is the AP and the MAC is the client.
+            try:
+                eap_code = pkt.eap.code
+            except Exception:
+                eap_code = None
+
+            if eap_code == '2':  # EAP-Response: certificate sent by the client
+                bssid = dst
+                mac = src
+                cert_type = 'Client'
+            elif eap_code == '1':  # EAP-Request: cert sent by the AP/server
+                bssid = src
+                mac = dst
+                cert_type = 'AP'
+            else:
+                # Direction unknown, assume the AP relays it (server cert)
+                bssid = src
+                mac = dst
+                cert_type = 'Unknown'
+
+            for cert_index, cert_hex in enumerate(_get_cert_hexes(pkt,
+                                                                  verbose)):
+                try:
+                    der = binascii.unhexlify(cert_hex.replace(':', ''))
+                    cert = _extract_cert_fields(der, cert_index)
+                    if verbose:
+                        print("Certificate (" + cert_type + ") for AP " +
+                              str(bssid) + ": " + str(cert.get('subject')))
+                    errors += database_utils.insertCertificate(
+                        cursor, verbose, bssid, mac, cert_type, file, cert)
+                except Exception as error:
+                    errors += 1
+                    if verbose:
+                        print("parse_certificates cert error: " + str(error))
+
+        database.commit()
+        print(".cap Certificate done, errors", errors)
+    except pyshark.capture.capture.TSharkCrashException as error:
+        errors += 1
+        print("Error in parse_certificates (CAP), probably PCAP cut in the "
+              "middle of a packet: ", error)
+        print(".cap Certificate done, errors", errors)
+    except Exception as error:
+        errors += 1
+        print("Error in parse_certificates (CAP): ", error)
+        print(".cap Certificate done, errors", errors)
 
 
 # Use hcxpcapngtool to get the 22000 hash to hashcat

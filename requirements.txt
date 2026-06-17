@@ -1,3 +1,4 @@
+cryptography>=41.0.7
 defusedxml==0.7.1
 ftfy==6.2.0
 nest_asyncio==1.5.8

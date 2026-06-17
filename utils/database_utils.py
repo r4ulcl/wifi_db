@@ -316,6 +316,66 @@ def insertWPS(cursor, verbose, bssid, wlan_ssid, wps_version, wps_device_name,
         return int(1)
 
 
+def insertCertificate(cursor, verbose, bssid, mac, cert_type, file, cert):
+    '''Function to insert an X.509 certificate seen for an AP BSSID.
+
+    `bssid` is always the access point and `mac` the client, regardless of
+    which side sent the certificate. `cert_type` tells whose certificate it
+    is ('AP', 'Client' or 'Unknown'). `cert` is a dict with the parsed
+    certificate fields (see wifi_db_aircrack._extract_cert_fields).'''
+    try:
+        # Insert AP CONSTRAINT (create the AP row if it does not exist yet)
+        essid = ""
+        manuf = ""
+        channel = ""
+        freqmhz = ""
+        carrier = ""
+        encryption = ""
+        packets_total = ""
+        lat = "0.0"
+        lon = "0.0"
+        cloaked = 'False'
+        mfpc = 'False'
+        mfpr = 'False'
+        insertAP(cursor, verbose, bssid, essid, manuf, channel, freqmhz,
+                 carrier, encryption, packets_total, lat, lon, cloaked, mfpc,
+                 mfpr, 0)
+
+        mac = mac.upper() if mac else mac
+
+        cursor.execute('''INSERT INTO Certificate VALUES
+                          (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)''',
+                       (bssid.upper(), mac, cert_type, file,
+                        cert.get('cert_index'),
+                        cert.get('version'),
+                        cert.get('serial_number'),
+                        cert.get('signature_algorithm'),
+                        cert.get('issuer'),
+                        cert.get('subject'),
+                        cert.get('not_before'),
+                        cert.get('not_after'),
+                        cert.get('subject_cn'),
+                        cert.get('subject_o'),
+                        cert.get('subject_ou'),
+                        cert.get('issuer_cn'),
+                        cert.get('issuer_o'),
+                        cert.get('issuer_ou'),
+                        cert.get('public_key_algorithm'),
+                        cert.get('public_key_size'),
+                        cert.get('sha1_fingerprint'),
+                        cert.get('sha256_fingerprint')))
+        return int(0)
+    except sqlite3.IntegrityError as error:
+        # Certificate already stored for this BSSID (same fingerprint)
+        if verbose:
+            print("insertCertificate " + str(error))
+        return int(0)
+    except sqlite3.Error as error:
+        if verbose:
+            print("insertCertificate Error " + str(error))
+        return int(1)
+
+
 def insertConnected(cursor, verbose, bssid, mac):
     ''''''
     try:

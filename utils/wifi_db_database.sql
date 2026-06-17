@@ -126,3 +126,32 @@ CREATE TABLE IF NOT EXISTS Files
     time datetime,
     CONSTRAINT Key8 PRIMARY KEY (file,hashSHA)
 );
+
+
+CREATE TABLE IF NOT EXISTS Certificate
+(
+    bssid TEXT NOT NULL,
+    mac TEXT,
+    cert_type TEXT,
+    file TEXT,
+    cert_index int,
+    version TEXT,
+    serial_number TEXT,
+    signature_algorithm TEXT,
+    issuer TEXT,
+    subject TEXT,
+    not_before timestamp,
+    not_after timestamp,
+    subject_cn TEXT,
+    subject_o TEXT,
+    subject_ou TEXT,
+    issuer_cn TEXT,
+    issuer_o TEXT,
+    issuer_ou TEXT,
+    public_key_algorithm TEXT,
+    public_key_size int,
+    sha1_fingerprint TEXT,
+    sha256_fingerprint TEXT NOT NULL,
+    CONSTRAINT KeyCert PRIMARY KEY (bssid,sha256_fingerprint),
+    CONSTRAINT RelationshipCert FOREIGN KEY (bssid) REFERENCES AP (bssid) ON UPDATE CASCADE ON DELETE CASCADE
+);
