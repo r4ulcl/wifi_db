@@ -120,8 +120,13 @@ def insertAP(cursor, verbose, bssid, essid, manuf, channel, freqmhz, carrier,
              firstTimeSeen):
     ''''''
     try:
-        cursor.execute('''INSERT INTO AP VALUES
-                          (?,?,?,?,?,?,?,?,?,?,?,?,?,?)''',
+        # Explicit column list so AP can carry extra attribute columns (the
+        # merged Security/WPS fields) without breaking this 14-value insert.
+        cursor.execute('''INSERT INTO AP
+                          (bssid, ssid, cloaked, manuf, channel, frequency,
+                           carrier, encryption, packetsTotal, lat_t, lon_t,
+                           mfpc, mfpr, firstTimeSeen)
+                          VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)''',
                        (bssid.upper(), essid, cloaked, manuf, channel, freqmhz,
                         carrier, encryption, packets_total, lat, lon, mfpc,
                         mfpr, firstTimeSeen))
@@ -262,15 +267,21 @@ def insertProbe(cursor, verbose, bssid, essid, time):
 def insertWPS(cursor, verbose, bssid, wlan_ssid, wps_version, wps_device_name,
               wps_model_name, wps_model_number, wps_config_methods,
               wps_config_methods_keypad):
-    ''''''
+    '''Store the WPS (Wi-Fi Protected Setup) details parsed for an AP.
+
+    WPS configuration is a 1:1 AP attribute, so it lives on the AP row: the AP
+    row is ensured to exist, then its WPS columns are merged in.'''
     try:
-        # Insert AP CONSTRAINT
+        # Ensure the AP row exists, then merge the WPS columns into it.
         insertAPConstraint(cursor, verbose, bssid)
 
-        cursor.execute('''INSERT INTO WPS VALUES(?,?,?,?,?,?,?,?)''',
-                       (bssid.upper(), wlan_ssid, wps_version, wps_device_name,
-                        wps_model_name, wps_model_number, wps_config_methods,
-                        wps_config_methods_keypad))
+        cursor.execute('''UPDATE AP SET wlan_ssid = (?), wps_version = (?),
+                          wps_device_name = (?), wps_model_name = (?),
+                          wps_model_number = (?), wps_config_methods = (?),
+                          wps_config_methods_keypad = (?) WHERE bssid = (?)''',
+                       (wlan_ssid, wps_version, wps_device_name, wps_model_name,
+                        wps_model_number, wps_config_methods,
+                        wps_config_methods_keypad, bssid.upper()))
         return int(0)
     except sqlite3.IntegrityError as error:
         # errors += 1
@@ -346,21 +357,25 @@ def insertCertificate(cursor, verbose, bssid, mac, cert_type, file, cert):
 def insertSecurity(cursor, verbose, bssid, wpa_version, akm_suites,
                    pairwise_ciphers, group_cipher, enterprise, pmf,
                    rsn_capabilities, file):
-    '''Insert the RSN/WPA security details parsed from an AP beacon.
+    '''Store the RSN/WPA security details parsed from an AP beacon.
 
-    The data is keyed by BSSID; the latest beacon wins (INSERT OR REPLACE)
-    since the security configuration is stable for a given AP. `pmf` is the
-    management-frame-protection state ('Required', 'Capable' or 'Disabled')
-    and `rsn_capabilities` is the raw RSN capabilities bitfield.'''
+    These are 1:1 AP attributes, so they live on the AP row itself: the AP
+    row is ensured to exist, then its security columns are overwritten (the
+    latest beacon wins, since the security configuration is stable for a given
+    AP). `pmf` is the management-frame-protection state ('Required', 'Capable'
+    or 'Disabled') and `rsn_capabilities` is the raw RSN capabilities bitfield.
+    `file` is kept in the signature for call-site compatibility but no longer
+    stored (AP rows do not track a per-attribute source file).'''
     try:
-        # Insert AP CONSTRAINT (create the AP row if it does not exist yet)
+        # Ensure the AP row exists, then merge the security columns into it.
         insertAPConstraint(cursor, verbose, bssid)
 
-        cursor.execute('''INSERT OR REPLACE INTO Security
-                          VALUES(?,?,?,?,?,?,?,?,?)''',
-                       (bssid.upper(), wpa_version, akm_suites,
-                        pairwise_ciphers, group_cipher, enterprise, pmf,
-                        rsn_capabilities, file))
+        cursor.execute('''UPDATE AP SET wpa_version = (?), akm_suites = (?),
+                          pairwise_ciphers = (?), group_cipher = (?),
+                          enterprise = (?), pmf = (?), rsn_capabilities = (?)
+                          WHERE bssid = (?)''',
+                       (wpa_version, akm_suites, pairwise_ciphers, group_cipher,
+                        enterprise, pmf, rsn_capabilities, bssid.upper()))
         return int(0)
     except sqlite3.IntegrityError as error:
         if verbose:

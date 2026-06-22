@@ -49,14 +49,12 @@ class TestFunctions(unittest.TestCase):
             ('Client',),
             ('SeenClient',),
             ('Connected',),
-            ('WPS',),
             ('SeenAp',),
             ('Probe',),
             ('Handshake',),
             ('Identity',),
             ('Files',),
             ('Certificate',),
-            ('Security',),
             ('EAPMD5',),
             ('ProbeFingerprint',)
         ]
@@ -151,7 +149,8 @@ class TestFunctions(unittest.TestCase):
                                           wps_config_methods_keypad)
         self.assertEqual(result, 0)
 
-        self.c.execute("SELECT wlan_ssid FROM WPS WHERE bssid = ?",
+        # WPS columns now live on the AP row (1:1 merge)
+        self.c.execute("SELECT wlan_ssid FROM AP WHERE bssid = ?",
                        (self.bssid,))
         rows = self.c.fetchall()
         self.assertEqual(len(rows), 1)
@@ -247,8 +246,9 @@ class TestFunctions(unittest.TestCase):
             'Required', '0x00c0', 'test.cap')
         self.assertEqual(result, 0)
 
+        # Security columns now live on the AP row (1:1 merge)
         self.c.execute("SELECT wpa_version, akm_suites, pairwise_ciphers, "
-                       "enterprise, pmf FROM Security WHERE bssid = ?",
+                       "enterprise, pmf FROM AP WHERE bssid = ?",
                        (self.bssid,))
         rows = self.c.fetchall()
         self.assertEqual(len(rows), 1)
@@ -258,12 +258,12 @@ class TestFunctions(unittest.TestCase):
         self.assertEqual(rows[0][3], 'True')
         self.assertEqual(rows[0][4], 'Required')
 
-        # A second beacon for the same BSSID replaces the row (no duplicate)
+        # A second beacon for the same BSSID overwrites the AP columns
         result = database_utils.insertSecurity(
             self.c, self.verbose, self.bssid, 'WPA2', 'PSK', 'CCMP-128',
             'CCMP-128', 'False', 'Capable', '0x0080', 'test.cap')
         self.assertEqual(result, 0)
-        self.c.execute("SELECT COUNT(*), MAX(wpa_version) FROM Security "
+        self.c.execute("SELECT COUNT(*), MAX(wpa_version) FROM AP "
                        "WHERE bssid = ?", (self.bssid,))
         count, wpa_version = self.c.fetchone()
         self.assertEqual(count, 1)
