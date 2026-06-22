@@ -18,7 +18,11 @@ def is_git_installed():
 
 def get_latest_github_release(repo_url):
     try:
-        response = requests.get(f"{repo_url}/releases/latest", timeout=5)
+        # (connect, read) timeouts: a short connect timeout makes the check
+        # bail out quickly when there is no internet access, while still
+        # allowing a slightly longer read for slow connections.
+        response = requests.get(f"{repo_url}/releases/latest",
+                                timeout=(2, 5))
         if response.status_code == 200:
             latest_release_tag = response.json()["tag_name"]
             return latest_release_tag
@@ -60,12 +64,24 @@ def check_for_update(VERSION):
 
     if latest_release_tag:
         # Get only the number part, without v and -dev
-        latest_release_tag_number = re.search(r'(\d+(\.\d+)+)',
-                                              latest_release_tag).group(1)
-        current_number = re.search(r'(\d+(\.\d+)+)', VERSION).group(1)
+        latest_match = re.search(r'(\d+(\.\d+)+)', latest_release_tag)
+        current_match = re.search(r'(\d+(\.\d+)+)', VERSION)
+        if not latest_match or not current_match:
+            print("Unable to parse version numbers.")
+            return
+        latest_release_tag_number = latest_match.group(1)
+        current_number = current_match.group(1)
         # print(latest_release_tag_number)
         # print(current_number)
-        if latest_release_tag_number > current_number:
+
+        # Compare as tuples of ints so 1.10.0 > 1.6.0 (not string compare)
+        def _version_tuple(version):
+            return tuple(int(part) for part in version.split('.'))
+
+        latest_version = _version_tuple(latest_release_tag_number)
+        current_version = _version_tuple(current_number)
+
+        if latest_version > current_version:
             user_choice = input("A new version is available (v" +
                                 latest_release_tag_number +
                                 "). Do you want to update (Y/n)?: "
@@ -88,7 +104,7 @@ def check_for_update(VERSION):
                 sys.exit()
             else:
                 print("You chose not to update. Running the current version.")
-        elif latest_release_tag_number < current_number:
+        elif latest_version < current_version:
             print("You are using a future version ;) ("+VERSION+").\n")
         else:
             print("You are using the latest version ("+VERSION+").\n")

@@ -445,7 +445,7 @@ def parse_handshakes(name, database, verbose):
                     # add handshake
                     if flag.find('10a') != -1:
                         # print('handhsake 2 of 4')
-                        if (prevFlag.find('08a')
+                        if (prevFlag.find('08a') != -1
                                 and dst == prevSrc and src == prevDst):
                             # first
                             if verbose:
@@ -614,6 +614,7 @@ def parse_WPS(name, database, verbose):
                                                wps_config_methods,
                                                wps_config_methods_keypad)
 
+        database.commit()
         print(".cap WPS done, errors", errors)
     except pyshark.capture.capture.TSharkCrashException as error:
         errors += 1
@@ -665,9 +666,9 @@ def parse_identities(name, database, verbose):
                     database_utils.insertIdentity(cursor, verbose,
                                                   dst, src, identity, method)
             except Exception as e:
+                errors += 1
                 if verbose:
                     print("ERROR:", e)
-                    errors += 1
 
         database.commit()
         print(".cap Identity done, errors", errors)
