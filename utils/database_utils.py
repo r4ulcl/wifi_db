@@ -183,7 +183,7 @@ def insertAP(cursor, verbose, bssid, essid, manuf, channel, freqmhz, carrier,
     except sqlite3.Error as error:
         if verbose:
             print("insertAP Error " + str(error))
-            return int(1)
+        return int(1)
 
 
 def insertClients(cursor, verbose, mac, ssid, manuf,

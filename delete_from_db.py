@@ -9,6 +9,8 @@ def connectDatabase(name, verbose):
     '''Function to connect to the database'''
     database = sqlite3.connect(name)
     database.text_factory = str
+    # Enable foreign keys so ON DELETE CASCADE removes the related rows
+    database.execute("PRAGMA foreign_keys = 1")
     if verbose:
         print("DB connected OK")
     return database
@@ -16,35 +18,32 @@ def connectDatabase(name, verbose):
 
 def delete_ap(database, bssid, verbose):
     print(bssid)
-# DELETE from seenap where bssid="80:35:C1:3E:CD:8C";
-# DELETE from connected where bssid="80:35:C1:3E:CD:8C";
-# DELETE from ap where bssid="80:35:C1:3E:CD:8C";
+
+    # Tables that reference the AP by bssid. With foreign keys enabled,
+    # deleting from AP cascades to all of them, but they are deleted
+    # explicitly too so it also works if cascade is unavailable.
+    tables = [
+        "Handshake",
+        "Identity",
+        "Certificate",
+        "WPS",
+        "SeenAp",
+        "Connected",
+        "AP",
+    ]
 
     try:
         cursor = database.cursor()
+        bssid = bssid.upper()
 
-        sql = "DELETE from handshake where bssid = ?"
-        print(sql, bssid)
-        cursor.execute(sql, bssid)
-
-        sql = "DELETE from identityap where bssid = ? "
-        print(sql, bssid)
-        cursor.execute(sql, bssid)
-
-        sql = "DELETE from seenap where bssid = ? "
-        print(sql, bssid)
-        cursor.execute(sql, bssid)
-
-        sql = "DELETE from connected where bssid = ? "
-        print(sql, bssid)
-        cursor.execute(sql, bssid)
-
-        sql = "DELETE from ap where bssid = ? "
-        print(sql, bssid)
-        cursor.execute(sql, bssid)
+        for table in tables:
+            sql = "DELETE from " + table + " where bssid = ?"
+            if verbose:
+                print(sql, bssid)
+            cursor.execute(sql, (bssid,))
 
         database.commit()
-    except sqlite3.IntegrityError as error:
+    except sqlite3.Error as error:
         print(error)
 
 
