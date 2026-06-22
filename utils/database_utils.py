@@ -180,10 +180,14 @@ def insertClients(cursor, verbose, mac, ssid, manuf,
             # If firstTimeSeen is before current firstTimeSeen update
             # Update `firstTimeSeen` column
             if firstTimeSeen != 0:
+                # Fill the row when the stored value is a placeholder
+                # (empty/0/NULL) or later than the new one, as long as the new
+                # value is real. The previous `AND firstTimeSeen <> 0` made a
+                # 0 placeholder impossible to replace with a real timestamp.
                 sql = """UPDATE client SET firstTimeSeen = CASE WHEN
                          (firstTimeSeen = '' OR firstTimeSeen = '0' OR
                          firstTimeSeen IS NULL OR firstTimeSeen > (?)) AND
-                         (?) <> 0 AND firstTimeSeen <> 0 THEN (?) ELSE
+                         (?) <> 0 THEN (?) ELSE
                          firstTimeSeen END WHERE mac = (?)"""
                 if verbose:
                     print(sql, (firstTimeSeen, mac))
