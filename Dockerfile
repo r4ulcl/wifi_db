@@ -7,8 +7,6 @@
 # ---------------------------------------------------------------------------
 FROM python:3.12-slim-bookworm AS hcxtools-builder
 
-WORKDIR /app
-
 # A single retrying apt-get layer. Retries make the layer resilient to the
 # transient failures seen when this stage is built for linux/arm64 under QEMU
 # emulation (apt/dpkg child processes occasionally crash, giving exit 100).
@@ -25,6 +23,11 @@ RUN git clone --depth 1 -b 6.3.1 https://github.com/ZerBea/hcxtools.git /tmp/hcx
 
 # ---------------------------------------------------------------------------
 # Stage 2: final runtime image
+#
+# This image is intentionally test-free: the suite is NOT run during the build
+# and the test fixtures are not copied in (see .dockerignore). Tests run against
+# the built image afterwards by the release pipeline / test_docker.sh, so a
+# failing test blocks the release instead of every developer build.
 # ---------------------------------------------------------------------------
 FROM python:3.12-slim-bookworm
 
@@ -49,16 +52,9 @@ COPY --from=hcxtools-builder /usr/bin/hcx* /usr/bin/
 COPY requirements.txt requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Application code (the .dockerignore keeps test fixtures, .git, the local
-# virtualenv and docs out of this layer).
+# Application code. The .dockerignore keeps the test fixtures, .git, the local
+# virtualenv and docs out of this layer.
 COPY . .
-
-# Run the test suite as a build gate. test_data is bind-mounted only for the
-# duration of this RUN, so the fixtures never land in an image layer; the
-# pytest cache it leaves behind is removed in the same layer.
-RUN --mount=type=bind,source=test_data,target=/app/test_data \
-    python3 -m pytest \
-    && rm -rf /app/.pytest_cache
 
 # Create a captures directory and a non-root user to run the app.
 # /app holds the default database (db.SQLITE) so SQLite can also create its
@@ -69,4 +65,5 @@ RUN mkdir -p /captures/ \
 
 USER wifidb
 
+# Set the entry point
 ENTRYPOINT ["python3", "/app/wifi_db.py", "/captures/", "-d", "/app/db.SQLITE"]
