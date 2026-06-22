@@ -10,7 +10,7 @@ from utils import oui
 import ftfy
 from utils import database_utils
 import pyshark
-import subprocess
+import subprocess  # nosec B404 - only used with a fixed, absolute-path command
 # import platform
 import binascii
 import datetime
@@ -66,7 +66,7 @@ def parse_netxml(ouiMap, name, database, verbose):
     try:
         cursor = database.cursor()
         if exists:
-            with open(filename, 'r') as file:
+            with open(filename, 'r', encoding='utf-8') as file:
                 filedata = file.read()
             # fix aircrack error, remove spaces &#x 0;
             filedata = re.sub(r'&#x[ ]+', '&#x', filedata)
@@ -211,7 +211,7 @@ def parse_kismet_csv(ouiMap, name, database, verbose):
     try:
         cursor = database.cursor()
         if exists:
-            with open(name) as csv_file:
+            with open(name, encoding='utf-8') as csv_file:
                 csv_reader = csv.reader((x.replace('\0', '')
                                          for x in csv_file), delimiter=';')
                 for row in csv_reader:
@@ -272,7 +272,7 @@ def parse_csv(ouiMap, name, database, verbose):
     try:
         cursor = database.cursor()
         if exists:
-            with open(name) as csv_file:
+            with open(name, encoding='utf-8') as csv_file:
                 csv_reader = csv.reader((x.replace('\0', '')
                                          for x in csv_file), delimiter=',')
                 client = False
@@ -347,7 +347,7 @@ def parse_log_csv(ouiMap, name, database, verbose, fake_lat, fake_lon):
     try:
         cursor = database.cursor()
         if exists:
-            with open(name) as csv_file:
+            with open(name, encoding='utf-8') as csv_file:
                 csv_reader = csv.reader(csv_file, delimiter=',')
                 for row in csv_reader:
                     time = row[0]
@@ -516,7 +516,7 @@ def parse_MFP(name, database, verbose):
                         errors += database_utils.insertMFP(cursor,
                                                            verbose,
                                                            src, mfpc,
-                                                           mfpr, file)
+                                                           mfpr)
                 # wlan_options = pkt['wlan.mgt'].field_names
                 # print(wlan_options)
                 # print(pkt['wlan.mgt'])
@@ -689,8 +689,10 @@ def _name_attribute(name, oid):
         attributes = name.get_attributes_for_oid(oid)
         if attributes:
             return attributes[0].value
-    except Exception:
-        pass
+    except Exception as error:
+        # A missing/invalid attribute is expected for many certificates;
+        # fall back to an empty string instead of failing the whole parse.
+        print("Error in _name_attribute: ", error)
     return ""
 
 
@@ -726,6 +728,9 @@ def _extract_cert_fields(der, cert_index):
         serial_number = ""
 
     try:
+        # cryptography exposes the human-readable OID name only via the
+        # internal `_name` attribute; there is no public accessor for it.
+        # pylint: disable=protected-access
         signature_algorithm = cert.signature_algorithm_oid._name
     except Exception:
         signature_algorithm = ""
@@ -763,7 +768,11 @@ def _extract_cert_fields(der, cert_index):
         public_key_size = 0
 
     try:
-        sha1_fingerprint = cert.fingerprint(hashes.SHA1()).hex()
+        # SHA1 is used here only to compute the certificate thumbprint, the
+        # de-facto standard identifier for X.509 certificates. It is not used
+        # as a security/cryptographic primitive, so the weak-hash warning does
+        # not apply.
+        sha1_fingerprint = cert.fingerprint(hashes.SHA1()).hex()  # nosec B303
     except Exception:
         sha1_fingerprint = ""
 
@@ -914,17 +923,19 @@ def exec_hcxpcapngtool(name, database, verbose):
         cursor = database.cursor()
         errors = 0
         fileName = name
-        # exec_hcxpcapngtool
-        execute_process = subprocess.Popen(["/usr/bin/hcxpcapngtool", "--all",
-                                           fileName, "-o", "test.22000"],
-                                           stdout=subprocess.DEVNULL,
-                                           stderr=subprocess.DEVNULL)
+        # exec_hcxpcapngtool. Fixed absolute-path binary, no shell; the input
+        # file name is passed as a separate argv element (not interpolated),
+        # so it cannot be used for command injection.
+        execute_process = subprocess.Popen(  # nosec B603
+            ["/usr/bin/hcxpcapngtool", "--all", fileName, "-o", "test.22000"],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL)
         execute_process.wait()  # Wait for the installation process to complete
         # Read output (fileName) each line
         file_exists = os.path.exists('test.22000')
         if not file_exists:
             return
-        with open('test.22000') as f:
+        with open('test.22000', encoding='utf-8') as f:
             lines = f.readlines()
             for line in lines:
                 # update in database aka insert_hash

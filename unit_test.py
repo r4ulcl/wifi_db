@@ -616,8 +616,7 @@ class TestFunctionsRealData(unittest.TestCase):
                            '0000000000000000000000000000000000000000' +
                            '0000000000000000000001630140100000fac020' +
                            '100000fac040100000fac020000*80']
-        assert row[0] in expected_values
-        # self.assertEqual(row[0], )
+        self.assertIn(row[0], expected_values)
 
     def testRealIdentity(self):
         # Identity
@@ -667,17 +666,15 @@ class TestFunctionsRealData(unittest.TestCase):
         row = self.c.fetchone()
         self.assertEqual(row[0], -49)
 
-    '''
-    def testReal(self):
-        # WPS TODO
-        self.c.execute("SELECT  FROM  WHERE  = ''")
-        row = self.c.fetchone()
-        self.assertEqual(row[0], 0)
-
-        self.c.execute("SELECT  FROM  WHERE  = ''")
-        row = self.c.fetchone()
-        self.assertEqual(row[0], 0)
-    '''
+    # TODO: WPS test, pending real data
+    # def testReal(self):
+    #     self.c.execute("SELECT  FROM  WHERE  = ''")
+    #     row = self.c.fetchone()
+    #     self.assertEqual(row[0], 0)
+    #
+    #     self.c.execute("SELECT  FROM  WHERE  = ''")
+    #     row = self.c.fetchone()
+    #     self.assertEqual(row[0], 0)
 
 
 if __name__ == '__main__':

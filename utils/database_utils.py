@@ -3,7 +3,7 @@
 # -*- coding: utf-8 -*-
 import sqlite3
 import os
-import random
+import secrets
 import string
 import datetime
 import hashlib
@@ -27,7 +27,7 @@ def createDatabase(database, verbose):
     '''Function to create the tables in the database'''
     script_path = os.path.dirname(os.path.abspath(__file__))
     path = script_path + '/wifi_db_database.sql'
-    db_file = open(path, 'r')
+    db_file = open(path, 'r', encoding='utf-8')
     views = db_file.read()
     try:
         cursor = database.cursor()
@@ -46,7 +46,7 @@ def createViews(database, verbose):
     '''Function to create the Views in the database'''
     script_path = os.path.dirname(os.path.abspath(__file__))
     path = script_path + '/view.sql'
-    views_file = open(path, 'r')
+    views_file = open(path, 'r', encoding='utf-8')
     views = views_file.read()
     try:
         cursor = database.cursor()
@@ -175,10 +175,10 @@ def insertAP(cursor, verbose, bssid, essid, manuf, channel, freqmhz, carrier,
             cursor.execute(sql, (mfpr, bssid.upper()))
 
             return int(0)
-        except sqlite3.IntegrityError as error:
+        except sqlite3.IntegrityError as update_error:
 
             if verbose:
-                print("insertAP2 " + str(error))
+                print("insertAP2 " + str(update_error))
             return int(0)
     except sqlite3.Error as error:
         if verbose:
@@ -187,11 +187,12 @@ def insertAP(cursor, verbose, bssid, essid, manuf, channel, freqmhz, carrier,
 
 
 def insertClients(cursor, verbose, mac, ssid, manuf,
-                  type, packets_total, device, firstTimeSeen):
+                  client_type, packets_total, device, firstTimeSeen):
     '''Function to insert clients in the database'''
     try:
         cursor.execute('''INSERT INTO client VALUES(?,?,?,?,?,?,?)''',
-                       (mac.upper(), ssid, manuf, type, packets_total, device,
+                       (mac.upper(), ssid, manuf, client_type, packets_total,
+                        device,
                         firstTimeSeen))
         return int(0)
     except sqlite3.IntegrityError as error:
@@ -239,8 +240,8 @@ def insertClients(cursor, verbose, mac, ssid, manuf,
             sql = """UPDATE client SET type = CASE WHEN type = '' OR type IS
                      NULL THEN (?) ELSE type END WHERE mac = (?)"""
             if verbose:
-                print(sql, (type, mac.upper()))
-            cursor.execute(sql, (type, mac.upper()))
+                print(sql, (client_type, mac.upper()))
+            cursor.execute(sql, (client_type, mac.upper()))
 
             # Update `manuf` column
             sql = """UPDATE client SET device = CASE WHEN device = '' OR
@@ -250,9 +251,9 @@ def insertClients(cursor, verbose, mac, ssid, manuf,
             cursor.execute(sql, (device, mac.upper()))
 
             return int(0)
-        except sqlite3.IntegrityError as error:
+        except sqlite3.IntegrityError as update_error:
             if verbose:
-                print("insertClients2 " + str(error))
+                print("insertClients2 " + str(update_error))
             return int(1)
         # print('Record already exists')
     except sqlite3.Error as error:
@@ -395,7 +396,7 @@ def insertConnected(cursor, verbose, bssid, mac):
         return int(1)
 
 
-def insertMFP(cursor, verbose, bssid, mfpc, mfpr, file):
+def insertMFP(cursor, verbose, bssid, mfpc, mfpr):
     ''''''
     try:
         # Insert AP or update
@@ -435,16 +436,16 @@ def insertHandshake(cursor, verbose, bssid, mac, file):
 
         # Get file hash MD5
         with open(file, 'rb') as file_handle:
-            hash = getHash(file_handle.read())
+            file_hash = getHash(file_handle.read())
 
         # insertHandshake Client and AP CONSTRAINT
         ssid = ""
         manuf = ""
-        type = ""
+        client_type = ""
         packets_total = "0"
         device = ""
         error += insertClients(cursor, verbose, mac, ssid, manuf,
-                               type, packets_total, device, 0)
+                               client_type, packets_total, device, 0)
         essid = ""
         manuf = ""
         channel = ""
@@ -464,7 +465,7 @@ def insertHandshake(cursor, verbose, bssid, mac, file):
         # print(row[5].replace(' ', ''))
         cursor.execute(
             '''INSERT INTO handshake VALUES(?,?,?,?,?)''',
-            (bssid.upper(), mac.upper(), file, hash, ""))
+            (bssid.upper(), mac.upper(), file, file_hash, ""))
         return int(error)
     except sqlite3.IntegrityError as error:
         # errors += 1
@@ -567,12 +568,12 @@ def setHashcat(cursor, verbose, bssid, mac, file, hashcat):
         # Remove enter at the end
         hashcat = hashcat.strip()
         with open(file, 'rb') as file_handle:
-            hash = getHash(file_handle.read())
+            file_hash = getHash(file_handle.read())
         if verbose:
-            print("HASH: ", hash)
+            print("HASH: ", file_hash)
         cursor.execute('''INSERT OR REPLACE INTO Handshake
                           VALUES(?,?,?,?,?)''',
-                       (bssid.upper(), mac.upper(), file, hash, hashcat))
+                       (bssid.upper(), mac.upper(), file, file_hash, hashcat))
         return int(0)
     except sqlite3.IntegrityError as error:
         print("setHashcat" + str(error))
@@ -583,11 +584,11 @@ def insertFile(cursor, verbose, file):
     try:
         # Get MD5
         with open(file, 'rb') as file_handle:
-            hash = getHash(file_handle.read())
+            file_hash = getHash(file_handle.read())
         if verbose:
-            print("HASH: ", hash)
+            print("HASH: ", file_hash)
         cursor.execute('''INSERT OR REPLACE INTO Files VALUES(?,?,?,?)''',
-                       (file, "False", hash, datetime.datetime.now()))
+                       (file, "False", file_hash, datetime.datetime.now()))
         return int(0)
     except sqlite3.IntegrityError as error:
         print("insertFile" + str(error))
@@ -600,6 +601,8 @@ def getHash(file):
 
 def setFileProcessed(cursor, verbose, file):
     try:
+        if verbose:
+            print("setFileProcessed", file)
         cursor.execute('''UPDATE Files SET processed = (?) where file = ?''',
                        ("True", file))
         return int(0)
@@ -615,11 +618,11 @@ def checkFileProcessed(cursor, verbose, file):
         return int(0)
 
     with open(file, 'rb') as file_handle:
-        hash = getHash(file_handle.read())
+        file_hash = getHash(file_handle.read())
 
     try:
         cursor.execute('''SELECT file FROM Files WHERE hashSHA = (?)
-                          AND processed = "True"''', (hash,))
+                          AND processed = "True"''', (file_hash,))
 
         output = cursor.fetchall()
         if len(output) > 0:
@@ -647,7 +650,7 @@ def obfuscateDB(database, verbose):
         for row in output:
             # Replace all APs bssid (add random letter to avoid duplicates)
             letter = string.ascii_lowercase
-            aux = ''.join(random.choice(letter) for _ in range(8))
+            aux = ''.join(secrets.choice(letter) for _ in range(8))
             new = (row[0][0:9] + ('XX:XX:XX') + '-' + aux)
             # print (new)
 
@@ -673,7 +676,7 @@ def obfuscateDB(database, verbose):
         for row in output:
             # Replace all APs bssid (add random letter to avoid duplicates)
             letter = string.ascii_lowercase
-            aux = ''.join(random.choice(letter) for _ in range(8))
+            aux = ''.join(secrets.choice(letter) for _ in range(8))
             new = (row[0][0:9] + ('XX:XX:XX') + '-' + aux)
 
             cursor.execute('''UPDATE Client set mac = (?) where mac = ?''',
@@ -690,11 +693,13 @@ def obfuscateDB(database, verbose):
 
 
 def clearWhitelist(database, verbose, whitelist):
-    with open(whitelist) as f:
+    with open(whitelist, encoding='utf-8') as f:
         whitelist = f.read().splitlines()
     cursor = database.cursor()
     for mac in whitelist:
         mac = mac.upper()
+        if verbose:
+            print("clearWhitelist", mac)
         try:
             cursor.execute(
                 "DELETE from Handshake where bssid = (?) ", (mac.upper(),))

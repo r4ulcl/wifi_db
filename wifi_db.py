@@ -10,7 +10,7 @@ from utils import oui
 import os
 from os import path
 import platform
-import subprocess
+import subprocess  # nosec B404 - only used with fixed, non-shell commands
 import nest_asyncio
 import re
 
@@ -42,12 +42,12 @@ def replace_multiple_slashes(string):
 
 
 def main():
+    '''Function main. Parse argument and exec the functions '''
     nest_asyncio.apply()
 
     # Check for update
     update.check_for_update(VERSION)
 
-    '''Function main. Parse argument and exec the functions '''
     # args
     parser = argparse.ArgumentParser()
     parser.add_argument("-V", "--version", help="write the wifi_db version",
@@ -107,17 +107,19 @@ def main():
 
     try:
         cmd = "where" if platform.system() == "Windows" else "which"
-        subprocess.call([cmd, "hcxpcapngtool"])
+        # Fixed command (which/where) with a fixed argument, no shell.
+        subprocess.call([cmd, "hcxpcapngtool"])  # nosec B603
         hcxpcapngtool = True
-    except Exception as E:
+    except OSError as E:
         hcxpcapngtool = False
         print("False", E)
 
     try:
         cmd = "where" if platform.system() == "Windows" else "which"
-        subprocess.call([cmd, "tshark"])
+        # Fixed command (which/where) with a fixed argument, no shell.
+        subprocess.call([cmd, "tshark"])  # nosec B603
         tshark = True
-    except Exception as E:
+    except OSError as E:
         tshark = False
         print("False", E)
 
