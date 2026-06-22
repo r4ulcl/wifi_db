@@ -250,7 +250,10 @@ def insertClients(cursor, verbose, mac, ssid, manuf,
 def insertProbe(cursor, verbose, bssid, essid, time):
     ''''''
     try:
-        cursor.execute('''INSERT INTO Probe VALUES(?,?,?)''',
+        # Explicit column list: Probe also carries the merged probe-request
+        # fingerprint columns (filled by insertProbeFingerprint), which this
+        # SSID-only insert leaves NULL.
+        cursor.execute('''INSERT INTO Probe (mac, ssid, time) VALUES(?,?,?)''',
                        (bssid.upper(), essid, time))
         return int(0)
     except sqlite3.IntegrityError as error:
@@ -525,16 +528,28 @@ def insertEAPMD5(cursor, verbose, bssid, mac, identity, eap_id, challenge,
         return int(1)
 
 
-def insertProbeFingerprint(cursor, verbose, mac, fingerprint, ie_order, file):
-    '''Insert a probe-request fingerprint (ordered list of information element
-    IDs and its hash) for device identification. Keyed by (mac, fingerprint).'''
+def insertProbeFingerprint(cursor, verbose, mac, ssid, fingerprint, ie_order,
+                           file):
+    '''Store a probe-request fingerprint (ordered list of information element
+    IDs and its hash) for device identification.
+
+    The fingerprint is a probe-request attribute, so it lives on the Probe row
+    for the (mac, ssid) that was probed: the Client row is ensured to exist,
+    then the fingerprint columns are merged into the matching Probe row
+    (creating it if the SSID was not already seen). `ssid` is '' for broadcast
+    probe requests.'''
     try:
         # Insert Client CONSTRAINT
         insertClientConstraint(cursor, verbose, mac)
 
-        cursor.execute('''INSERT OR REPLACE INTO ProbeFingerprint
-                          VALUES(?,?,?,?)''',
-                       (mac.upper(), fingerprint, ie_order, file))
+        cursor.execute('''INSERT INTO Probe
+                          (mac, ssid, time, fingerprint, ie_order, file)
+                          VALUES (?,?,?,?,?,?)
+                          ON CONFLICT(mac, ssid) DO UPDATE SET
+                              fingerprint = excluded.fingerprint,
+                              ie_order = excluded.ie_order,
+                              file = excluded.file''',
+                       (mac.upper(), ssid, 0, fingerprint, ie_order, file))
         return int(0)
     except sqlite3.IntegrityError as error:
         if verbose:

@@ -1341,7 +1341,14 @@ def parse_probe_fingerprint(name, database, verbose):
             ie_order = ",".join(str(tag) for tag in tags)
             fingerprint = database_utils.getHash(ie_order.encode())[:32]
 
-            key = (mac.upper(), fingerprint)
+            # The probed SSID ('' for broadcast probe requests). The merged
+            # Probe row is keyed by (mac, ssid), so the fingerprint attaches to
+            # the SSID seen in this frame. Decoded defensively (hex like the
+            # other .cap parsers), defaulting to '' on any failure.
+            ssid = _safe(lambda: binascii.unhexlify(
+                mgt.wlan_ssid.replace(':', '')).decode('ascii'))
+
+            key = (mac.upper(), ssid, fingerprint)
             if key in seen:
                 continue
             seen.add(key)
@@ -1349,7 +1356,7 @@ def parse_probe_fingerprint(name, database, verbose):
             if verbose:
                 print("Probe fingerprint " + str(mac) + ": " + ie_order)
             errors += database_utils.insertProbeFingerprint(
-                cursor, verbose, mac, fingerprint, ie_order, file)
+                cursor, verbose, mac, ssid, fingerprint, ie_order, file)
 
         database.commit()
         print(".cap ProbeFingerprint done, errors", errors)

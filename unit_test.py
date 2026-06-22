@@ -55,8 +55,7 @@ class TestFunctions(unittest.TestCase):
             ('Identity',),
             ('Files',),
             ('Certificate',),
-            ('EAPMD5',),
-            ('ProbeFingerprint',)
+            ('EAPMD5',)
         ]
         self.assertEqual(tables, expected_tables)
 
@@ -330,15 +329,28 @@ class TestFunctions(unittest.TestCase):
         self.assertTrue(row[2].endswith(":42"))
 
     def test_insertProbeFingerprint(self):
+        # The fingerprint now lives on the Probe row for the probed (mac, ssid)
         result = database_utils.insertProbeFingerprint(
-            self.c, self.verbose, self.mac, "abc123", "0,1,50,3,45,221",
-            'test.cap')
+            self.c, self.verbose, self.mac, "TestProbe", "abc123",
+            "0,1,50,3,45,221", 'test.cap')
         self.assertEqual(result, 0)
-        self.c.execute("SELECT fingerprint, ie_order FROM ProbeFingerprint "
-                       "WHERE mac = ?", (self.mac,))
+        self.c.execute("SELECT fingerprint, ie_order FROM Probe "
+                       "WHERE mac = ? AND ssid = ?", (self.mac, "TestProbe"))
         row = self.c.fetchone()
         self.assertEqual(row[0], "abc123")
         self.assertEqual(row[1], "0,1,50,3,45,221")
+
+        # A fingerprint for an SSID already present as a plain probe row
+        # updates that row in place rather than creating a duplicate.
+        database_utils.insertProbe(self.c, self.verbose, self.mac, "Probed", 0)
+        database_utils.insertProbeFingerprint(
+            self.c, self.verbose, self.mac, "Probed", "def456",
+            "0,1,221", 'test.cap')
+        self.c.execute("SELECT COUNT(*), MAX(fingerprint) FROM Probe "
+                       "WHERE mac = ? AND ssid = ?", (self.mac, "Probed"))
+        count, fingerprint = self.c.fetchone()
+        self.assertEqual(count, 1)
+        self.assertEqual(fingerprint, "def456")
 
     def test_insertConnected(self):
         # add needed data
@@ -771,10 +783,13 @@ class TestFunctionsRealData(unittest.TestCase):
         self.assertEqual(row[0], 'CONTOSO\\anonymous')
 
     def testRealProbe(self):
-        # Probe
-        query = "SELECT ssid FROM Probe WHERE mac = ?"
-        self.c.execute(query, ('64:32:A8:AC:53:50',))
+        # Probe. Filter by the expected SSID: the merged Probe table also holds
+        # broadcast probe-request rows (ssid '') from the fingerprint parser,
+        # so an unfiltered fetchone() is no longer order-deterministic.
+        query = "SELECT ssid FROM Probe WHERE mac = ? AND ssid = ?"
+        self.c.execute(query, ('64:32:A8:AC:53:50', 'wifi-regional'))
         row = self.c.fetchone()
+        self.assertIsNotNone(row)
         self.assertEqual(row[0], 'wifi-regional')
 
         query = "SELECT ssid FROM Probe WHERE mac = ? AND ssid LIKE ?"
