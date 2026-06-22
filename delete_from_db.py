@@ -37,7 +37,10 @@ def delete_ap(database, bssid, verbose):
         bssid = bssid.upper()
 
         for table in tables:
-            sql = "DELETE from " + table + " where bssid = ?"
+            # The table name is taken only from the hardcoded `tables` list
+            # above (never from user input), so this is not an injection
+            # vector. The bssid value is passed as a bound parameter.
+            sql = "DELETE from " + table + " where bssid = ?"  # nosec B608
             if verbose:
                 print(sql, bssid)
             cursor.execute(sql, (bssid,))
