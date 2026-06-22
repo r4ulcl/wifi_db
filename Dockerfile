@@ -34,7 +34,7 @@ COPY --from=hcxtools-builder /usr/bin/hcx* /usr/bin/
 
 # Copy and install Python dependencies
 
-RUN python3 -m pip install --no-cache-dir --upgrade pip==20.0.2
+RUN python3 -m pip install --no-cache-dir --upgrade pip==24.0
     
 COPY requirements.txt requirements.txt
 RUN pip3 install --no-cache-dir -r requirements.txt
@@ -46,9 +46,15 @@ COPY . .
 RUN python3 -m pytest \
     && rm -rf test_data
 
-# Create a captures directory
-RUN mkdir /captures/
+# Create a captures directory and a non-root user to run the app.
+# /app holds the default database (db.SQLITE) so SQLite can also create its
+# journal/WAL files there; both /app and /captures are owned by the user.
+RUN mkdir -p /captures/ \
+    && useradd --create-home --shell /usr/sbin/nologin wifidb \
+    && chown -R wifidb:wifidb /app /captures
+
+USER wifidb
 
 # Set the entry point
-ENTRYPOINT ["python3", "/app/wifi_db.py", "/captures/", "-d", "/db.SQLITE"]
+ENTRYPOINT ["python3", "/app/wifi_db.py", "/captures/", "-d", "/app/db.SQLITE"]
 

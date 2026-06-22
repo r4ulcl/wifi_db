@@ -2,21 +2,21 @@
 ''' Parse Aircrack, Kismet and Wigle output to a SQLite DB '''
 # -*- coding: utf-8 -*-
 import csv
-# import xml.etree.ElementTree as ET # vuln!
-import defusedxml.ElementTree as ET
 import os
 import re
-from utils import oui
-import ftfy
-from utils import database_utils
-import pyshark
-import subprocess  # nosec B404 - only used with a fixed, absolute-path command
 # import platform
 import binascii
 import datetime
+import subprocess  # nosec B404 - only used with a fixed, absolute-path command
+# import xml.etree.ElementTree as ET # vuln!
+import defusedxml.ElementTree as ET
+import ftfy
+import pyshark
 from cryptography import x509
 from cryptography.hazmat.primitives import hashes
 from cryptography.x509.oid import NameOID
+from utils import oui
+from utils import database_utils
 
 
 # EAP method types as registered by IANA, used to label the authentication
@@ -746,12 +746,18 @@ def _extract_cert_fields(der, cert_index):
         subject = ""
 
     try:
-        not_before = cert.not_valid_before.strftime("%Y-%m-%d %H:%M:%S")
+        # not_valid_before_utc was added in cryptography 42.0 and replaces the
+        # now-removed naive `not_valid_before`; fall back for older versions.
+        not_valid_before = getattr(cert, 'not_valid_before_utc',
+                                   None) or cert.not_valid_before
+        not_before = not_valid_before.strftime("%Y-%m-%d %H:%M:%S")
     except Exception:
         not_before = ""
 
     try:
-        not_after = cert.not_valid_after.strftime("%Y-%m-%d %H:%M:%S")
+        not_valid_after = getattr(cert, 'not_valid_after_utc',
+                                  None) or cert.not_valid_after
+        not_after = not_valid_after.strftime("%Y-%m-%d %H:%M:%S")
     except Exception:
         not_after = ""
 

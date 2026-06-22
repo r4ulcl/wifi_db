@@ -27,39 +27,34 @@ def createDatabase(database, verbose):
     '''Function to create the tables in the database'''
     script_path = os.path.dirname(os.path.abspath(__file__))
     path = script_path + '/wifi_db_database.sql'
-    db_file = open(path, 'r', encoding='utf-8')
-    views = db_file.read()
+    with open(path, 'r', encoding='utf-8') as db_file:
+        schema = db_file.read()
     try:
-        cursor = database.cursor()
-        for statement in views.split(';'):
-            if statement:
-                cursor.execute(statement + ';')
+        # The schema is a trusted, static .sql file shipped with the project.
+        # executescript runs the whole file in one call, so no per-statement
+        # string building is needed.
+        database.executescript(schema)
         database.commit()
         if verbose:
             print("Database created")
     except sqlite3.IntegrityError as error:
         print("createDatabase" + str(error))
-    db_file.close()
 
 
 def createViews(database, verbose):
     '''Function to create the Views in the database'''
     script_path = os.path.dirname(os.path.abspath(__file__))
     path = script_path + '/view.sql'
-    views_file = open(path, 'r', encoding='utf-8')
-    views = views_file.read()
+    with open(path, 'r', encoding='utf-8') as views_file:
+        views = views_file.read()
     try:
-        cursor = database.cursor()
-        # cursor.executemany(views)
-        for statement in views.split(';'):
-            if statement:
-                cursor.execute(statement + ';')
+        # view.sql is a trusted, static file shipped with the project.
+        database.executescript(views)
         database.commit()
         if verbose:
             print("Views created")
     except sqlite3.IntegrityError as error:
         print("createViews" + str(error))
-    views_file.close()
 
 
 def insertAP(cursor, verbose, bssid, essid, manuf, channel, freqmhz, carrier,

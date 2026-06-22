@@ -3,16 +3,17 @@
 # -*- coding: utf-8 -*-
 
 import argparse
-from utils import wifi_db_aircrack
-from utils import update
-from utils import database_utils
-from utils import oui
 import os
 from os import path
 import platform
 import subprocess  # nosec B404 - only used with fixed, non-shell commands
-import nest_asyncio
+import sys
 import re
+import nest_asyncio
+from utils import wifi_db_aircrack
+from utils import update
+from utils import database_utils
+from utils import oui
 
 
 # import nest_asyncio ; nest_asyncio.apply() ->
@@ -91,12 +92,12 @@ def main():
 
     if args.version:
         printVersion()
-        exit()
+        sys.exit()
 
     if not args.capture:
         print("wifi_db.py: error: the following arguments"
               + " are required: capture")
-        exit()
+        sys.exit()
 
     # vars
     # version = args.version
