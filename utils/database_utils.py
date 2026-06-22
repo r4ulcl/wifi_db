@@ -63,101 +63,51 @@ def _updateAP(cursor, verbose, bssid, essid, manuf, channel, freqmhz,
     '''Merge new values into an existing AP row. Called by insertAP when the
     INSERT hits the primary-key constraint: only fills empty/placeholder
     columns and accumulates packetsTotal.'''
+    bssid = bssid.upper()
+    # Per-column merge rules applied in order. Each only fills an
+    # empty/placeholder value (or accumulates packetsTotal), so re-seeing an
+    # AP enriches its row without overwriting existing data.
+    updates = [
+        ("""UPDATE AP SET ssid = CASE WHEN ssid = '' OR ssid IS NULL
+            THEN (?) ELSE ssid END WHERE bssid = (?)""", (essid, bssid)),
+        ("""UPDATE AP SET manuf = CASE WHEN manuf = '' OR manuf IS NULL
+            THEN (?) ELSE manuf END WHERE bssid = (?)""", (manuf, bssid)),
+        ("""UPDATE AP SET channel = CASE WHEN channel = '' OR channel IS NULL
+            OR channel = 0 THEN (?) ELSE channel END WHERE bssid = (?)""",
+         (channel, bssid)),
+        ("""UPDATE AP SET frequency = CASE WHEN frequency = '' OR frequency
+            IS NULL OR frequency < 2000 THEN (?) ELSE frequency END
+            WHERE bssid = (?)""", (freqmhz, bssid)),
+        ("""UPDATE AP SET carrier = CASE WHEN carrier = '' OR carrier IS NULL
+            THEN (?) ELSE carrier END WHERE bssid = (?)""", (carrier, bssid)),
+        ("""UPDATE AP SET encryption = CASE WHEN encryption = '' OR encryption
+            IS NULL THEN (?) ELSE encryption END WHERE bssid = (?)""",
+         (encryption, bssid)),
+        ("""UPDATE AP SET packetsTotal = packetsTotal + (?)
+            WHERE bssid = (?)""", (packets_total, bssid)),
+        ("""UPDATE AP SET lat_t = CASE WHEN lat_t = 0.0 THEN (?) ELSE lat_t
+            END, lon_t = CASE WHEN lon_t = 0.0 THEN (?) ELSE lon_t END
+            WHERE bssid = (?)""", (lat, lon, bssid)),
+        ("""UPDATE AP SET cloaked = (?) WHERE bssid = (?)""", (cloaked, bssid)),
+        ("""UPDATE AP SET mfpc = CASE WHEN mfpc = 'False' THEN (?) ELSE mfpc
+            END WHERE bssid = (?)""", (mfpc, bssid)),
+        ("""UPDATE AP SET mfpr = CASE WHEN mfpr = 'False' THEN (?) ELSE mfpr
+            END WHERE bssid = (?)""", (mfpr, bssid)),
+    ]
     try:
-        # If firstTimeSeen is before current firstTimeSeen update
-        # Update `firstTimeSeen` column
+        # Keep the earliest firstTimeSeen seen for this AP.
         if firstTimeSeen != 0:
             sql = """UPDATE AP SET firstTimeSeen = CASE WHEN
                      firstTimeSeen = '' OR firstTimeSeen = '0' OR
                      firstTimeSeen IS NULL OR firstTimeSeen > (?) AND
                      (?) <> 0 AND firstTimeSeen <> 0 THEN (?) ELSE
                      firstTimeSeen END WHERE bssid = (?)"""
-            if verbose:
-                print(sql, (firstTimeSeen, bssid))
             cursor.execute(sql, (firstTimeSeen, firstTimeSeen,
-                                 firstTimeSeen, bssid.upper()))
-
-        # Write if empty
-        sql = """UPDATE AP SET ssid = CASE WHEN ssid = '' OR
-                 ssid IS NULL THEN (?) ELSE ssid END WHERE bssid = (?)"""
-        if verbose:
-            print(sql, (essid, bssid.upper()))
-        cursor.execute(sql, (essid, bssid.upper()))
-
-        # Update `manuf` column
-        sql = """UPDATE AP SET manuf = CASE WHEN manuf = '' OR manuf IS
-                NULL THEN (?) ELSE manuf END WHERE bssid = (?)"""
-        if verbose:
-            print(sql, (manuf, bssid.upper()))
-        cursor.execute(sql, (manuf, bssid.upper()))
-
-        # Update `channel` column
-        sql = """UPDATE AP SET channel = CASE WHEN channel = '' OR channel
-                IS NULL OR channel = 0 THEN (?) ELSE channel END
-                WHERE bssid = (?)"""
-        if verbose:
-            print(sql, (channel, bssid))
-        cursor.execute(sql, (channel, bssid.upper()))
-
-        # Update `frequency` column
-        sql = """UPDATE AP SET frequency = CASE WHEN frequency = '' OR
-                 frequency IS NULL OR frequency < 2000 THEN (?) ELSE
-                 frequency END WHERE bssid = (?)"""
-        if verbose:
-            print(sql, (freqmhz, bssid))
-        cursor.execute(sql, (freqmhz, bssid.upper()))
-
-        # Update `carrier` column
-        sql = """UPDATE AP SET carrier = CASE WHEN carrier = '' OR
-                 carrier IS NULL
-                 THEN (?) ELSE carrier END WHERE bssid = (?)"""
-        if verbose:
-            print(sql, (carrier, bssid))
-        cursor.execute(sql, (carrier, bssid.upper()))
-
-        # Update `encryption` column
-        sql = """UPDATE AP SET encryption = CASE WHEN encryption = '' OR
-                encryption IS NULL THEN (?) ELSE encryption END
-                WHERE bssid = (?)"""
-        if verbose:
-            print(sql, (encryption, bssid))
-        cursor.execute(sql, (encryption, bssid.upper()))
-
-        # Update `packetsTotal` column
-        sql = """UPDATE AP SET packetsTotal = packetsTotal + (?)
-                WHERE bssid = (?)"""
-        if verbose:
-            print(sql, (packets_total, bssid.upper()))
-        cursor.execute(sql, (packets_total, bssid.upper()))
-
-        # Update `lat_t` and `lon_t` columns
-        sql = """UPDATE AP SET lat_t = CASE WHEN lat_t = 0.0 THEN (?)
-                ELSE lat_t END, lon_t = CASE WHEN lon_t = 0.0 THEN (?)
-                ELSE lon_t END WHERE bssid = (?)"""
-        if verbose:
-            print(sql, (lat, lon, bssid.upper()))
-        cursor.execute(sql, (lat, lon, bssid.upper()))
-
-        # Update `cloaked` column
-        sql = """UPDATE AP SET cloaked = (?) WHERE bssid = (?)"""
-        if verbose:
-            print(sql, (cloaked, bssid.upper()))
-        cursor.execute(sql, (cloaked, bssid.upper()))
-
-        # UPDATE `mfpc` columns
-        sql = """UPDATE AP SET mfpc = CASE WHEN mfpc = 'False' THEN (?)
-                ELSE mfpc END WHERE bssid = (?)"""
-        if verbose:
-            print(sql, (mfpc, bssid.upper()))
-        cursor.execute(sql, (mfpc, bssid.upper()))
-
-        # UPDATE `mfpr` columns
-        sql = """UPDATE AP SET mfpr = CASE WHEN mfpr = 'False' THEN (?)
-                ELSE mfpr END WHERE bssid = (?)"""
-        if verbose:
-            print(sql, (mfpr, bssid.upper()))
-        cursor.execute(sql, (mfpr, bssid.upper()))
-
+                                 firstTimeSeen, bssid))
+        for sql, params in updates:
+            if verbose:
+                print(sql, params)
+            cursor.execute(sql, params)
         return int(0)
     except sqlite3.IntegrityError as update_error:
         if verbose:

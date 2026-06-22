@@ -5,13 +5,43 @@ import csv
 import os
 import re
 # import platform
+import asyncio
 import binascii
 import datetime
 import subprocess  # nosec B404 - only used with a fixed, absolute-path command
 # import xml.etree.ElementTree as ET # vuln!
 import defusedxml.ElementTree as ET
 import ftfy
-import pyshark
+
+
+# Python 3.14 removed the asyncio child-watcher API (get_child_watcher /
+# set_child_watcher / AbstractChildWatcher). pyshark 0.6 and nest_asyncio
+# still reference it; on 3.14 the event loop manages subprocesses on its own,
+# so install no-op shims to keep pyshark's FileCapture working. Must run before
+# pyshark is imported/used and before nest_asyncio.apply().
+if not hasattr(asyncio, "get_child_watcher"):
+    class _NullChildWatcher:
+        '''Minimal stand-in for the removed asyncio child watcher.'''
+        def attach_loop(self, loop):
+            pass
+
+        def close(self):
+            pass
+
+        def is_active(self):
+            return True
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *exc):
+            return False
+
+    _NULL_CHILD_WATCHER = _NullChildWatcher()
+    asyncio.get_child_watcher = lambda *a, **k: _NULL_CHILD_WATCHER
+    asyncio.set_child_watcher = lambda *a, **k: None
+
+import pyshark  # noqa: E402  (imported after the child-watcher shim above)
 from cryptography import x509
 from cryptography.hazmat.primitives import hashes
 from cryptography.x509.oid import (NameOID, ExtensionOID,
@@ -831,14 +861,11 @@ def _basic_constraints(cert):
 
 def _key_identifier(cert, oid, attribute):
     '''Return a hex key identifier (authority or subject) or ""'''
-    try:
+    def _read():
         value = cert.extensions.get_extension_for_oid(oid).value
         identifier = getattr(value, attribute, None)
-        if identifier:
-            return identifier.hex()
-    except Exception:
-        pass
-    return ""
+        return identifier.hex() if identifier else ""
+    return _safe(_read)
 
 
 def _crl_urls(cert):
@@ -1203,6 +1230,26 @@ def parse_security(name, database, verbose):
         print(".cap Security done, errors", errors)
 
 
+def _eap_md5_packet(pkt):
+    '''Return (code, eap_id, src, dst, md5_value) for an EAP-MD5 packet, or
+    None when a required field is missing.'''
+    try:
+        md5_value = pkt.eap.md5_value.replace(':', '')
+        if not md5_value:
+            return None
+        return pkt.eap.code, pkt.eap.id, pkt.wlan.sa, pkt.wlan.da, md5_value
+    except Exception:
+        return None
+
+
+def _eap_md5_hashcat(eap_id, challenge, response):
+    '''Build the hashcat -m 4800 line response:challenge:id; the EAP id is
+    hex-encoded (pyshark exposes eap.id as decimal).'''
+    value = _to_int(eap_id)
+    eap_id_hex = format(value, '02x') if value is not None else eap_id
+    return response + ":" + challenge + ":" + eap_id_hex
+
+
 # Get EAP-MD5 challenge/response pairs (crackable with hashcat -m 4800)
 def parse_eap_md5(name, database, verbose):
     try:
@@ -1216,43 +1263,24 @@ def parse_eap_md5(name, database, verbose):
         # (response, from the client) sharing the same EAP id.
         challenges = {}  # (ap, client, eap_id) -> challenge hex
         for pkt in cap:
-            try:
-                code = pkt.eap.code
-                eap_id = pkt.eap.id
-                src = pkt.wlan.sa
-                dst = pkt.wlan.da
-            except Exception:
+            parsed = _eap_md5_packet(pkt)
+            if parsed is None:
                 continue
-
-            try:
-                md5_value = pkt.eap.md5_value.replace(':', '')
-            except Exception:
-                md5_value = None
-            if not md5_value:
-                continue
+            code, eap_id, src, dst, md5_value = parsed
 
             if code == '1':  # EAP-Request/MD5-Challenge sent by the AP
                 challenges[(src, dst, eap_id)] = md5_value
             elif code == '2':  # EAP-Response/MD5-Challenge sent by the client
-                ap = dst
-                client = src
-                challenge = challenges.get((ap, client, eap_id))
+                challenge = challenges.get((dst, src, eap_id))
                 if not challenge:
                     continue
-                response = md5_value
-                # hashcat -m 4800 format: response:challenge:id where the EAP
-                # id is hex-encoded (pyshark exposes eap.id as decimal).
-                try:
-                    eap_id_hex = format(int(eap_id), '02x')
-                except Exception:
-                    eap_id_hex = eap_id
-                hashcat = response + ":" + challenge + ":" + eap_id_hex
+                hashcat = _eap_md5_hashcat(eap_id, challenge, md5_value)
                 if verbose:
-                    print("EAP-MD5 " + str(client) + " -> " + str(ap) +
+                    print("EAP-MD5 " + str(src) + " -> " + str(dst) +
                           ": " + hashcat)
                 errors += database_utils.insertEAPMD5(
-                    cursor, verbose, ap, client, "", eap_id, challenge,
-                    response, hashcat, file)
+                    cursor, verbose, dst, src, "", eap_id, challenge,
+                    md5_value, hashcat, file)
 
         database.commit()
         print(".cap EAP-MD5 done, errors", errors)
