@@ -88,6 +88,9 @@ CREATE TABLE IF NOT EXISTS Probe
     mac TEXT NOT NULL,
     ssid TEXT NOT NULL,
     time datetime,
+    fingerprint TEXT,
+    ie_order TEXT,
+    file TEXT,
     CONSTRAINT Key5 PRIMARY KEY (mac,ssid),
     CONSTRAINT ProbesSent FOREIGN KEY (mac) REFERENCES Client (mac) ON UPDATE CASCADE ON DELETE CASCADE
 );
@@ -187,12 +190,3 @@ CREATE TABLE IF NOT EXISTS EAPMD5
 );
 
 
-CREATE TABLE IF NOT EXISTS ProbeFingerprint
-(
-    mac TEXT NOT NULL,
-    fingerprint TEXT NOT NULL,
-    ie_order TEXT,
-    file TEXT,
-    CONSTRAINT KeyProbeFingerprint PRIMARY KEY (mac,fingerprint),
-    CONSTRAINT RelationshipProbeFingerprint FOREIGN KEY (mac) REFERENCES Client (mac) ON UPDATE CASCADE ON DELETE CASCADE
-);
