@@ -19,6 +19,44 @@ from cryptography.hazmat.primitives import hashes
 from cryptography.x509.oid import NameOID
 
 
+# EAP method types as registered by IANA, used to label the authentication
+# method seen for each identity.
+# https://www.iana.org/assignments/eap-numbers/eap-numbers.xhtml
+# Type 1 (Identity) is handled separately to capture the identity string.
+EAP_METHOD_TYPES = {
+    '2': "EAP-Notification",
+    '3': "EAP-Legacy-Nak",
+    '4': "EAP-MD5",
+    '5': "EAP-OTP",
+    '6': "EAP-GTC",
+    '9': "EAP-RSA",
+    '10': "EAP-DSS",
+    '11': "EAP-KEA",
+    '12': "EAP-KEA-VALIDATE",
+    '13': "EAP-TLS",
+    '15': "EAP-SecurID",
+    '17': "EAP-LEAP",
+    '18': "EAP-SIM",
+    '19': "EAP-SRP-SHA1",
+    '21': "EAP-TTLS",
+    '23': "EAP-AKA",
+    '25': "EAP-PEAP",
+    '26': "MS-EAP-Authentication",
+    '29': "EAP-MSCHAPv2",
+    '43': "EAP-FAST",
+    '46': "EAP-PAX",
+    '47': "EAP-PSK",
+    '48': "EAP-SAKE",
+    '49': "EAP-IKEv2",
+    '50': "EAP-AKA'",
+    '51': "EAP-GPSK",
+    '52': "EAP-pwd",
+    '53': "EAP-EKE",
+    '54': "EAP-PT",
+    '55': "EAP-TEAP",
+}
+
+
 def parse_netxml(ouiMap, name, database, verbose):
     '''Function to parse the .kismet.netxml files'''
 
@@ -607,7 +645,7 @@ def parse_identities(name, database, verbose):
         for pkt in cap:
             # print(pkt.eapol.field_names)
             try:
-                if pkt.eap.type == '1':  # EAP = 1
+                if pkt.eap.type == '1':  # EAP Identity
                     dst = pkt.wlan.da
                     src = pkt.wlan.sa
                     if pkt.eap.code == '2':
@@ -617,24 +655,13 @@ def parse_identities(name, database, verbose):
                             errors += 1
                             if verbose:
                                 print(error)
-                # EAP-PEAP
-                elif pkt.eap.type == '25':  # Found EAP-PEAP
-                    method = "EAP-PEAP"
-                    # Insert, if its already error and continue
-                    database_utils.insertIdentity(cursor, verbose,
-                                                  dst, src, identity, method)
-
-                elif pkt.eap.type == '13':  # Found EAP-TLS
-                    method = "EAP-TLS"
-                    database_utils.insertIdentity(cursor, verbose,
-                                                  dst, src, identity, method)
-                elif pkt.eap.type == '4':  # Found EAP-MD5
-                    method = "EAP-MD5"
-                    database_utils.insertIdentity(cursor, verbose,
-                                                  dst, src, identity, method)
                 else:
-                    method = "OTHER (NOT EAP-PEAP OR EAP-TLS) - ID: " + \
-                        pkt.eap.type
+                    # Look up the authentication method by its EAP type,
+                    # falling back to a generic label for unknown types.
+                    method = EAP_METHOD_TYPES.get(
+                        pkt.eap.type,
+                        "OTHER (UNKNOWN EAP METHOD) - ID: " + pkt.eap.type)
+                    # Insert, if its already error and continue
                     database_utils.insertIdentity(cursor, verbose,
                                                   dst, src, identity, method)
             except Exception as e:
