@@ -55,7 +55,10 @@ class TestFunctions(unittest.TestCase):
             ('Handshake',),
             ('Identity',),
             ('Files',),
-            ('Certificate',)
+            ('Certificate',),
+            ('Security',),
+            ('EAPMD5',),
+            ('ProbeFingerprint',)
         ]
         self.assertEqual(tables, expected_tables)
 
@@ -77,6 +80,8 @@ class TestFunctions(unittest.TestCase):
             ('HandshakeAP',),
             ('HandshakeAPUnique',),
             ('IdentityAP',),
+            ('CertificateAP',),
+            ('SecurityAP',),
             ('SummaryAP',)
         ]
         self.assertEqual(views, expected_views)
@@ -119,10 +124,13 @@ class TestFunctions(unittest.TestCase):
 
         self.assertEqual(result, 0)
 
-        self.c.execute("SELECT manuf FROM Client WHERE mac=?", (self.mac,))
+        self.c.execute("SELECT manuf, randomized FROM Client WHERE mac=?",
+                       (self.mac,))
         rows = self.c.fetchall()
         self.assertEqual(len(rows), 1)
         self.assertEqual(rows[0][0], manuf)
+        # 55:.. first octet 0x55, locally-administered bit clear -> not random
+        self.assertEqual(rows[0][1], 'False')
 
     def test_insertWPS(self):
         # Define WPS parameters
@@ -168,6 +176,19 @@ class TestFunctions(unittest.TestCase):
             'issuer_ou': 'IT',
             'public_key_algorithm': 'RSA',
             'public_key_size': 2048,
+            'public_key_curve': '',
+            'public_key_exponent': '65537',
+            'subject_alt_names': 'radius.test.local, 10.0.0.1',
+            'key_usage': 'digitalSignature, keyEncipherment',
+            'ext_key_usage': 'serverAuth',
+            'is_ca': 'False',
+            'path_length': None,
+            'self_signed': 'False',
+            'authority_key_id': 'aabbcc',
+            'subject_key_id': 'ddeeff',
+            'crl_urls': 'http://crl.test.local/ca.crl',
+            'ocsp_urls': 'http://ocsp.test.local',
+            'validity_days': 366,
             'sha1_fingerprint': '00aa11bb22cc',
             'sha256_fingerprint': '00aa11bb22cc33dd44ee',
         }
@@ -179,6 +200,8 @@ class TestFunctions(unittest.TestCase):
         self.assertEqual(result, 0)
 
         self.c.execute("SELECT subject_cn, issuer_cn, cert_type, "
+                       "subject_alt_names, ext_key_usage, self_signed, "
+                       "validity_days, public_key_exponent, "
                        "sha256_fingerprint "
                        "FROM Certificate WHERE bssid = ?", (self.bssid,))
         rows = self.c.fetchall()
@@ -186,7 +209,12 @@ class TestFunctions(unittest.TestCase):
         self.assertEqual(rows[0][0], cert['subject_cn'])
         self.assertEqual(rows[0][1], cert['issuer_cn'])
         self.assertEqual(rows[0][2], 'AP')
-        self.assertEqual(rows[0][3], cert['sha256_fingerprint'])
+        self.assertEqual(rows[0][3], cert['subject_alt_names'])
+        self.assertEqual(rows[0][4], cert['ext_key_usage'])
+        self.assertEqual(rows[0][5], cert['self_signed'])
+        self.assertEqual(rows[0][6], cert['validity_days'])
+        self.assertEqual(rows[0][7], cert['public_key_exponent'])
+        self.assertEqual(rows[0][8], cert['sha256_fingerprint'])
 
         # A client certificate (different fingerprint) is stored in the same
         # table for the same AP, tagged with its own cert_type
@@ -210,6 +238,107 @@ class TestFunctions(unittest.TestCase):
         self.c.execute("SELECT COUNT(*) FROM Certificate WHERE bssid = ?",
                        (self.bssid,))
         self.assertEqual(self.c.fetchone()[0], 2)
+
+    def test_insertSecurity(self):
+        # Insert RSN/WPA security details for an AP (WPA3-Enterprise)
+        result = database_utils.insertSecurity(
+            self.c, self.verbose, self.bssid, 'WPA3',
+            '802.1X-SuiteB-SHA384', 'GCMP-256', 'GCMP-256', 'True',
+            'Required', '0x00c0', 'test.cap')
+        self.assertEqual(result, 0)
+
+        self.c.execute("SELECT wpa_version, akm_suites, pairwise_ciphers, "
+                       "enterprise, pmf FROM Security WHERE bssid = ?",
+                       (self.bssid,))
+        rows = self.c.fetchall()
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0][0], 'WPA3')
+        self.assertEqual(rows[0][1], '802.1X-SuiteB-SHA384')
+        self.assertEqual(rows[0][2], 'GCMP-256')
+        self.assertEqual(rows[0][3], 'True')
+        self.assertEqual(rows[0][4], 'Required')
+
+        # A second beacon for the same BSSID replaces the row (no duplicate)
+        result = database_utils.insertSecurity(
+            self.c, self.verbose, self.bssid, 'WPA2', 'PSK', 'CCMP-128',
+            'CCMP-128', 'False', 'Capable', '0x0080', 'test.cap')
+        self.assertEqual(result, 0)
+        self.c.execute("SELECT COUNT(*), MAX(wpa_version) FROM Security "
+                       "WHERE bssid = ?", (self.bssid,))
+        count, wpa_version = self.c.fetchone()
+        self.assertEqual(count, 1)
+        self.assertEqual(wpa_version, 'WPA2')
+
+    def test_security_and_certificate_views(self):
+        # The SecurityAP and CertificateAP views must join Security/Certificate
+        # to AP on the BSSID and expose the expected columns.
+        database_utils.insertSecurity(
+            self.c, self.verbose, self.bssid, 'WPA3', 'SAE', 'CCMP-128',
+            'CCMP-128', 'False', 'Required', '0x00c0', 'test.cap')
+        self.c.execute("SELECT wpa_version, pmf FROM SecurityAP "
+                       "WHERE bssid = ?", (self.bssid,))
+        row = self.c.fetchone()
+        self.assertIsNotNone(row)
+        self.assertEqual(row[0], 'WPA3')
+        self.assertEqual(row[1], 'Required')
+
+        cert = {
+            'cert_index': 0, 'version': 'v3', 'serial_number': 'ab',
+            'signature_algorithm': 'sha256WithRSAEncryption',
+            'issuer': 'CN=CA', 'subject': 'CN=radius',
+            'not_before': '', 'not_after': '', 'subject_cn': 'radius',
+            'subject_o': '', 'subject_ou': '', 'issuer_cn': 'CA',
+            'issuer_o': '', 'issuer_ou': '', 'public_key_algorithm': 'RSA',
+            'public_key_size': 2048, 'public_key_curve': '',
+            'public_key_exponent': '65537', 'subject_alt_names': '',
+            'key_usage': '', 'ext_key_usage': '', 'is_ca': 'False',
+            'path_length': None, 'self_signed': 'False',
+            'authority_key_id': '', 'subject_key_id': '', 'crl_urls': '',
+            'ocsp_urls': '', 'validity_days': 365,
+            'sha1_fingerprint': 'aa', 'sha256_fingerprint': 'viewfp',
+        }
+        database_utils.insertCertificate(self.c, self.verbose, self.bssid,
+                                         self.mac, 'AP', 'test.cap', cert)
+        self.c.execute("SELECT cert_type, subject_cn FROM CertificateAP "
+                       "WHERE bssid = ?", (self.bssid,))
+        row = self.c.fetchone()
+        self.assertIsNotNone(row)
+        self.assertEqual(row[0], 'AP')
+        self.assertEqual(row[1], 'radius')
+
+    def test_isRandomizedMAC(self):
+        # bit 1 of the first octet set -> locally administered (randomized)
+        self.assertEqual(database_utils.isRandomizedMAC("DA:BB:CC:DD:EE:FF"),
+                         'True')
+        # globally administered (OUI) MAC -> not randomized
+        self.assertEqual(database_utils.isRandomizedMAC("00:11:22:33:44:55"),
+                         'False')
+
+    def test_insertEAPMD5(self):
+        result = database_utils.insertEAPMD5(
+            self.c, self.verbose, self.bssid, self.mac, "user", "42",
+            "0102030405060708090a0b0c0d0e0f10",
+            "aabbccddeeff00112233445566778899",
+            "aabbccddeeff00112233445566778899:"
+            "0102030405060708090a0b0c0d0e0f10:42", 'test.cap')
+        self.assertEqual(result, 0)
+        self.c.execute("SELECT identity, eap_id, hashcat FROM EAPMD5 "
+                       "WHERE bssid = ? AND mac = ?", (self.bssid, self.mac))
+        row = self.c.fetchone()
+        self.assertEqual(row[0], "user")
+        self.assertEqual(row[1], "42")
+        self.assertTrue(row[2].endswith(":42"))
+
+    def test_insertProbeFingerprint(self):
+        result = database_utils.insertProbeFingerprint(
+            self.c, self.verbose, self.mac, "abc123", "0,1,50,3,45,221",
+            'test.cap')
+        self.assertEqual(result, 0)
+        self.c.execute("SELECT fingerprint, ie_order FROM ProbeFingerprint "
+                       "WHERE mac = ?", (self.mac,))
+        row = self.c.fetchone()
+        self.assertEqual(row[0], "abc123")
+        self.assertEqual(row[1], "0,1,50,3,45,221")
 
     def test_insertConnected(self):
         # add needed data
@@ -287,10 +416,21 @@ class TestFunctions(unittest.TestCase):
                                                self.bssid, self.mac, identity,
                                                method)
         self.assertEqual(result, 0)
-        self.c.execute("SELECT identity FROM Identity WHERE mac=?",
+        self.c.execute("SELECT identity, realm FROM Identity WHERE mac=?",
                        (self.mac,))
         row = self.c.fetchone()
         self.assertEqual(row[0], identity)
+        self.assertEqual(row[1], "")  # no '@' -> no realm
+
+        # An anonymous outer identity carries the realm after '@'
+        result = database_utils.insertIdentity(self.c, self.verbose,
+                                               self.bssid, self.mac,
+                                               "anonymous@example.com",
+                                               "EAP-TTLS")
+        self.assertEqual(result, 0)
+        self.c.execute("SELECT realm FROM Identity WHERE mac=? AND "
+                       "identity=?", (self.mac, "anonymous@example.com"))
+        self.assertEqual(self.c.fetchone()[0], "example.com")
 
     def test_insertSeenClient(self):
         # add needed data

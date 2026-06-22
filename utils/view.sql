@@ -36,6 +36,18 @@ SELECT Identity.bssid, AP.ssid, Identity.mac, Client.manuf, Identity.identity, I
 FROM Identity JOIN AP ON Identity.bssid = AP.bssid  JOIN Client ON Identity.mac = Client.mac
 ORDER BY Identity.bssid;
 
+DROP VIEW IF EXISTS CertificateAP;
+CREATE VIEW IF NOT EXISTS CertificateAP AS
+SELECT Certificate.bssid, AP.ssid, Certificate.cert_type, Certificate.subject_cn, Certificate.issuer_cn, Certificate.subject, Certificate.issuer, Certificate.not_before, Certificate.not_after, Certificate.public_key_algorithm, Certificate.public_key_size, Certificate.self_signed, Certificate.sha256_fingerprint
+FROM Certificate JOIN AP ON Certificate.bssid = AP.bssid
+ORDER BY Certificate.bssid;
+
+DROP VIEW IF EXISTS SecurityAP;
+CREATE VIEW IF NOT EXISTS SecurityAP AS
+SELECT Security.bssid, AP.ssid, Security.wpa_version, Security.akm_suites, Security.pairwise_ciphers, Security.group_cipher, Security.enterprise, Security.pmf, Security.rsn_capabilities, AP.mfpc, AP.mfpr
+FROM Security JOIN AP ON Security.bssid = AP.bssid
+ORDER BY Security.bssid;
+
 DROP VIEW IF EXISTS SummaryAP;
 CREATE VIEW IF NOT EXISTS SummaryAP AS
 SELECT AP.ssid, COUNT(DISTINCT AP.bssid) as "APs count", AP.encryption, AP.manuf, AP.cloaked, count(DISTINCT Connected.mac) as "Clients count"

@@ -181,13 +181,24 @@ def insertAP(cursor, verbose, bssid, essid, manuf, channel, freqmhz, carrier,
         return int(1)
 
 
+def isRandomizedMAC(mac):
+    '''A MAC is locally administered (randomized) when bit 1 of the first
+    octet is set. Returns 'True'/'False' strings (codebase boolean style).'''
+    try:
+        first_octet = int(mac.replace(':', '').replace('-', '')[0:2], 16)
+        return 'True' if first_octet & 0x02 else 'False'
+    except Exception:
+        return 'False'
+
+
 def insertClients(cursor, verbose, mac, ssid, manuf,
                   client_type, packets_total, device, firstTimeSeen):
     '''Function to insert clients in the database'''
     try:
-        cursor.execute('''INSERT INTO client VALUES(?,?,?,?,?,?,?)''',
+        randomized = isRandomizedMAC(mac)
+        cursor.execute('''INSERT INTO client VALUES(?,?,?,?,?,?,?,?)''',
                        (mac.upper(), ssid, manuf, client_type, packets_total,
-                        device,
+                        device, randomized,
                         firstTimeSeen))
         return int(0)
     except sqlite3.IntegrityError as error:
@@ -340,7 +351,8 @@ def insertCertificate(cursor, verbose, bssid, mac, cert_type, file, cert):
         mac = mac.upper() if mac else mac
 
         cursor.execute('''INSERT INTO Certificate VALUES
-                          (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)''',
+                          (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,
+                           ?,?,?,?,?,?,?,?,?,?)''',
                        (bssid.upper(), mac, cert_type, file,
                         cert.get('cert_index'),
                         cert.get('version'),
@@ -358,6 +370,19 @@ def insertCertificate(cursor, verbose, bssid, mac, cert_type, file, cert):
                         cert.get('issuer_ou'),
                         cert.get('public_key_algorithm'),
                         cert.get('public_key_size'),
+                        cert.get('public_key_curve'),
+                        cert.get('public_key_exponent'),
+                        cert.get('subject_alt_names'),
+                        cert.get('key_usage'),
+                        cert.get('ext_key_usage'),
+                        cert.get('is_ca'),
+                        cert.get('path_length'),
+                        cert.get('self_signed'),
+                        cert.get('authority_key_id'),
+                        cert.get('subject_key_id'),
+                        cert.get('crl_urls'),
+                        cert.get('ocsp_urls'),
+                        cert.get('validity_days'),
                         cert.get('sha1_fingerprint'),
                         cert.get('sha256_fingerprint')))
         return int(0)
@@ -369,6 +394,36 @@ def insertCertificate(cursor, verbose, bssid, mac, cert_type, file, cert):
     except sqlite3.Error as error:
         if verbose:
             print("insertCertificate Error " + str(error))
+        return int(1)
+
+
+def insertSecurity(cursor, verbose, bssid, wpa_version, akm_suites,
+                   pairwise_ciphers, group_cipher, enterprise, pmf,
+                   rsn_capabilities, file):
+    '''Insert the RSN/WPA security details parsed from an AP beacon.
+
+    The data is keyed by BSSID; the latest beacon wins (INSERT OR REPLACE)
+    since the security configuration is stable for a given AP. `pmf` is the
+    management-frame-protection state ('Required', 'Capable' or 'Disabled')
+    and `rsn_capabilities` is the raw RSN capabilities bitfield.'''
+    try:
+        # Insert AP CONSTRAINT (create the AP row if it does not exist yet)
+        insertAP(cursor, verbose, bssid, "", "", "", "", "", "", "",
+                 "0.0", "0.0", 'False', 'False', 'False', 0)
+
+        cursor.execute('''INSERT OR REPLACE INTO Security
+                          VALUES(?,?,?,?,?,?,?,?,?)''',
+                       (bssid.upper(), wpa_version, akm_suites,
+                        pairwise_ciphers, group_cipher, enterprise, pmf,
+                        rsn_capabilities, file))
+        return int(0)
+    except sqlite3.IntegrityError as error:
+        if verbose:
+            print("insertSecurity " + str(error))
+        return int(0)
+    except sqlite3.Error as error:
+        if verbose:
+            print("insertSecurity Error " + str(error))
         return int(1)
 
 
@@ -502,12 +557,19 @@ def insertIdentity(cursor, verbose, bssid, mac, identity, method):
                           freqmhz, carrier, encryption, packets_total, lat,
                           lon, cloaked, mfpc, mfpr, 0)
 
+        # The realm is the part after '@' in a user@realm identity (the
+        # anonymous outer identity often carries only the realm).
+        realm = ""
+        if identity and '@' in identity:
+            realm = identity.rsplit('@', 1)[1]
+
         if verbose:
-            print('output ' + bssid.upper(), mac.upper(), identity, method)
+            print('output ' + bssid.upper(), mac.upper(), identity, method,
+                  realm)
         # print(row[5].replace(' ', ''))
         cursor.execute(
-            '''INSERT INTO identity VALUES(?,?,?,?)''',
-            (bssid.upper(), mac.upper(), identity, method))
+            '''INSERT INTO identity VALUES(?,?,?,?,?)''',
+            (bssid.upper(), mac.upper(), identity, method, realm))
         return int(0)
     except sqlite3.IntegrityError as error:
         # errors += 1
@@ -517,6 +579,52 @@ def insertIdentity(cursor, verbose, bssid, mac, identity, method):
     except sqlite3.Error as error:
         if verbose:
             print("insertIdentity Error " + str(error))
+        return int(1)
+
+
+def insertEAPMD5(cursor, verbose, bssid, mac, identity, eap_id, challenge,
+                 response, hashcat, file):
+    '''Insert a captured EAP-MD5 challenge/response pair (crackable offline
+    with hashcat -m 4800). Keyed by (bssid, mac, eap_id).'''
+    try:
+        # Insert Client and AP CONSTRAINT
+        insertClients(cursor, verbose, mac, "", "", "", "0", "", 0)
+        insertAP(cursor, verbose, bssid, "", "", "", "", "", "", "",
+                 "0.0", "0.0", 'False', 'False', 'False', 0)
+
+        cursor.execute('''INSERT OR REPLACE INTO EAPMD5
+                          VALUES(?,?,?,?,?,?,?,?)''',
+                       (bssid.upper(), mac.upper(), identity, eap_id,
+                        challenge, response, hashcat, file))
+        return int(0)
+    except sqlite3.IntegrityError as error:
+        if verbose:
+            print("insertEAPMD5 " + str(error))
+        return int(0)
+    except sqlite3.Error as error:
+        if verbose:
+            print("insertEAPMD5 Error " + str(error))
+        return int(1)
+
+
+def insertProbeFingerprint(cursor, verbose, mac, fingerprint, ie_order, file):
+    '''Insert a probe-request fingerprint (ordered list of information element
+    IDs and its hash) for device identification. Keyed by (mac, fingerprint).'''
+    try:
+        # Insert Client CONSTRAINT
+        insertClients(cursor, verbose, mac, "", "", "", "0", "", 0)
+
+        cursor.execute('''INSERT OR REPLACE INTO ProbeFingerprint
+                          VALUES(?,?,?,?)''',
+                       (mac.upper(), fingerprint, ie_order, file))
+        return int(0)
+    except sqlite3.IntegrityError as error:
+        if verbose:
+            print("insertProbeFingerprint " + str(error))
+        return int(0)
+    except sqlite3.Error as error:
+        if verbose:
+            print("insertProbeFingerprint Error " + str(error))
         return int(1)
 
 

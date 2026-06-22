@@ -14,7 +14,8 @@ import ftfy
 import pyshark
 from cryptography import x509
 from cryptography.hazmat.primitives import hashes
-from cryptography.x509.oid import NameOID
+from cryptography.x509.oid import (NameOID, ExtensionOID,
+                                   AuthorityInformationAccessOID)
 from utils import oui
 from utils import database_utils
 
@@ -54,6 +55,51 @@ EAP_METHOD_TYPES = {
     '53': "EAP-EKE",
     '54': "EAP-PT",
     '55': "EAP-TEAP",
+}
+
+
+# RSN AKM (Authentication and Key Management) suite selectors, OUI 00-0F-AC.
+# https://www.iana.org/assignments/... (IEEE 802.11 RSN suite types)
+RSN_AKM_SUITES = {
+    '1': "802.1X",
+    '2': "PSK",
+    '3': "FT-802.1X",
+    '4': "FT-PSK",
+    '5': "802.1X-SHA256",
+    '6': "PSK-SHA256",
+    '7': "TDLS",
+    '8': "SAE",
+    '9': "FT-SAE",
+    '10': "AP-PeerKey",
+    '11': "802.1X-SuiteB-SHA256",
+    '12': "802.1X-SuiteB-SHA384",
+    '13': "FT-802.1X-SHA384",
+    '14': "FILS-SHA256",
+    '15': "FILS-SHA384",
+    '16': "FT-FILS-SHA256",
+    '17': "FT-FILS-SHA384",
+    '18': "OWE",
+    '19': "FT-PSK-SHA384",
+    '20': "PSK-SHA384",
+}
+
+# AKM selectors that indicate an enterprise (802.1X / EAP) network.
+RSN_ENTERPRISE_AKMS = {1, 3, 5, 11, 12, 13, 14, 15, 16, 17}
+
+# RSN cipher suite selectors, OUI 00-0F-AC.
+RSN_CIPHERS = {
+    '0': "Use-Group",
+    '1': "WEP-40",
+    '2': "TKIP",
+    '4': "CCMP-128",
+    '5': "WEP-104",
+    '6': "BIP-CMAC-128",
+    '8': "GCMP-128",
+    '9': "GCMP-256",
+    '10': "CCMP-256",
+    '11': "BIP-GMAC-128",
+    '12': "BIP-GMAC-256",
+    '13': "BIP-CMAC-256",
 }
 
 
@@ -415,6 +461,9 @@ def parse_cap(name, database, verbose, hcxpcapngtool, tshark):
         parse_identities(name, database, verbose)
         parse_MFP(name, database, verbose)
         parse_certificates(name, database, verbose)
+        parse_security(name, database, verbose)
+        parse_eap_md5(name, database, verbose)
+        parse_probe_fingerprint(name, database, verbose)
     if hcxpcapngtool:
         exec_hcxpcapngtool(name, database, verbose)
 
@@ -498,15 +547,16 @@ def parse_MFP(name, database, verbose):
                 mfpr = 'False'
                 if pkt['wlan.mgt'].wlan_rsn_capabilities and pkt.wlan.ta:
                     capabilities = pkt['wlan.mgt'].wlan_rsn_capabilities
-                    # 0x0000008c MFPC only enable
-                    if capabilities == '0x0000008c':
+                    # MFP lives in the RSN Capabilities bitfield:
+                    #   bit 7 (0x80) = MFP Capable
+                    #   bit 6 (0x40) = MFP Required
+                    # Test the bits instead of matching exact values, so APs
+                    # with other capability bits set are detected too.
+                    cap_int = int(capabilities, 16)
+                    if cap_int & 0x80:
                         mfpc = 'True'
-                    # 0x000000cc MFP C and R enable
-                    elif capabilities == '0x000000cc':
-                        mfpc = 'True'
+                    if cap_int & 0x40:
                         mfpr = 'True'
-                    # mfpc = int(capabilities, 16) & 0x01
-                    # mfpr = (int(capabilities, 16) & 0x02) >> 1
                     src = pkt.wlan.ta
                     # if mfpc is 1 insert in DB
                     if mfpc == 'True' or mfpr == 'True':
@@ -712,6 +762,116 @@ def _public_key_algorithm(public_key):
     return class_name
 
 
+def _subject_alt_names(cert):
+    '''Return the Subject Alternative Names (DNS, IP, email) as a string'''
+    try:
+        ext = cert.extensions.get_extension_for_oid(
+            ExtensionOID.SUBJECT_ALTERNATIVE_NAME).value
+        values = []
+        for general_name in ext:
+            try:
+                values.append(str(general_name.value))
+            except Exception:
+                values.append(str(general_name))
+        return ", ".join(values)
+    except Exception:
+        return ""
+
+
+def _key_usage(cert):
+    '''Return the Key Usage flags as a comma separated string'''
+    try:
+        usage = cert.extensions.get_extension_for_oid(
+            ExtensionOID.KEY_USAGE).value
+        flags = [
+            ('digital_signature', 'digitalSignature'),
+            ('content_commitment', 'contentCommitment'),
+            ('key_encipherment', 'keyEncipherment'),
+            ('data_encipherment', 'dataEncipherment'),
+            ('key_agreement', 'keyAgreement'),
+            ('key_cert_sign', 'keyCertSign'),
+            ('crl_sign', 'cRLSign'),
+        ]
+        result = [label for attr, label in flags
+                  if getattr(usage, attr, False)]
+        # encipher_only/decipher_only are only valid when key_agreement is set
+        if getattr(usage, 'key_agreement', False):
+            try:
+                if usage.encipher_only:
+                    result.append('encipherOnly')
+                if usage.decipher_only:
+                    result.append('decipherOnly')
+            except Exception:
+                pass
+        return ", ".join(result)
+    except Exception:
+        return ""
+
+
+def _ext_key_usage(cert):
+    '''Return the Extended Key Usage OIDs (e.g. serverAuth, clientAuth)'''
+    try:
+        eku = cert.extensions.get_extension_for_oid(
+            ExtensionOID.EXTENDED_KEY_USAGE).value
+        # pylint: disable=protected-access
+        return ", ".join(getattr(o, '_name', None) or o.dotted_string
+                         for o in eku)
+    except Exception:
+        return ""
+
+
+def _basic_constraints(cert):
+    '''Return (is_ca, path_length) from the Basic Constraints extension'''
+    try:
+        constraints = cert.extensions.get_extension_for_oid(
+            ExtensionOID.BASIC_CONSTRAINTS).value
+        is_ca = 'True' if constraints.ca else 'False'
+        return is_ca, constraints.path_length
+    except Exception:
+        return "", None
+
+
+def _key_identifier(cert, oid, attribute):
+    '''Return a hex key identifier (authority or subject) or ""'''
+    try:
+        value = cert.extensions.get_extension_for_oid(oid).value
+        identifier = getattr(value, attribute, None)
+        if identifier:
+            return identifier.hex()
+    except Exception:
+        pass
+    return ""
+
+
+def _crl_urls(cert):
+    '''Return the CRL distribution point URLs as a string'''
+    try:
+        points = cert.extensions.get_extension_for_oid(
+            ExtensionOID.CRL_DISTRIBUTION_POINTS).value
+        urls = []
+        for point in points:
+            if point.full_name:
+                for general_name in point.full_name:
+                    urls.append(str(general_name.value))
+        return ", ".join(urls)
+    except Exception:
+        return ""
+
+
+def _ocsp_urls(cert):
+    '''Return the OCSP responder URLs from Authority Information Access'''
+    try:
+        descriptions = cert.extensions.get_extension_for_oid(
+            ExtensionOID.AUTHORITY_INFORMATION_ACCESS).value
+        urls = []
+        for description in descriptions:
+            if description.access_method == AuthorityInformationAccessOID.OCSP:
+                urls.append(str(description.access_location.value))
+        return ", ".join(urls)
+    except Exception:
+        return ""
+
+
 def _extract_cert_fields(der, cert_index):
     '''Parse a DER encoded X.509 certificate and return all its fields
     as a dict ready to be inserted in the Certificate table.'''
@@ -773,6 +933,32 @@ def _extract_cert_fields(der, cert_index):
     except Exception:
         public_key_size = 0
 
+    public_key_curve = ""
+    public_key_exponent = ""
+    try:
+        if public_key_algorithm == 'EC':
+            public_key_curve = public_key.curve.name
+        elif public_key_algorithm == 'RSA':
+            public_key_exponent = str(public_key.public_numbers().e)
+    except Exception:
+        pass
+
+    # validity in days, derived from the parsed validity dates
+    validity_days = None
+    try:
+        validity_days = (not_valid_after - not_valid_before).days
+    except Exception:
+        validity_days = None
+
+    # A certificate whose subject equals its issuer is self-signed (typical of
+    # the self-signed RADIUS certificates used in many enterprise setups).
+    try:
+        self_signed = 'True' if cert.subject == cert.issuer else 'False'
+    except Exception:
+        self_signed = ""
+
+    is_ca, path_length = _basic_constraints(cert)
+
     try:
         # SHA1 is used here only to compute the certificate thumbprint, the
         # de-facto standard identifier for X.509 certificates. It is not used
@@ -805,6 +991,21 @@ def _extract_cert_fields(der, cert_index):
             cert.issuer, NameOID.ORGANIZATIONAL_UNIT_NAME),
         'public_key_algorithm': public_key_algorithm,
         'public_key_size': public_key_size,
+        'public_key_curve': public_key_curve,
+        'public_key_exponent': public_key_exponent,
+        'subject_alt_names': _subject_alt_names(cert),
+        'key_usage': _key_usage(cert),
+        'ext_key_usage': _ext_key_usage(cert),
+        'is_ca': is_ca,
+        'path_length': path_length,
+        'self_signed': self_signed,
+        'authority_key_id': _key_identifier(
+            cert, ExtensionOID.AUTHORITY_KEY_IDENTIFIER, 'key_identifier'),
+        'subject_key_id': _key_identifier(
+            cert, ExtensionOID.SUBJECT_KEY_IDENTIFIER, 'digest'),
+        'crl_urls': _crl_urls(cert),
+        'ocsp_urls': _ocsp_urls(cert),
+        'validity_days': validity_days,
         'sha1_fingerprint': sha1_fingerprint,
         'sha256_fingerprint': sha256_fingerprint,
     }
@@ -919,6 +1120,269 @@ def parse_certificates(name, database, verbose):
         errors += 1
         print("Error in parse_certificates (CAP): ", error)
         print(".cap Certificate done, errors", errors)
+
+
+def _all_field_values(layer, field_name):
+    '''Return every value of a (possibly repeated) pyshark layer field'''
+    values = []
+    try:
+        field = layer.get_field(field_name)
+    except Exception:
+        field = None
+    if field is None:
+        return values
+    try:
+        for sub_field in field.all_fields:
+            value = sub_field.get_default_value()
+            if value not in (None, ''):
+                values.append(value)
+    except Exception:
+        try:
+            values.append(str(field))
+        except Exception:
+            pass
+    return values
+
+
+def _suite_name(value, mapping):
+    '''Map an RSN suite selector number to its readable name'''
+    try:
+        key = str(int(value))
+    except Exception:
+        key = str(value)
+    return mapping.get(key, key)
+
+
+def _dedupe(values):
+    '''Deduplicate a list while preserving order'''
+    return list(dict.fromkeys(values))
+
+
+# Get RSN/WPA security details (AKM suites and ciphers) from beacons and
+# probe responses.
+def parse_security(name, database, verbose):
+    try:
+        cursor = database.cursor()
+        errors = 0
+        file = name
+        # Beacons (0x08) and probe responses (0x05) that carry an RSN IE.
+        cap = pyshark.FileCapture(
+            file, display_filter="(wlan.fc.type_subtype == 0x08 || "
+            "wlan.fc.type_subtype == 0x05) && wlan.rsn.akms.type")
+        # cap.set_debug()
+
+        seen = set()
+        for pkt in cap:
+            try:
+                bssid = pkt.wlan.sa
+            except Exception:
+                continue
+            # One row per BSSID is enough; the config is stable per AP.
+            if bssid.upper() in seen:
+                continue
+
+            try:
+                mgt = pkt['wlan.mgt']
+            except Exception:
+                continue
+
+            akm_values = _all_field_values(mgt, 'wlan_rsn_akms_type')
+            pcs_values = _all_field_values(mgt, 'wlan_rsn_pcs_type')
+            gcs_values = _all_field_values(mgt, 'wlan_rsn_gcs_type')
+            if not akm_values:
+                continue
+
+            akm_suites = ", ".join(_dedupe(
+                [_suite_name(a, RSN_AKM_SUITES) for a in akm_values]))
+            pairwise_ciphers = ", ".join(_dedupe(
+                [_suite_name(p, RSN_CIPHERS) for p in pcs_values]))
+            group_cipher = ", ".join(_dedupe(
+                [_suite_name(g, RSN_CIPHERS) for g in gcs_values]))
+
+            # Numeric AKM set for classification.
+            akm_ints = set()
+            for value in akm_values:
+                try:
+                    akm_ints.add(int(value))
+                except Exception:
+                    pass
+
+            if akm_ints & {8, 9}:  # SAE / FT-SAE -> WPA3
+                if akm_ints & {2, 4}:  # also PSK -> transition mode
+                    wpa_version = "WPA2/WPA3"
+                else:
+                    wpa_version = "WPA3"
+            elif 18 in akm_ints:  # OWE
+                wpa_version = "OWE"
+            else:
+                wpa_version = "WPA2"
+
+            enterprise = ('True' if akm_ints & RSN_ENTERPRISE_AKMS
+                          else 'False')
+
+            # Management Frame Protection from the RSN capabilities bitfield:
+            #   bit 7 (0x80) = MFP Capable, bit 6 (0x40) = MFP Required.
+            rsn_capabilities = ""
+            pmf = "Disabled"
+            mfpc = 'False'
+            mfpr = 'False'
+            try:
+                rsn_capabilities = mgt.get_field('wlan_rsn_capabilities')
+                rsn_capabilities = (rsn_capabilities.get_default_value()
+                                    if rsn_capabilities is not None else "")
+                cap_int = int(rsn_capabilities, 16)
+                if cap_int & 0x80:
+                    mfpc = 'True'
+                if cap_int & 0x40:
+                    mfpr = 'True'
+                if mfpr == 'True':
+                    pmf = "Required"
+                elif mfpc == 'True':
+                    pmf = "Capable"
+            except Exception:
+                rsn_capabilities = rsn_capabilities or ""
+
+            if verbose:
+                print("Security for AP " + str(bssid) + ": " +
+                      wpa_version + " [" + akm_suites + "] PMF=" + pmf)
+
+            errors += database_utils.insertSecurity(
+                cursor, verbose, bssid, wpa_version, akm_suites,
+                pairwise_ciphers, group_cipher, enterprise, pmf,
+                rsn_capabilities, file)
+            # Beacons are far more common than the association frames parsed by
+            # parse_MFP, so also update the AP mfpc/mfpr from here.
+            if mfpc == 'True' or mfpr == 'True':
+                errors += database_utils.insertMFP(
+                    cursor, verbose, bssid, mfpc, mfpr)
+            seen.add(bssid.upper())
+
+        database.commit()
+        print(".cap Security done, errors", errors)
+    except pyshark.capture.capture.TSharkCrashException as error:
+        errors += 1
+        print("Error in parse_security (CAP), probably PCAP cut in the "
+              "middle of a packet: ", error)
+        print(".cap Security done, errors", errors)
+    except Exception as error:
+        errors += 1
+        print("Error in parse_security (CAP): ", error)
+        print(".cap Security done, errors", errors)
+
+
+# Get EAP-MD5 challenge/response pairs (crackable with hashcat -m 4800)
+def parse_eap_md5(name, database, verbose):
+    try:
+        cursor = database.cursor()
+        errors = 0
+        file = name
+        cap = pyshark.FileCapture(file, display_filter="eap.type == 4")
+        # cap.set_debug()
+
+        # Correlate the Request (challenge, from the AP) with the Response
+        # (response, from the client) sharing the same EAP id.
+        challenges = {}  # (ap, client, eap_id) -> challenge hex
+        for pkt in cap:
+            try:
+                code = pkt.eap.code
+                eap_id = pkt.eap.id
+                src = pkt.wlan.sa
+                dst = pkt.wlan.da
+            except Exception:
+                continue
+
+            try:
+                md5_value = pkt.eap.md5_value.replace(':', '')
+            except Exception:
+                md5_value = None
+            if not md5_value:
+                continue
+
+            if code == '1':  # EAP-Request/MD5-Challenge sent by the AP
+                challenges[(src, dst, eap_id)] = md5_value
+            elif code == '2':  # EAP-Response/MD5-Challenge sent by the client
+                ap = dst
+                client = src
+                challenge = challenges.get((ap, client, eap_id))
+                if not challenge:
+                    continue
+                response = md5_value
+                # hashcat -m 4800 format: response:challenge:id where the EAP
+                # id is hex-encoded (pyshark exposes eap.id as decimal).
+                try:
+                    eap_id_hex = format(int(eap_id), '02x')
+                except Exception:
+                    eap_id_hex = eap_id
+                hashcat = response + ":" + challenge + ":" + eap_id_hex
+                if verbose:
+                    print("EAP-MD5 " + str(client) + " -> " + str(ap) +
+                          ": " + hashcat)
+                errors += database_utils.insertEAPMD5(
+                    cursor, verbose, ap, client, "", eap_id, challenge,
+                    response, hashcat, file)
+
+        database.commit()
+        print(".cap EAP-MD5 done, errors", errors)
+    except pyshark.capture.capture.TSharkCrashException as error:
+        errors += 1
+        print("Error in parse_eap_md5 (CAP), probably PCAP cut in the "
+              "middle of a packet: ", error)
+        print(".cap EAP-MD5 done, errors", errors)
+    except Exception as error:
+        errors += 1
+        print("Error in parse_eap_md5 (CAP): ", error)
+        print(".cap EAP-MD5 done, errors", errors)
+
+
+# Fingerprint clients by the ordered set of information elements (tags) they
+# include in their probe requests; useful to identify device model/OS.
+def parse_probe_fingerprint(name, database, verbose):
+    try:
+        cursor = database.cursor()
+        errors = 0
+        file = name
+        cap = pyshark.FileCapture(
+            file, display_filter="wlan.fc.type_subtype == 0x04")
+        # cap.set_debug()
+
+        seen = set()
+        for pkt in cap:
+            try:
+                mac = pkt.wlan.sa
+            except Exception:
+                continue
+            try:
+                mgt = pkt['wlan.mgt']
+            except Exception:
+                continue
+
+            tags = _all_field_values(mgt, 'wlan_tag_number')
+            if not tags:
+                continue
+            ie_order = ",".join(str(tag) for tag in tags)
+            fingerprint = database_utils.getHash(ie_order.encode())[:32]
+
+            key = (mac.upper(), fingerprint)
+            if key in seen:
+                continue
+            seen.add(key)
+
+            if verbose:
+                print("Probe fingerprint " + str(mac) + ": " + ie_order)
+            errors += database_utils.insertProbeFingerprint(
+                cursor, verbose, mac, fingerprint, ie_order, file)
+
+        database.commit()
+        print(".cap ProbeFingerprint done, errors", errors)
+    except pyshark.capture.capture.TSharkCrashException as error:
+        errors += 1
+        print("Error in parse_probe_fingerprint (CAP), probably PCAP cut in "
+              "the middle of a packet: ", error)
+        print(".cap ProbeFingerprint done, errors", errors)
+    except Exception as error:
+        errors += 1
+        print("Error in parse_probe_fingerprint (CAP): ", error)
+        print(".cap ProbeFingerprint done, errors", errors)
 
 
 # Use hcxpcapngtool to get the 22000 hash to hashcat
