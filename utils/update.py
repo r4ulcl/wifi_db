@@ -1,8 +1,9 @@
+''' Check for and apply updates of wifi_db from GitHub '''
 import os
 import sys
+import re
 import subprocess  # nosec B404 - only used with fixed, absolute-path commands
 import requests
-import re
 
 
 def is_git_installed():
@@ -27,8 +28,7 @@ def get_latest_github_release(repo_url):
         if response.status_code == 200:
             latest_release_tag = response.json()["tag_name"]
             return latest_release_tag
-        else:
-            return None
+        return None
     except (requests.RequestException, KeyError, ValueError) as e:
         # Network error, or a 200 response whose JSON is malformed or missing
         # the "tag_name" field: treat all of them as "no update info".

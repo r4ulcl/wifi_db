@@ -1,0 +1,21 @@
+---
+# Codacy configuration for wifi_db
+#
+# Exclusions below remove noise and false positives so the dashboard reflects
+# real issues only.
+exclude_paths:
+  # Local virtualenv committed in the repo: not project source code.
+  - 'wifi_db_env/**'
+  # Generated / cache directories.
+  - '__pycache__/**'
+  - '**/__pycache__/**'
+  - '.pytest_cache/**'
+  # Vendor data dump (OUI MAC vendor list), not hand-written code.
+  - 'utils/mac-vendors-export.csv'
+  # Static, trusted SQLite schema/view definitions. These are plain SQLite DDL
+  # shipped with the project and executed via sqlite3.executescript(). Codacy's
+  # SQL analysis parses them with a SQL Server (T-SQL) dialect, which produces
+  # false positives ("syntax error near NOT/CONSTRAINT", "SET ANSI_NULLS",
+  # "queries must target RAC_* tables", etc.) that do not apply to SQLite.
+  - 'utils/view.sql'
+  - 'utils/wifi_db_database.sql'
