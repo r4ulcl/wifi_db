@@ -3,9 +3,14 @@ FROM ubuntu:22.04 as hcxtools-builder
 
 WORKDIR /app
 
-RUN apt-get update \
-    && DEBIAN_FRONTEND=noninteractive apt-get install --no-install-recommends python3-pip make git zlib1g-dev -y \
-    && apt-get install --no-install-recommends pkg-config libcurl4-openssl-dev libssl-dev zlib1g-dev make gcc -y \
+# A single retrying apt-get layer. Retries make the layer resilient to the
+# transient failures seen when this stage is built for linux/arm64 under QEMU
+# emulation (apt/dpkg child processes occasionally crash, giving exit 100).
+# ca-certificates is required for the https git clone below.
+RUN apt-get update -o Acquire::Retries=5 \
+    && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+        ca-certificates git make gcc pkg-config python3-pip \
+        zlib1g-dev libcurl4-openssl-dev libssl-dev \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # Clone hcxtools and install
@@ -25,8 +30,10 @@ WORKDIR /app
 # Install dependencies
 ENV DEBIAN_FRONTEND noninteractive
 
-RUN DEBIAN_FRONTEND=noninteractive TZ=Etc/UTC apt-get update && apt-get install -y --no-install-recommends python3-pip tshark git libcurl4-openssl-dev libssl-dev -y \
-    && apt-get clean && rm -rf /var/lib/apt/lists/* 
+RUN apt-get update -o Acquire::Retries=5 \
+    && DEBIAN_FRONTEND=noninteractive TZ=Etc/UTC apt-get install -y --no-install-recommends \
+        ca-certificates python3-pip tshark git libcurl4-openssl-dev libssl-dev \
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
  
 # Copy hcxtools binaries
 COPY --from=hcxtools-builder /usr/bin/hcx* /usr/bin/

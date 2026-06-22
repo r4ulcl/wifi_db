@@ -795,14 +795,12 @@ def _key_usage(cert):
         result = [label for attr, label in flags
                   if getattr(usage, attr, False)]
         # encipher_only/decipher_only are only valid when key_agreement is set
+        # (any unexpected error is handled by the outer except).
         if getattr(usage, 'key_agreement', False):
-            try:
-                if usage.encipher_only:
-                    result.append('encipherOnly')
-                if usage.decipher_only:
-                    result.append('decipherOnly')
-            except Exception:
-                pass
+            if usage.encipher_only:
+                result.append('encipherOnly')
+            if usage.decipher_only:
+                result.append('decipherOnly')
         return ", ".join(result)
     except Exception:
         return ""
@@ -872,114 +870,64 @@ def _ocsp_urls(cert):
         return ""
 
 
+def _safe(func, default=""):
+    '''Call func() and return its value, or `default` on any error. Keeps the
+    per-field certificate extraction terse and resilient to malformed certs.'''
+    try:
+        return func()
+    except Exception:
+        return default
+
+
+def _cert_datetime(cert, attr):
+    '''Return the not_valid_before/after datetime, preferring the timezone
+    aware *_utc accessors added in cryptography 42.0.'''
+    return getattr(cert, attr + '_utc', None) or getattr(cert, attr)
+
+
+def _public_key_details(cert):
+    '''Return (algorithm, size, curve, exponent) describing the public key.'''
+    public_key = cert.public_key()
+    algorithm = _public_key_algorithm(public_key)
+    size = _safe(lambda: public_key.key_size, 0)
+    curve = ""
+    exponent = ""
+    if algorithm == 'EC':
+        curve = _safe(lambda: public_key.curve.name)
+    elif algorithm == 'RSA':
+        exponent = _safe(lambda: str(public_key.public_numbers().e))
+    return algorithm, size, curve, exponent
+
+
 def _extract_cert_fields(der, cert_index):
     '''Parse a DER encoded X.509 certificate and return all its fields
     as a dict ready to be inserted in the Certificate table.'''
     cert = x509.load_der_x509_certificate(der)
 
-    try:
-        version = cert.version.name
-    except Exception:
-        version = ""
+    not_before_dt = _safe(lambda: _cert_datetime(cert, 'not_valid_before'),
+                          None)
+    not_after_dt = _safe(lambda: _cert_datetime(cert, 'not_valid_after'), None)
 
-    try:
-        serial_number = format(cert.serial_number, 'x')
-    except Exception:
-        serial_number = ""
+    def _fmt(value):
+        return value.strftime("%Y-%m-%d %H:%M:%S") if value else ""
 
-    try:
-        # cryptography exposes the human-readable OID name only via the
-        # internal `_name` attribute; there is no public accessor for it.
-        # pylint: disable=protected-access
-        signature_algorithm = cert.signature_algorithm_oid._name
-    except Exception:
-        signature_algorithm = ""
-
-    try:
-        issuer = cert.issuer.rfc4514_string()
-    except Exception:
-        issuer = ""
-
-    try:
-        subject = cert.subject.rfc4514_string()
-    except Exception:
-        subject = ""
-
-    try:
-        # not_valid_before_utc was added in cryptography 42.0 and replaces the
-        # now-removed naive `not_valid_before`; fall back for older versions.
-        not_valid_before = getattr(cert, 'not_valid_before_utc',
-                                   None) or cert.not_valid_before
-        not_before = not_valid_before.strftime("%Y-%m-%d %H:%M:%S")
-    except Exception:
-        not_before = ""
-
-    try:
-        not_valid_after = getattr(cert, 'not_valid_after_utc',
-                                  None) or cert.not_valid_after
-        not_after = not_valid_after.strftime("%Y-%m-%d %H:%M:%S")
-    except Exception:
-        not_after = ""
-
-    try:
-        public_key = cert.public_key()
-        public_key_algorithm = _public_key_algorithm(public_key)
-    except Exception:
-        public_key = None
-        public_key_algorithm = ""
-
-    try:
-        public_key_size = public_key.key_size
-    except Exception:
-        public_key_size = 0
-
-    public_key_curve = ""
-    public_key_exponent = ""
-    try:
-        if public_key_algorithm == 'EC':
-            public_key_curve = public_key.curve.name
-        elif public_key_algorithm == 'RSA':
-            public_key_exponent = str(public_key.public_numbers().e)
-    except Exception:
-        pass
-
-    # validity in days, derived from the parsed validity dates
-    validity_days = None
-    try:
-        validity_days = (not_valid_after - not_valid_before).days
-    except Exception:
-        validity_days = None
-
-    # A certificate whose subject equals its issuer is self-signed (typical of
-    # the self-signed RADIUS certificates used in many enterprise setups).
-    try:
-        self_signed = 'True' if cert.subject == cert.issuer else 'False'
-    except Exception:
-        self_signed = ""
-
+    algorithm, size, curve, exponent = _safe(
+        lambda: _public_key_details(cert), ("", 0, "", ""))
     is_ca, path_length = _basic_constraints(cert)
 
-    try:
-        # SHA1 is used here only to compute the certificate thumbprint, the
-        # de-facto standard identifier for X.509 certificates. It is not used
-        # as a security/cryptographic primitive, so the weak-hash warning does
-        # not apply.
-        sha1_fingerprint = cert.fingerprint(hashes.SHA1()).hex()  # nosec B303
-    except Exception:
-        sha1_fingerprint = ""
-
-    # sha256 fingerprint is part of the primary key, so it must exist
-    sha256_fingerprint = cert.fingerprint(hashes.SHA256()).hex()
-
+    # cryptography exposes the readable OID name only via the internal
+    # `_name` attribute; SHA1 is used solely as the standard cert thumbprint.
+    # pylint: disable=protected-access
     return {
         'cert_index': cert_index,
-        'version': version,
-        'serial_number': serial_number,
-        'signature_algorithm': signature_algorithm,
-        'issuer': issuer,
-        'subject': subject,
-        'not_before': not_before,
-        'not_after': not_after,
+        'version': _safe(lambda: cert.version.name),
+        'serial_number': _safe(lambda: format(cert.serial_number, 'x')),
+        'signature_algorithm': _safe(
+            lambda: cert.signature_algorithm_oid._name),
+        'issuer': _safe(lambda: cert.issuer.rfc4514_string()),
+        'subject': _safe(lambda: cert.subject.rfc4514_string()),
+        'not_before': _fmt(not_before_dt),
+        'not_after': _fmt(not_after_dt),
         'subject_cn': _name_attribute(cert.subject, NameOID.COMMON_NAME),
         'subject_o': _name_attribute(
             cert.subject, NameOID.ORGANIZATION_NAME),
@@ -989,66 +937,49 @@ def _extract_cert_fields(der, cert_index):
         'issuer_o': _name_attribute(cert.issuer, NameOID.ORGANIZATION_NAME),
         'issuer_ou': _name_attribute(
             cert.issuer, NameOID.ORGANIZATIONAL_UNIT_NAME),
-        'public_key_algorithm': public_key_algorithm,
-        'public_key_size': public_key_size,
-        'public_key_curve': public_key_curve,
-        'public_key_exponent': public_key_exponent,
+        'public_key_algorithm': algorithm,
+        'public_key_size': size,
+        'public_key_curve': curve,
+        'public_key_exponent': exponent,
         'subject_alt_names': _subject_alt_names(cert),
         'key_usage': _key_usage(cert),
         'ext_key_usage': _ext_key_usage(cert),
         'is_ca': is_ca,
         'path_length': path_length,
-        'self_signed': self_signed,
+        'self_signed': _safe(
+            lambda: 'True' if cert.subject == cert.issuer else 'False'),
         'authority_key_id': _key_identifier(
             cert, ExtensionOID.AUTHORITY_KEY_IDENTIFIER, 'key_identifier'),
         'subject_key_id': _key_identifier(
             cert, ExtensionOID.SUBJECT_KEY_IDENTIFIER, 'digest'),
         'crl_urls': _crl_urls(cert),
         'ocsp_urls': _ocsp_urls(cert),
-        'validity_days': validity_days,
-        'sha1_fingerprint': sha1_fingerprint,
-        'sha256_fingerprint': sha256_fingerprint,
+        'validity_days': _safe(
+            lambda: (not_after_dt - not_before_dt).days, None),
+        'sha1_fingerprint': _safe(
+            lambda: cert.fingerprint(hashes.SHA1()).hex()),  # nosec B303
+        'sha256_fingerprint': cert.fingerprint(hashes.SHA256()).hex(),
     }
 
 
 def _get_cert_hexes(pkt, verbose):
     '''Return the list of colon separated hex strings of every X.509
     certificate present in a TLS Certificate handshake packet.'''
-    hexes = []
-    try:
-        tls = pkt.tls
-    except Exception:
-        return hexes
-
-    field = None
-    try:
-        field = tls.get_field('handshake_certificate')
-    except Exception:
-        field = None
+    field = _safe(lambda: pkt.tls.get_field('handshake_certificate'), None)
     if field is None:
-        try:
-            field = tls.handshake_certificate
-        except Exception:
-            field = None
+        field = _safe(lambda: pkt.tls.handshake_certificate, None)
     if field is None:
-        return hexes
+        return []
 
     # A single Certificate message can carry a full chain (server, CA, ...),
-    # so iterate over all the values of the field.
-    try:
-        for sub_field in field.all_fields:
-            value = sub_field.get_default_value()
-            if value:
-                hexes.append(value)
-    except Exception:
-        try:
-            value = str(field)
-            if value:
-                hexes.append(value)
-        except Exception:
-            if verbose:
-                print("Could not read certificate field")
-    return hexes
+    # so collect every value of the field.
+    values = _safe(
+        lambda: [f.get_default_value() for f in field.all_fields], None)
+    if values is None:
+        values = _safe(lambda: [str(field)], [])
+        if not values and verbose:
+            print("Could not read certificate field")
+    return [value for value in values if value]
 
 
 # Get X.509 certificates from EAP-TLS/PEAP/TTLS in .cap
@@ -1158,6 +1089,52 @@ def _dedupe(values):
     return list(dict.fromkeys(values))
 
 
+def _to_int(value, base=10):
+    '''Parse an int, returning None instead of raising.'''
+    try:
+        return int(value, base) if isinstance(value, str) else int(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _pkt_bssid_mgt(pkt):
+    '''Return (bssid, wlan.mgt layer) for a packet, or (None, None).'''
+    try:
+        return pkt.wlan.sa, pkt['wlan.mgt']
+    except Exception:
+        return None, None
+
+
+def _classify_wpa(akm_ints):
+    '''Map the numeric AKM set to a WPA version label.'''
+    if akm_ints & {8, 9}:  # SAE / FT-SAE -> WPA3
+        return "WPA2/WPA3" if akm_ints & {2, 4} else "WPA3"
+    if 18 in akm_ints:  # OWE
+        return "OWE"
+    return "WPA2"
+
+
+def _rsn_pmf(mgt):
+    '''Return (pmf, rsn_capabilities, mfpc, mfpr) from the RSN capabilities
+    bitfield: bit 7 (0x80) = MFP Capable, bit 6 (0x40) = MFP Required.'''
+    mfpc = 'False'
+    mfpr = 'False'
+    field = mgt.get_field('wlan_rsn_capabilities')
+    rsn_capabilities = (field.get_default_value()
+                        if field is not None else "") or ""
+    cap_int = _to_int(rsn_capabilities, 16)
+    if cap_int is not None:
+        mfpc = 'True' if cap_int & 0x80 else 'False'
+        mfpr = 'True' if cap_int & 0x40 else 'False'
+    if mfpr == 'True':
+        pmf = "Required"
+    elif mfpc == 'True':
+        pmf = "Capable"
+    else:
+        pmf = "Disabled"
+    return pmf, rsn_capabilities, mfpc, mfpr
+
+
 # Get RSN/WPA security details (AKM suites and ciphers) from beacons and
 # probe responses.
 def parse_security(name, database, verbose):
@@ -1173,24 +1150,16 @@ def parse_security(name, database, verbose):
 
         seen = set()
         for pkt in cap:
-            try:
-                bssid = pkt.wlan.sa
-            except Exception:
-                continue
+            bssid, mgt = _pkt_bssid_mgt(pkt)
             # One row per BSSID is enough; the config is stable per AP.
-            if bssid.upper() in seen:
-                continue
-
-            try:
-                mgt = pkt['wlan.mgt']
-            except Exception:
+            if bssid is None or mgt is None or bssid.upper() in seen:
                 continue
 
             akm_values = _all_field_values(mgt, 'wlan_rsn_akms_type')
-            pcs_values = _all_field_values(mgt, 'wlan_rsn_pcs_type')
-            gcs_values = _all_field_values(mgt, 'wlan_rsn_gcs_type')
             if not akm_values:
                 continue
+            pcs_values = _all_field_values(mgt, 'wlan_rsn_pcs_type')
+            gcs_values = _all_field_values(mgt, 'wlan_rsn_gcs_type')
 
             akm_suites = ", ".join(_dedupe(
                 [_suite_name(a, RSN_AKM_SUITES) for a in akm_values]))
@@ -1199,48 +1168,12 @@ def parse_security(name, database, verbose):
             group_cipher = ", ".join(_dedupe(
                 [_suite_name(g, RSN_CIPHERS) for g in gcs_values]))
 
-            # Numeric AKM set for classification.
-            akm_ints = set()
-            for value in akm_values:
-                try:
-                    akm_ints.add(int(value))
-                except Exception:
-                    pass
-
-            if akm_ints & {8, 9}:  # SAE / FT-SAE -> WPA3
-                if akm_ints & {2, 4}:  # also PSK -> transition mode
-                    wpa_version = "WPA2/WPA3"
-                else:
-                    wpa_version = "WPA3"
-            elif 18 in akm_ints:  # OWE
-                wpa_version = "OWE"
-            else:
-                wpa_version = "WPA2"
-
+            akm_ints = {i for i in (_to_int(v) for v in akm_values)
+                        if i is not None}
+            wpa_version = _classify_wpa(akm_ints)
             enterprise = ('True' if akm_ints & RSN_ENTERPRISE_AKMS
                           else 'False')
-
-            # Management Frame Protection from the RSN capabilities bitfield:
-            #   bit 7 (0x80) = MFP Capable, bit 6 (0x40) = MFP Required.
-            rsn_capabilities = ""
-            pmf = "Disabled"
-            mfpc = 'False'
-            mfpr = 'False'
-            try:
-                rsn_capabilities = mgt.get_field('wlan_rsn_capabilities')
-                rsn_capabilities = (rsn_capabilities.get_default_value()
-                                    if rsn_capabilities is not None else "")
-                cap_int = int(rsn_capabilities, 16)
-                if cap_int & 0x80:
-                    mfpc = 'True'
-                if cap_int & 0x40:
-                    mfpr = 'True'
-                if mfpr == 'True':
-                    pmf = "Required"
-                elif mfpc == 'True':
-                    pmf = "Capable"
-            except Exception:
-                rsn_capabilities = rsn_capabilities or ""
+            pmf, rsn_capabilities, mfpc, mfpr = _rsn_pmf(mgt)
 
             if verbose:
                 print("Security for AP " + str(bssid) + ": " +
