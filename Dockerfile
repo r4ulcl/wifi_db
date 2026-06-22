@@ -1,57 +1,64 @@
-# Compile hcxtools
-FROM ubuntu:22.04 as hcxtools-builder
+# syntax=docker/dockerfile:1
+
+# ---------------------------------------------------------------------------
+# Stage 1: compile hcxtools
+# Built on the same base as the final stage so the resulting binaries link
+# against the exact libcurl/libssl/zlib versions present at runtime.
+# ---------------------------------------------------------------------------
+FROM python:3.12-slim-bookworm AS hcxtools-builder
 
 WORKDIR /app
 
 # A single retrying apt-get layer. Retries make the layer resilient to the
 # transient failures seen when this stage is built for linux/arm64 under QEMU
 # emulation (apt/dpkg child processes occasionally crash, giving exit 100).
-# ca-certificates is required for the https git clone below.
 RUN apt-get update -o Acquire::Retries=5 \
     && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
-        ca-certificates git make gcc pkg-config python3-pip \
+        ca-certificates git make gcc pkg-config \
         zlib1g-dev libcurl4-openssl-dev libssl-dev \
-    && apt-get clean && rm -rf /var/lib/apt/lists/*
+    && rm -rf /var/lib/apt/lists/*
 
-# Clone hcxtools and install
-RUN git clone -b 6.3.1 https://github.com/ZerBea/hcxtools.git /app/hcxtools
+RUN git clone --depth 1 -b 6.3.1 https://github.com/ZerBea/hcxtools.git /tmp/hcxtools \
+    && make -C /tmp/hcxtools \
+    && make -C /tmp/hcxtools install \
+    && rm -rf /tmp/hcxtools
 
-WORKDIR /app/hcxtools
-RUN make \
-    && make install
-
-WORKDIR /app
-RUN rm -rf /app/hcxtools
-
-FROM ubuntu:22.04
+# ---------------------------------------------------------------------------
+# Stage 2: final runtime image
+# ---------------------------------------------------------------------------
+FROM python:3.12-slim-bookworm
 
 WORKDIR /app
 
-# Install dependencies
-ENV DEBIAN_FRONTEND noninteractive
+ENV DEBIAN_FRONTEND=noninteractive \
+    PIP_NO_CACHE_DIR=1 \
+    PYTHONDONTWRITEBYTECODE=1
 
+# Runtime dependencies only: tshark for pyshark, and the shared libraries the
+# hcxtools binaries link against (the -dev packages and their headers stay in
+# the builder stage). ca-certificates is needed for the update HTTPS check.
 RUN apt-get update -o Acquire::Retries=5 \
-    && DEBIAN_FRONTEND=noninteractive TZ=Etc/UTC apt-get install -y --no-install-recommends \
-        ca-certificates python3-pip tshark git libcurl4-openssl-dev libssl-dev \
-    && apt-get clean && rm -rf /var/lib/apt/lists/*
- 
-# Copy hcxtools binaries
+    && apt-get install -y --no-install-recommends \
+        ca-certificates tshark libcurl4 libssl3 zlib1g \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy the compiled hcxtools binaries from the builder stage.
 COPY --from=hcxtools-builder /usr/bin/hcx* /usr/bin/
 
-
-# Copy and install Python dependencies
-
-RUN python3 -m pip install --no-cache-dir --upgrade pip==24.0
-    
+# Install Python dependencies first so the layer is cached across code changes.
 COPY requirements.txt requirements.txt
-RUN pip3 install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy your application code
+# Application code (the .dockerignore keeps test fixtures, .git, the local
+# virtualenv and docs out of this layer).
 COPY . .
 
-# Run tests and remove test data
-RUN python3 -m pytest \
-    && rm -rf test_data
+# Run the test suite as a build gate. test_data is bind-mounted only for the
+# duration of this RUN, so the fixtures never land in an image layer; the
+# pytest cache it leaves behind is removed in the same layer.
+RUN --mount=type=bind,source=test_data,target=/app/test_data \
+    python3 -m pytest \
+    && rm -rf /app/.pytest_cache
 
 # Create a captures directory and a non-root user to run the app.
 # /app holds the default database (db.SQLITE) so SQLite can also create its
@@ -62,6 +69,4 @@ RUN mkdir -p /captures/ \
 
 USER wifidb
 
-# Set the entry point
 ENTRYPOINT ["python3", "/app/wifi_db.py", "/captures/", "-d", "/app/db.SQLITE"]
-
