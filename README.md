@@ -92,29 +92,24 @@ cd ..
 ```
 
 
-Installation
+Installation (using a virtual environment)
 
 ``` bash
-git clone https://github.com/r4ulcl/wifi_db
-cd wifi_db
-pip3 install -r requirements.txt 
-```
-
-##### Install using venv
-
-``` bash 
 # Download repo
 git clone https://github.com/r4ulcl/wifi_db
 cd wifi_db
 
-# Create venv
+# Create and activate a venv
 sudo apt update ; sudo apt install python3-venv
 python3 -m venv wifi_db_env
 source wifi_db_env/bin/activate
 
 # Install dependencies
-pip3 install -r requirements.txt 
+pip3 install -r requirements.txt
 ```
+
+> The venv must be activated (`source wifi_db_env/bin/activate`) in every new
+> shell before running `wifi_db.py`. Use `deactivate` to leave it.
 
 #### Arch
 
@@ -137,13 +132,23 @@ sudo make install
 cd ..
 ```
 
-Installation
+Installation (using a virtual environment)
 
 ``` bash
+# Download repo
 git clone https://github.com/r4ulcl/wifi_db
 cd wifi_db
-pip3 install -r requirements.txt 
+
+# Create and activate a venv
+python3 -m venv wifi_db_env
+source wifi_db_env/bin/activate
+
+# Install dependencies
+pip3 install -r requirements.txt
 ```
+
+> The venv must be activated (`source wifi_db_env/bin/activate`) in every new
+> shell before running `wifi_db.py`. Use `deactivate` to leave it.
 
 
 
@@ -182,7 +187,7 @@ docker run -t -v $PWD/db.SQLITE:/app/db.SQLITE -v $CAPTURESFOLDER:/captures/ r4u
 
 ### Create the SQLite database using manual installation
 
-Once the capture is created, we can create the database by importing the capture. To do this, put the name of the capture without format.
+Once the capture is created, we can create the database by importing the capture. To do this, put the name of the capture without format. Remember to activate the virtual environment first (`source wifi_db_env/bin/activate`).
 
 ``` bash
 python3 wifi_db.py scan-01
