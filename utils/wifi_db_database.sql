@@ -25,6 +25,7 @@ CREATE TABLE IF NOT EXISTS Client
     type TEXT,
     packetsTotal int,
     device TEXT,
+    randomized BOOLEAN,
     firstTimeSeen timestamp,
     CONSTRAINT Key1 PRIMARY KEY (mac)
 );
@@ -112,6 +113,7 @@ CREATE TABLE IF NOT EXISTS Identity
     mac TEXT NOT NULL,
     identity TEXT NOT NULL,
     method TEXT NOT NULL,
+    realm TEXT,
     CONSTRAINT Key7 PRIMARY KEY (bssid,mac,identity)
     CONSTRAINT FRelationship6 FOREIGN KEY (bssid) REFERENCES AP (bssid) ON UPDATE CASCADE ON DELETE CASCADE,
     CONSTRAINT FRelationship7 FOREIGN KEY (mac) REFERENCES Client (mac) ON UPDATE CASCADE ON DELETE CASCADE
@@ -150,8 +152,64 @@ CREATE TABLE IF NOT EXISTS Certificate
     issuer_ou TEXT,
     public_key_algorithm TEXT,
     public_key_size int,
+    public_key_curve TEXT,
+    public_key_exponent TEXT,
+    subject_alt_names TEXT,
+    key_usage TEXT,
+    ext_key_usage TEXT,
+    is_ca BOOLEAN,
+    path_length int,
+    self_signed BOOLEAN,
+    authority_key_id TEXT,
+    subject_key_id TEXT,
+    crl_urls TEXT,
+    ocsp_urls TEXT,
+    validity_days int,
     sha1_fingerprint TEXT,
     sha256_fingerprint TEXT NOT NULL,
     CONSTRAINT KeyCert PRIMARY KEY (bssid,sha256_fingerprint),
     CONSTRAINT RelationshipCert FOREIGN KEY (bssid) REFERENCES AP (bssid) ON UPDATE CASCADE ON DELETE CASCADE
+);
+
+
+CREATE TABLE IF NOT EXISTS Security
+(
+    bssid TEXT NOT NULL,
+    wpa_version TEXT,
+    akm_suites TEXT,
+    pairwise_ciphers TEXT,
+    group_cipher TEXT,
+    enterprise BOOLEAN,
+    pmf TEXT,
+    rsn_capabilities TEXT,
+    file TEXT,
+    CONSTRAINT KeySecurity PRIMARY KEY (bssid),
+    CONSTRAINT RelationshipSecurity FOREIGN KEY (bssid) REFERENCES AP (bssid) ON UPDATE CASCADE ON DELETE CASCADE
+);
+
+
+CREATE TABLE IF NOT EXISTS EAPMD5
+(
+    bssid TEXT NOT NULL,
+    mac TEXT NOT NULL,
+    identity TEXT,
+    eap_id TEXT NOT NULL,
+    challenge TEXT,
+    response TEXT,
+    hashcat TEXT,
+    file TEXT,
+    CONSTRAINT KeyEAPMD5 PRIMARY KEY (bssid,mac,eap_id),
+    CONSTRAINT RelationshipEAPMD5AP FOREIGN KEY (bssid) REFERENCES AP (bssid) ON UPDATE CASCADE ON DELETE CASCADE,
+    CONSTRAINT RelationshipEAPMD5Client FOREIGN KEY (mac) REFERENCES Client (mac) ON UPDATE CASCADE ON DELETE CASCADE
+);
+
+
+CREATE TABLE IF NOT EXISTS ProbeFingerprint
+(
+    mac TEXT NOT NULL,
+    fingerprint TEXT NOT NULL,
+    ie_order TEXT,
+    file TEXT,
+    CONSTRAINT KeyProbeFingerprint PRIMARY KEY (mac,fingerprint),
+    CONSTRAINT RelationshipProbeFingerprint FOREIGN KEY (mac) REFERENCES Client (mac) ON UPDATE CASCADE ON DELETE CASCADE
 );
