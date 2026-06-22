@@ -215,117 +215,84 @@ def main():
           + "' or other SQLITE program to view the data")
 
 
+# (extension substring, parser name). Order matters: most specific first.
+CAPTURE_FORMATS = [
+    (".cap", "cap"),
+    (".kismet.netxml", "netxml"),
+    (".kismet.csv", "kismet_csv"),
+    (".log.csv", "log_csv"),
+    (".csv", "csv"),
+]
+
+# Order tried when the given path has no recognised extension (a suffix is
+# appended to the path for each one).
+FALLBACK_FORMATS = [
+    (".kismet.netxml", "netxml"),
+    (".kismet.csv", "kismet_csv"),
+    (".csv", "csv"),
+    (".log.csv", "log_csv"),
+    (".cap", "cap"),
+]
+
+
+def run_parser(name, ouiMap, capture, database, verbose, fake_lat, fake_lon,
+               hcxpcapngtool, tshark):
+    '''Dispatch to the parser identified by `name`.'''
+    if name == "cap":
+        wifi_db_aircrack.parse_cap(capture, database, verbose,
+                                   hcxpcapngtool, tshark)
+    elif name == "netxml":
+        wifi_db_aircrack.parse_netxml(ouiMap, capture, database, verbose)
+    elif name == "kismet_csv":
+        wifi_db_aircrack.parse_kismet_csv(ouiMap, capture, database, verbose)
+    elif name == "log_csv":
+        wifi_db_aircrack.parse_log_csv(ouiMap, capture, database, verbose,
+                                       fake_lat, fake_lon)
+    elif name == "csv":
+        wifi_db_aircrack.parse_csv(ouiMap, capture, database, verbose)
+
+
+def ingest_capture(name, ouiMap, capture, database, verbose, fake_lat,
+                   fake_lon, hcxpcapngtool, tshark, force, announce=False):
+    '''Insert, parse and mark a single capture file as processed (skipping it
+    if it was already processed and --force was not given).'''
+    cursor = database.cursor()
+    if announce:
+        print("Parsing file:", capture)
+    if (database_utils.checkFileProcessed(cursor, verbose, capture) == 1
+            and not force):
+        print("File", "already processed\n")
+        return
+    database_utils.insertFile(cursor, verbose, capture)
+    run_parser(name, ouiMap, capture, database, verbose, fake_lat, fake_lon,
+               hcxpcapngtool, tshark)
+    database_utils.setFileProcessed(cursor, verbose, capture)
+
+
 def process_capture(ouiMap, capture, database,
                     verbose, fake_lat, fake_lon,
                     hcxpcapngtool, tshark, force):
     cursor = database.cursor()
 
-    if database_utils.checkFileProcessed(cursor,
-                                         verbose, capture) == 1 and not force:
+    if (database_utils.checkFileProcessed(cursor, verbose, capture) == 1
+            and not force):
         print("File", "already processed\n")
-    else:
-        if ".cap" in capture:
-            database_utils.insertFile(cursor, verbose, capture)
-            wifi_db_aircrack.parse_cap(capture, database, verbose,
-                                       hcxpcapngtool, tshark)
-            database_utils.setFileProcessed(cursor, verbose, capture)
-        elif ".kismet.netxml" in capture:
-            database_utils.insertFile(cursor, verbose, capture)
-            wifi_db_aircrack.parse_netxml(ouiMap, capture,
-                                          database, verbose)
-            database_utils.setFileProcessed(cursor, verbose, capture)
-        elif ".kismet.csv" in capture:
-            database_utils.insertFile(cursor, verbose, capture)
-            wifi_db_aircrack.parse_kismet_csv(ouiMap, capture,
-                                              database, verbose)
-            database_utils.setFileProcessed(cursor, verbose, capture)
-        elif ".log.csv" in capture:
-            database_utils.insertFile(cursor, verbose, capture)
-            wifi_db_aircrack.parse_log_csv(ouiMap, capture,
-                                           database, verbose, fake_lat,
-                                           fake_lon)
-            database_utils.setFileProcessed(cursor, verbose, capture)
-        elif ".csv" in capture:
-            database_utils.insertFile(cursor, verbose, capture)
-            wifi_db_aircrack.parse_csv(ouiMap, capture,
-                                       database, verbose)
-            database_utils.setFileProcessed(cursor, verbose, capture)
-        else:
-            print("Not format found!")
-            # Remove dot at end if not format found
-            if capture.endswith('.'):
-                capture = capture[:-1]
+        return
 
-            captureFormat = capture + ".kismet.netxml"
-            print("Parsing file:", captureFormat)
-            if (
-                database_utils.checkFileProcessed(
-                    cursor, verbose, captureFormat
-                ) == 1 and not force
-            ):
-                print("File", "already processed\n")
-            else:
-                database_utils.insertFile(cursor, verbose, captureFormat)
-                wifi_db_aircrack.parse_netxml(ouiMap, captureFormat,
-                                              database, verbose)
-                database_utils.setFileProcessed(cursor, verbose, captureFormat)
+    for ext, name in CAPTURE_FORMATS:
+        if ext in capture:
+            ingest_capture(name, ouiMap, capture, database, verbose,
+                           fake_lat, fake_lon, hcxpcapngtool, tshark, force)
+            return
 
-            captureFormat = capture + ".kismet.csv"
-            print("Parsing file:", captureFormat)
-            if (
-                database_utils.checkFileProcessed(
-                    cursor, verbose, captureFormat
-                ) == 1 and not force
-            ):
-                print("File", "already processed\n")
-            else:
-                database_utils.insertFile(cursor, verbose, captureFormat)
-                wifi_db_aircrack.parse_kismet_csv(ouiMap, captureFormat,
-                                                  database, verbose)
-                database_utils.setFileProcessed(cursor, verbose, captureFormat)
-
-            captureFormat = capture + ".csv"
-            print("Parsing file:", captureFormat)
-            if (
-                database_utils.checkFileProcessed(
-                    cursor, verbose, captureFormat
-                ) == 1 and not force
-            ):
-                print("File", "already processed\n")
-            else:
-                database_utils.insertFile(cursor, verbose, captureFormat)
-                wifi_db_aircrack.parse_csv(ouiMap, captureFormat,
-                                           database, verbose)
-                database_utils.setFileProcessed(cursor, verbose, captureFormat)
-
-            captureFormat = capture + ".log.csv"
-            print("Parsing file:", captureFormat)
-            if (
-                database_utils.checkFileProcessed(
-                    cursor, verbose, captureFormat
-                ) == 1 and not force
-            ):
-                print("File", "already processed\n")
-            else:
-                database_utils.insertFile(cursor, verbose, captureFormat)
-                wifi_db_aircrack.parse_log_csv(ouiMap, captureFormat,
-                                               database, verbose, fake_lat,
-                                               fake_lon)
-                database_utils.setFileProcessed(cursor, verbose, captureFormat)
-
-            captureFormat = capture + ".cap"
-            print("Parsing file:", captureFormat)
-            if (
-                database_utils.checkFileProcessed(
-                    cursor, verbose, captureFormat
-                ) == 1 and not force
-            ):
-                print("File", "already processed\n")
-            else:
-                database_utils.insertFile(cursor, verbose, captureFormat)
-                wifi_db_aircrack.parse_cap(captureFormat, database, verbose,
-                                           hcxpcapngtool, tshark)
-                database_utils.setFileProcessed(cursor, verbose, captureFormat)
+    # No recognised extension: try every known format by appending its suffix.
+    print("Not format found!")
+    if capture.endswith('.'):
+        capture = capture[:-1]
+    for suffix, name in FALLBACK_FORMATS:
+        ingest_capture(name, ouiMap, capture + suffix, database, verbose,
+                       fake_lat, fake_lon, hcxpcapngtool, tshark, force,
+                       announce=True)
 
 
 if __name__ == "__main__":
