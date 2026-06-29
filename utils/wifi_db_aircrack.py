@@ -7,6 +7,7 @@ import re
 # import platform
 import asyncio
 import binascii
+import contextlib
 import datetime
 import subprocess  # nosec B404 - only used with a fixed, absolute-path command
 # import xml.etree.ElementTree as ET # vuln!
@@ -158,6 +159,157 @@ TAG_CHANNEL_SWITCH = 37    # Channel Switch Announcement (CSA)
 TAG_EXTENDED_CSA = 60      # Extended Channel Switch Announcement
 
 
+def _netxml_read_root(filename, verbose):
+    '''Read a .kismet.netxml file, repair the known aircrack quirks and return
+    the parsed XML root element.'''
+    with open(filename, 'r', encoding='utf-8') as file:
+        filedata = file.read()
+    # fix aircrack error, remove spaces &#x 0;
+    filedata = re.sub(r'&#x[ ]+', '&#x', filedata)
+
+    # fix aircrack error, remove NULL byte &#x0;
+    filedata = filedata.replace('&#x0;', '')
+    filedata = filedata.replace('&#x0;', '')
+    # fix xml not well formed, end before write all the file
+    if "</detection-run>" not in filedata:
+        if verbose:
+            print("ERROR, not end")
+        filedata = filedata[:filedata.rfind("<wireless-network ")]
+        filedata += "</detection-run>"
+
+    return ET.fromstring(filedata)
+
+
+def _netxml_parse_probe(cursor, verbose, ouiMap, wireless):
+    '''Insert the client and probe rows for a netxml "probe" entry. Returns the
+    number of insert errors.'''
+    errors = 0
+    bssid = wireless.find("BSSID").text
+    manuf = oui.get_vendor(ouiMap, bssid, verbose)
+    packets_total = wireless.find("packets").find("total").text
+    if verbose:
+        print(bssid, manuf, "W", packets_total)
+
+    errors += database_utils.insertClients(
+        cursor, verbose, bssid, '',
+        manuf, 'W', packets_total, 'Misc', 0)
+
+    # probe
+    ssid1 = wireless.find("wireless-client").find("SSID")
+    ssid = ssid1.find("ssid")
+    if ssid is not None:
+        client = wireless.find("wireless-client")
+        essid_probe = client.findall("SSID")
+        for ssid in essid_probe:
+            # print bssid, ssid.find("ssid").text
+            essid = ftfy.fix_text(ssid.find("ssid").text)
+            errors += database_utils.insertProbe(
+                cursor, verbose, bssid, essid, 0)
+    return errors
+
+
+def _netxml_parse_infra_clients(cursor, verbose, ouiMap, wireless, bssid):
+    '''Insert the client and connection rows for an "infrastructure" entry.
+    Returns the number of insert errors.'''
+    errors = 0
+    clients = wireless.findall("wireless-client")
+    for client in clients:
+        client_mac = client.find("client-mac").text
+        manuf = oui.get_vendor(ouiMap, client_mac, verbose)
+
+        firstTimeSeen_string = client.attrib['first-time']
+        date_object = datetime.datetime.strptime(
+            firstTimeSeen_string, "%a %b %d %H:%M:%S %Y"
+        )
+        firstTimeSeen = date_object.strftime(
+            "%Y-%m-%d %H:%M:%S"
+        )
+
+        packets = client.find("packets")
+        packets_total = packets.find("total").text
+        # print (client_mac, manuf, "W", packets_total)
+        errors += database_utils.insertClients(
+            cursor, verbose, client_mac, '', manuf,
+            'W', packets_total, 'Misc', firstTimeSeen)
+
+        # connected
+        # print (bssid, client_mac)
+        errors += database_utils.insertConnected(
+            cursor, verbose, bssid, client_mac)
+    return errors
+
+
+def _netxml_parse_infrastructure(cursor, verbose, ouiMap, wireless):
+    '''Insert the AP, client and connection rows for a netxml
+    "infrastructure" entry. Returns the number of insert errors.'''
+    errors = 0
+    # ap
+    essid = wireless.find("SSID").find("essid").text
+    if essid is not None:
+        essid = ftfy.fix_text(essid)
+        # print(essid)
+    else:
+        essid = ""
+
+    cloakedtxt = wireless.find("SSID").find(
+        "essid").attrib['cloaked']
+    # print("cloaked: " + cloakedtxt)
+    if cloakedtxt == "true":
+        cloaked = 'True'  # ftfy.fix_text(cloaked)
+        # print(essid)
+    else:
+        cloaked = 'False'
+
+    bssid = wireless.find("BSSID").text
+    # manuf = wireless.find("manuf").text
+    channel = wireless.find("channel").text
+    freqmhz = wireless.find("freqmhz").text.split()[0]
+    carrier = wireless.find("carrier").text
+
+    # firstTimeSeen
+    firstTimeSeen_string = wireless.find(
+        "SSID"
+    ).attrib['first-time']
+    date_object = datetime.datetime.strptime(
+        firstTimeSeen_string, "%a %b %d %H:%M:%S %Y"
+    )
+    firstTimeSeen = date_object.strftime("%Y-%m-%d %H:%M:%S")
+
+    manuf = oui.get_vendor(ouiMap, bssid, verbose)
+
+    if wireless.find("SSID").find("encryption") is not None:
+        encryption = ""
+        for e in wireless.find("SSID").findall("encryption"):
+            encryption += e.text + ", "
+    else:
+        encryption = ""
+
+    lat = "0.0"
+    lon = "0.0"
+    gps_info = wireless.find("gps-info")
+    if gps_info is not None:
+        if gps_info.find("max-lat") is not None:
+            lat = gps_info.find("max-lat").text
+            lon = gps_info.find("max-lon").text
+        else:
+            lat = "0.0"
+            lon = "0.0"
+
+    packets_total = wireless[8].find("total").text
+
+    mfpc = 'False'
+    mfpr = 'False'
+    errors += database_utils.insertAP(
+        cursor, verbose, bssid, essid, manuf, channel,
+        freqmhz, carrier, encryption, packets_total, lat, lon,
+        cloaked, mfpc, mfpr, firstTimeSeen)
+
+    # client
+    errors += _netxml_parse_infra_clients(
+        cursor, verbose, ouiMap, wireless, bssid)
+    return errors
+
+
 def parse_netxml(ouiMap, name, database, verbose):
     '''Function to parse the .kismet.netxml files'''
 
@@ -167,133 +319,14 @@ def parse_netxml(ouiMap, name, database, verbose):
     try:
         cursor = database.cursor()
         if exists:
-            with open(filename, 'r', encoding='utf-8') as file:
-                filedata = file.read()
-            # fix aircrack error, remove spaces &#x 0;
-            filedata = re.sub(r'&#x[ ]+', '&#x', filedata)
-
-            # fix aircrack error, remove NULL byte &#x0;
-            filedata = filedata.replace('&#x0;', '')
-            filedata = filedata.replace('&#x0;', '')
-            # fix xml not well formed, end before write all the file
-            if "</detection-run>" not in filedata:
-                if verbose:
-                    print("ERROR, not end")
-                filedata = filedata[:filedata.rfind("<wireless-network ")]
-                filedata += "</detection-run>"
-
-            raiz = ET.fromstring(filedata)
+            raiz = _netxml_read_root(filename, verbose)
             for wireless in raiz:
                 if wireless.get("type") == "probe":
-                    bssid = wireless.find("BSSID").text
-                    manuf = oui.get_vendor(ouiMap, bssid, verbose)
-                    packets_total = wireless.find("packets").find("total").text
-                    if verbose:
-                        print(bssid, manuf, "W", packets_total)
-
-                    errors += database_utils.insertClients(
-                        cursor, verbose, bssid, '',
-                        manuf, 'W', packets_total, 'Misc', 0)
-
-                    # probe
-                    ssid1 = wireless.find("wireless-client").find("SSID")
-                    ssid = ssid1.find("ssid")
-                    if ssid is not None:
-                        client = wireless.find("wireless-client")
-                        essid_probe = client.findall("SSID")
-                        for ssid in essid_probe:
-                            # print bssid, ssid.find("ssid").text
-                            essid = ftfy.fix_text(ssid.find("ssid").text)
-                            errors += database_utils.insertProbe(
-                                cursor, verbose, bssid, essid, 0)
-
+                    errors += _netxml_parse_probe(
+                        cursor, verbose, ouiMap, wireless)
                 elif wireless.get("type") == "infrastructure":
-                    # ap
-                    essid = wireless.find("SSID").find("essid").text
-                    if essid is not None:
-                        essid = ftfy.fix_text(essid)
-                        # print(essid)
-                    else:
-                        essid = ""
-
-                    cloakedtxt = wireless.find("SSID").find(
-                        "essid").attrib['cloaked']
-                    # print("cloaked: " + cloakedtxt)
-                    if cloakedtxt == "true":
-                        cloaked = 'True'  # ftfy.fix_text(cloaked)
-                        # print(essid)
-                    else:
-                        cloaked = 'False'
-
-                    bssid = wireless.find("BSSID").text
-                    # manuf = wireless.find("manuf").text
-                    channel = wireless.find("channel").text
-                    freqmhz = wireless.find("freqmhz").text.split()[0]
-                    carrier = wireless.find("carrier").text
-
-                    # firstTimeSeen
-                    firstTimeSeen_string = wireless.find(
-                        "SSID"
-                    ).attrib['first-time']
-                    date_object = datetime.datetime.strptime(
-                        firstTimeSeen_string, "%a %b %d %H:%M:%S %Y"
-                    )
-                    firstTimeSeen = date_object.strftime("%Y-%m-%d %H:%M:%S")
-
-                    manuf = oui.get_vendor(ouiMap, bssid, verbose)
-
-                    if wireless.find("SSID").find("encryption") is not None:
-                        encryption = ""
-                        for e in wireless.find("SSID").findall("encryption"):
-                            encryption += e.text + ", "
-                    else:
-                        encryption = ""
-
-                    lat = "0.0"
-                    lon = "0.0"
-                    gps_info = wireless.find("gps-info")
-                    if gps_info is not None:
-                        if gps_info.find("max-lat") is not None:
-                            lat = gps_info.find("max-lat").text
-                            lon = gps_info.find("max-lon").text
-                        else:
-                            lat = "0.0"
-                            lon = "0.0"
-
-                    packets_total = wireless[8].find("total").text
-
-                    mfpc = 'False'
-                    mfpr = 'False'
-                    errors += database_utils.insertAP(
-                        cursor, verbose, bssid, essid, manuf, channel,
-                        freqmhz, carrier, encryption, packets_total, lat, lon,
-                        cloaked, mfpc, mfpr, firstTimeSeen)
-
-                    # client
-                    clients = wireless.findall("wireless-client")
-                    for client in clients:
-                        client_mac = client.find("client-mac").text
-                        manuf = oui.get_vendor(ouiMap, client_mac, verbose)
-
-                        firstTimeSeen_string = client.attrib['first-time']
-                        date_object = datetime.datetime.strptime(
-                            firstTimeSeen_string, "%a %b %d %H:%M:%S %Y"
-                        )
-                        firstTimeSeen = date_object.strftime(
-                            "%Y-%m-%d %H:%M:%S"
-                        )
-
-                        packets = client.find("packets")
-                        packets_total = packets.find("total").text
-                        # print (client_mac, manuf, "W", packets_total)
-                        errors += database_utils.insertClients(
-                            cursor, verbose, client_mac, '', manuf,
-                            'W', packets_total, 'Misc', firstTimeSeen)
-
-                        # connected
-                        # print (bssid, client_mac)
-                        errors += database_utils.insertConnected(
-                            cursor, verbose, bssid, client_mac)
+                    errors += _netxml_parse_infrastructure(
+                        cursor, verbose, ouiMap, wireless)
             database.commit()
             print(".kismet.netxml OK, errors", errors)
         else:
@@ -1122,10 +1155,8 @@ def _all_field_values(layer, field_name):
             if value not in (None, ''):
                 values.append(value)
     except Exception:
-        try:
+        with contextlib.suppress(Exception):
             values.append(str(field))
-        except Exception:
-            pass
     return values
 
 
@@ -1509,13 +1540,11 @@ def parse_probe_fingerprint(name, database, verbose):
 
         seen = set()
         for pkt in cap:
-            try:
-                mac = pkt.wlan.sa
-            except Exception:
+            mac = _safe(lambda: pkt.wlan.sa, None)
+            if mac is None:
                 continue
-            try:
-                mgt = pkt['wlan.mgt']
-            except Exception:
+            mgt = _safe(lambda: pkt['wlan.mgt'], None)
+            if mgt is None:
                 continue
 
             tags = _all_field_values(mgt, 'wlan_tag_number')

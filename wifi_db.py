@@ -42,14 +42,8 @@ def replace_multiple_slashes(string):
     return re.sub('/+', '/', string)
 
 
-def main():
-    '''Function main. Parse argument and exec the functions '''
-    nest_asyncio.apply()
-
-    # Check for update
-    update.check_for_update(VERSION)
-
-    # args
+def build_arg_parser():
+    '''Build and return the argparse parser for the CLI.'''
     parser = argparse.ArgumentParser()
     parser.add_argument("-V", "--version", help="write the wifi_db version",
                         action="store_true")
@@ -88,6 +82,104 @@ def main():
                         "extension is provided, all types will be added. "
                         "This option supports the use of "
                         "wildcards (*) to select multiple files or folders.")
+    return parser
+
+
+def _tool_available(tool):
+    '''Return True if `tool` is found on PATH via which/where.'''
+    try:
+        cmd = "where" if platform.system() == "Windows" else "which"
+        # Fixed command (which/where) with a fixed argument, no shell.
+        subprocess.call([cmd, tool])  # nosec B603
+        return True
+    except OSError as E:
+        print("False", E)
+        return False
+
+
+def detect_tools():
+    '''Detect the optional external tools used to enrich captures.'''
+    hcxpcapngtool = _tool_available("hcxpcapngtool")
+    tshark = _tool_available("tshark")
+    return hcxpcapngtool, tshark
+
+
+def _is_capture_file(file):
+    '''Return True if `file` has one of the recognised capture extensions.'''
+    return (('.cap' in file) or ('.csv' in file)
+            or ('.kismet.csv' in file)
+            or ('kismet.netxml' in file)
+            or ('.log.csv' in file))
+
+
+def collect_capture_files(dir_capture):
+    '''Return the recognised capture files in `dir_capture`, sorted reverse so
+    the .cap files are processed last (by name and extension).'''
+    files = [file for file in os.listdir(dir_capture)
+             if _is_capture_file(file)]
+    # Sorted reverse to cap last by name and extension
+    files.sort(key=os.path.splitext, reverse=True)
+    return files
+
+
+def process_folder(ouiMap, capture, database, verbose, fake_lat, fake_lon,
+                   hcxpcapngtool, tshark, force):
+    '''Parse every recognised capture file inside a folder.'''
+    print("Parsing folder:", capture)
+    dirpath = os.getcwd()
+    if os.path.isabs(capture):
+        dir_capture = capture
+    else:
+        dir_capture = dirpath + "/" + capture
+    if verbose:
+        print(dir_capture)
+        print("current directory is : " + dirpath)
+
+    files = collect_capture_files(dir_capture)
+    print(files)
+
+    counter = 0
+    # for each file with correct format of folder ...
+    for f in files:
+        counter += 1
+        print("File: " + str(counter) + " of " + str(len(files)))
+        capture_aux = dir_capture + "/" + f
+        print("\n" + capture_aux)
+        process_capture(ouiMap, capture_aux, database,
+                        verbose, fake_lat, fake_lon,
+                        hcxpcapngtool, tshark, force)
+
+
+def handle_capture(ouiMap, capture, source, database, verbose, fake_lat,
+                   fake_lon, hcxpcapngtool, tshark, force):
+    '''Process a single capture path according to the selected source.'''
+    if source == "aircrack-ng":
+        # If it is a folder...
+        if path.isdir(capture):
+            process_folder(ouiMap, capture, database, verbose,
+                           fake_lat, fake_lon, hcxpcapngtool, tshark, force)
+        else:  # it is a file
+            print("Parsing file:", capture)
+            process_capture(ouiMap, capture, database,
+                            verbose, fake_lat, fake_lon,
+                            hcxpcapngtool, tshark, force)
+    elif source == "kismet":
+        print("Parsing Kismet capture")
+        # TO DO
+    else:
+        print("Parsing Wigle capture")
+        # TO DO
+
+
+def main():
+    '''Function main. Parse argument and exec the functions '''
+    nest_asyncio.apply()
+
+    # Check for update
+    update.check_for_update(VERSION)
+
+    # args
+    parser = build_arg_parser()
     args = parser.parse_args()
 
     if args.version:
@@ -106,23 +198,7 @@ def main():
     obfuscated = args.obfuscated
     force = args.force
 
-    try:
-        cmd = "where" if platform.system() == "Windows" else "which"
-        # Fixed command (which/where) with a fixed argument, no shell.
-        subprocess.call([cmd, "hcxpcapngtool"])  # nosec B603
-        hcxpcapngtool = True
-    except OSError as E:
-        hcxpcapngtool = False
-        print("False", E)
-
-    try:
-        cmd = "where" if platform.system() == "Windows" else "which"
-        # Fixed command (which/where) with a fixed argument, no shell.
-        subprocess.call([cmd, "tshark"])  # nosec B603
-        tshark = True
-    except OSError as E:
-        tshark = False
-        print("False", E)
+    hcxpcapngtool, tshark = detect_tools()
 
     name = args.database
     captures = args.capture
@@ -152,53 +228,8 @@ def main():
             capture = capture[:-1]
         capture = replace_multiple_slashes(capture)
 
-        if source == "aircrack-ng":
-            # If it is a folder...
-            if path.isdir(capture):
-                print("Parsing folder:", capture)
-                files = []
-                dirpath = os.getcwd()
-                if os.path.isabs(capture):
-                    dir_capture = capture
-                else:
-                    dir_capture = dirpath + "/" + capture
-                if verbose:
-                    print(dir_capture)
-                    print("current directory is : " + dirpath)
-
-                for file in os.listdir(dir_capture):
-                    if (('.cap' in file) or ('.csv' in file)
-                       or ('.kismet.csv' in file)
-                       or ('kismet.netxml' in file)
-                       or ('.log.csv' in file)):
-                        files.append(file)
-                # Sorted reverse to cap last by name and extension
-                files.sort(key=os.path.splitext, reverse=True)
-                print(files)
-
-                counter = 0
-                # for each file with correct format of folder ...
-                for f in files:
-                    counter += 1
-                    print("File: " + str(counter) + " of " + str(len(files)))
-                    capture_aux = dir_capture + "/" + f
-                    print("\n" + capture_aux)
-                    process_capture(ouiMap, capture_aux, database,
-                                    verbose, fake_lat, fake_lon,
-                                    hcxpcapngtool, tshark, force)
-
-            else:  # it is a file
-                print("Parsing file:", capture)
-                process_capture(ouiMap, capture, database,
-                                verbose, fake_lat, fake_lon,
-                                hcxpcapngtool, tshark, force)
-
-        elif source == "kismet":
-            print("Parsing Kismet capture")
-            # TO DO
-        else:
-            print("Parsing Wigle capture")
-            # TO DO
+        handle_capture(ouiMap, capture, source, database, verbose,
+                       fake_lat, fake_lon, hcxpcapngtool, tshark, force)
 
     # Cleat whitelist MACs
     script_path = os.path.dirname(os.path.abspath(__file__))

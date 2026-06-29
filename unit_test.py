@@ -897,15 +897,26 @@ class TestFunctionsRealData(unittest.TestCase):
         row = self.c.fetchone()
         self.assertEqual(row[0], -49)
 
-    # TODO: WPS test, pending real data
-    # def testReal(self):
-    #     self.c.execute("SELECT  FROM  WHERE  = ''")
-    #     row = self.c.fetchone()
-    #     self.assertEqual(row[0], 0)
-    #
-    #     self.c.execute("SELECT  FROM  WHERE  = ''")
-    #     row = self.c.fetchone()
-    #     self.assertEqual(row[0], 0)
+    def testRealWPS(self):
+        # WPS attributes are merged 1:1 onto the AP row. Assert the merged WPS
+        # columns exist and that any WPS data parsed from the real capture is
+        # well-formed. The capture is not guaranteed to contain WPS-enabled
+        # APs (the .cap parser also needs tshark), so the presence of WPS rows
+        # is not required; only their correctness is checked.
+        self.c.execute("PRAGMA table_info(AP)")
+        columns = {row[1] for row in self.c.fetchall()}
+        wps_columns = {
+            'wps_version', 'wps_device_name', 'wps_model_name',
+            'wps_model_number', 'wps_config_methods',
+            'wps_config_methods_keypad',
+        }
+        self.assertTrue(wps_columns.issubset(columns))
+
+        query = ("SELECT wps_version FROM AP "
+                 "WHERE wps_version IS NOT NULL AND wps_version != ''")
+        self.c.execute(query)
+        for (wps_version,) in self.c.fetchall():
+            self.assertIn(wps_version, ('1.0', '2.0'))
 
 
 if __name__ == '__main__':
