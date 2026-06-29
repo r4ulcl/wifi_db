@@ -45,10 +45,11 @@ ENV PIP_NO_CACHE_DIR=1 \
 
 # Runtime dependencies only: tshark for pyshark, and the shared libraries the
 # hcxpcapngtool binary links against (the -dev packages and their headers stay
-# in the builder stage). ca-certificates is needed for the update HTTPS check.
-# --no-cache leaves no apk index behind.
+# in the builder stage). ca-certificates is needed for the update HTTPS check,
+# and git for the self-update check (adds ~7 MB: git + libexpat +
+# git-init-template). --no-cache leaves no apk index behind.
 RUN apk add --no-cache \
-        ca-certificates tshark libcurl libcrypto3 libssl3 zlib
+        ca-certificates git tshark libcurl libcrypto3 libssl3 zlib
 
 # Copy only the single hcxtools binary wifi_db uses, from the builder stage.
 COPY --from=hcxtools-builder /usr/bin/hcxpcapngtool /usr/bin/hcxpcapngtool
