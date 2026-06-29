@@ -690,62 +690,40 @@ def parse_WPS(name, database, verbose):
 
         for pkt in cap:
             # print(dir(pkt['wlan.mgt'].wps_version))
-            bssid = ''
-            wlan_ssid = ''
-            wps_device_name = ''
-            wps_model_name = ''
-            wps_model_number = ''
-            wps_config_methods = ''
-            wps_config_methods_keypad = ''
-            wps_version = '1.0'  # Default 1.0
             wmgt = 'wlan.mgt'
-            try:
-                wlan_ssid = pkt['wlan.mgt'].wlan_ssid
-                bssid = pkt.wlan.sa
-                bssid = bssid.upper()
-            except Exception:
-                errors += 1
-            try:
-                w_s_hex = pkt[wmgt].wlan_ssid
-                wlan_ssid_bytes = binascii.unhexlify(w_s_hex.replace(':', ''))
-                wlan_ssid_decode = wlan_ssid_bytes.decode('ascii')
-                if wlan_ssid_decode != "":
-                    wlan_ssid = wlan_ssid_decode
-                if ('20' in pkt[wmgt].wps_ext_version2):
-                    wps_version = '2.0'
-            except Exception as e:
-                if verbose:
-                    print(e)
-                errors += 1
-            try:
-                wps_device_name = pkt[wmgt].wps_device_name
-            except Exception:
-                errors += 1
-            try:
-                wps_model_name = pkt[wmgt].wps_model_name
-            except Exception:
-                errors += 1
-            try:
-                wps_model_number = pkt[wmgt].wps_model_number
-            except Exception:
-                errors += 1
-            try:
-                wps_config_methods = pkt[wmgt].wps_config_methods
-            except Exception:
-                errors += 1
-            try:
-                wps_config_methods_keypad = pkt[wmgt].wps_config_methods_keypad
-            except Exception:
-                errors += 1
+            # bssid is the only field a WPS row genuinely needs. Every other
+            # field below is an optional WPS attribute that is frequently
+            # absent from a given frame, so each is decoded defensively with
+            # _safe(): a missing field yields '' instead of inflating the
+            # error count (which is why a clean capture used to report dozens
+            # of "errors").
+            bssid = _safe(lambda: pkt.wlan.sa.upper())
 
-            try:
-                if verbose:
-                    print('==============================')
-                    print(bssid)
-                    print(wps_version)
-                    print(pkt[wmgt].wps_ext_version2)
-            except Exception:
-                errors += 1
+            # tshark exposes the SSID as colon-separated hex; decode it the
+            # same way the other .cap parsers do, defaulting to '' on a
+            # non-hex / undecodable value instead of raising
+            # "Non-hexadecimal digit found".
+            wlan_ssid = _safe(lambda: binascii.unhexlify(
+                pkt[wmgt].wlan_ssid.replace(':', '')).decode('ascii'))
+
+            # WPS 2.0 advertises itself through the Version2 extension. Read it
+            # on its own so a non-hex SSID can no longer suppress the 2.0 flag
+            # (the two used to share a try/except, so a bad SSID forced 1.0).
+            wps_ext_version2 = _safe(lambda: pkt[wmgt].wps_ext_version2)
+            wps_version = '2.0' if '20' in (wps_ext_version2 or '') else '1.0'
+
+            wps_device_name = _safe(lambda: pkt[wmgt].wps_device_name)
+            wps_model_name = _safe(lambda: pkt[wmgt].wps_model_name)
+            wps_model_number = _safe(lambda: pkt[wmgt].wps_model_number)
+            wps_config_methods = _safe(lambda: pkt[wmgt].wps_config_methods)
+            wps_config_methods_keypad = _safe(
+                lambda: pkt[wmgt].wps_config_methods_keypad)
+
+            if verbose:
+                print('==============================')
+                print(bssid)
+                print(wps_version)
+                print(wps_ext_version2)
 
             errors += database_utils.insertWPS(cursor, verbose, bssid,
                                                wlan_ssid, wps_version,
