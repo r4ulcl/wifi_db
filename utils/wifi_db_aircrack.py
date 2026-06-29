@@ -150,6 +150,13 @@ RSN_CIPHERS = {
     '13': "BIP-CMAC-256",
 }
 
+# 802.11 management-frame element (tag) numbers used to detect AP capabilities.
+TAG_MOBILITY_DOMAIN = 54   # 802.11r Fast BSS Transition (MDE)
+TAG_RM_ENABLED_CAP = 70    # 802.11k Radio Resource Measurement (neighbor rep.)
+TAG_MULTIPLE_BSSID = 71    # Multiple BSSID set
+TAG_CHANNEL_SWITCH = 37    # Channel Switch Announcement (CSA)
+TAG_EXTENDED_CSA = 60      # Extended Channel Switch Announcement
+
 
 def parse_netxml(ouiMap, name, database, verbose):
     '''Function to parse the .kismet.netxml files'''
@@ -510,6 +517,8 @@ def parse_cap(name, database, verbose, hcxpcapngtool, tshark):
         parse_MFP(name, database, verbose)
         parse_certificates(name, database, verbose)
         parse_security(name, database, verbose)
+        parse_capabilities(name, database, verbose)
+        parse_hidden_ssid(name, database, verbose)
         parse_eap_md5(name, database, verbose)
         parse_probe_fingerprint(name, database, verbose)
     if hcxpcapngtool:
@@ -1178,6 +1187,180 @@ def _rsn_pmf(mgt):
     else:
         pmf = "Disabled"
     return pmf, rsn_capabilities, mfpc, mfpr
+
+
+def _field_value(layer, field_name):
+    '''Return a single field's value (or '') from a pyshark layer, never
+    raising.'''
+    try:
+        field = layer.get_field(field_name)
+    except Exception:
+        return ''
+    if field is None:
+        return ''
+    try:
+        return field.get_default_value() or ''
+    except Exception:
+        return ''
+
+
+def _first_field_value(layer, field_names):
+    '''Return the first non-empty value among several candidate field names
+    (dissector field names vary between tshark versions).'''
+    for name in field_names:
+        value = _field_value(layer, name)
+        if value not in (None, ''):
+            return value
+    return ''
+
+
+def _field_is_set(value):
+    '''True when a tshark boolean/bit field reads as set.'''
+    return str(value).strip().lower() in ('1', 'true', 'yes')
+
+
+def _mgt_tag_numbers(mgt):
+    '''Return the set of 802.11 element (tag) numbers present in a management
+    frame, as ints.'''
+    values = _all_field_values(mgt, 'wlan_tag_number')
+    return {i for i in (_to_int(v) for v in values) if i is not None}
+
+
+def _ssid_from_mgt(mgt):
+    '''Decode the SSID element of a management frame, returning '' for a
+    hidden/wildcard SSID (empty or NUL padding). tshark may expose wlan.ssid
+    either already decoded or as colon-separated hex bytes.'''
+    raw = _field_value(mgt, 'wlan_ssid')
+    if not raw:
+        return ''
+    candidate = raw
+    if ':' in raw:
+        try:
+            candidate = binascii.unhexlify(
+                raw.replace(':', '')).decode('utf-8', 'replace')
+        except Exception:
+            candidate = raw
+    return candidate.replace('\x00', '').strip()
+
+
+# Detect 802.11r/k/v fast-roaming, Multiple BSSID and Channel Switch
+# Announcement advertisements from beacons and probe responses, storing the
+# flags on the AP row.
+def parse_capabilities(name, database, verbose):
+    try:
+        cursor = database.cursor()
+        errors = 0
+        file = name
+        # Beacons (0x08) and probe responses (0x05) carry the capability IEs.
+        cap = pyshark.FileCapture(
+            file, display_filter="wlan.fc.type_subtype == 0x08 || "
+            "wlan.fc.type_subtype == 0x05")
+        # cap.set_debug()
+
+        seen = set()
+        for pkt in cap:
+            try:
+                bssid, mgt = _pkt_bssid_mgt(pkt)
+                # The capabilities are stable per AP, so one frame per BSSID is
+                # enough (matches parse_security; keeps big captures fast).
+                if bssid is None or mgt is None or bssid.upper() in seen:
+                    continue
+
+                tags = _mgt_tag_numbers(mgt)
+                ft = 'True' if TAG_MOBILITY_DOMAIN in tags else 'False'
+                rrm = 'True' if TAG_RM_ENABLED_CAP in tags else 'False'
+                mbssid = 'True' if TAG_MULTIPLE_BSSID in tags else 'False'
+                csa = ('True' if (TAG_CHANNEL_SWITCH in tags
+                                  or TAG_EXTENDED_CSA in tags) else 'False')
+                # 802.11v BSS Transition Management is a bit (b19) of the
+                # Extended Capabilities element, not an element of its own.
+                bss_trans = ('True' if _field_is_set(
+                    _field_value(mgt, 'wlan_extcap_b19')) else 'False')
+
+                mdid = _first_field_value(
+                    mgt, ['wlan_mobility_domain_mdid', 'wlan_ft_mdid'])
+                max_bssid_indicator = _to_int(_first_field_value(
+                    mgt, ['wlan_mbssid_max_bssid_indicator',
+                          'wlan_mbssid_index']))
+                csa_new_channel = _to_int(_first_field_value(
+                    mgt, ['wlan_csa_new_channel_number',
+                          'wlan_ext_chansw_announce_new_chan']))
+
+                if (ft == 'True' or rrm == 'True' or bss_trans == 'True'
+                        or mbssid == 'True' or csa == 'True'):
+                    if verbose:
+                        print("Capabilities for AP " + str(bssid) +
+                              ": 11r=" + ft + " 11k=" + rrm + " 11v=" +
+                              bss_trans + " MBSSID=" + mbssid + " CSA=" + csa)
+                    errors += database_utils.insertCapabilities(
+                        cursor, verbose, bssid, ft, mdid, rrm, bss_trans,
+                        mbssid, max_bssid_indicator, csa, csa_new_channel)
+                seen.add(bssid.upper())
+            except Exception as error:
+                errors += 1
+                if verbose:
+                    print(error)
+
+        database.commit()
+        print(".cap Capabilities done, errors", errors)
+    except pyshark.capture.capture.TSharkCrashException as error:
+        errors += 1
+        print("Error in parse_capabilities (CAP), probably PCAP cut in the "
+              "middle of a packet: ", error)
+        print(".cap Capabilities done, errors", errors)
+    except Exception as error:
+        errors += 1
+        print("Error in parse_capabilities (CAP): ", error)
+        print(".cap Capabilities done, errors", errors)
+
+
+# Recover cloaked (hidden) SSIDs from probe responses and (re)association
+# requests, which carry the real SSID even when the beacon hides it.
+def parse_hidden_ssid(name, database, verbose):
+    try:
+        cursor = database.cursor()
+        errors = 0
+        file = name
+        # Probe responses (0x05) and (re)association requests (0x00 / 0x02)
+        # carrying a non-wildcard SSID element. wlan.bssid is the AP in all of
+        # them, so no per-subtype address handling is needed.
+        cap = pyshark.FileCapture(
+            file, display_filter="(wlan.fc.type_subtype == 0x05 || "
+            "wlan.fc.type_subtype == 0x00 || wlan.fc.type_subtype == 0x02) "
+            "&& wlan.ssid")
+        # cap.set_debug()
+
+        seen = set()
+        for pkt in cap:
+            try:
+                mgt = pkt['wlan.mgt']
+                ssid = _ssid_from_mgt(mgt)
+                if not ssid:
+                    continue
+                bssid = pkt.wlan.bssid
+                if bssid is None or bssid.upper() in seen:
+                    continue
+                seen.add(bssid.upper())
+                if verbose:
+                    print("Revealed SSID for AP " + str(bssid) + ": " + ssid)
+                errors += database_utils.insertHiddenSSID(
+                    cursor, verbose, bssid, ssid)
+            except Exception as error:
+                errors += 1
+                if verbose:
+                    print(error)
+
+        database.commit()
+        print(".cap Hidden SSID done, errors", errors)
+    except pyshark.capture.capture.TSharkCrashException as error:
+        errors += 1
+        print("Error in parse_hidden_ssid (CAP), probably PCAP cut in the "
+              "middle of a packet: ", error)
+        print(".cap Hidden SSID done, errors", errors)
+    except Exception as error:
+        errors += 1
+        print("Error in parse_hidden_ssid (CAP): ", error)
+        print(".cap Hidden SSID done, errors", errors)
 
 
 # Get RSN/WPA security details (AKM suites and ciphers) from beacons and

@@ -28,6 +28,15 @@ CREATE TABLE IF NOT EXISTS AP
     wps_model_number TEXT,
     wps_config_methods TEXT,
     wps_config_methods_keypad TEXT,
+    ft_80211r BOOLEAN,
+    mobility_domain_id TEXT,
+    rrm_80211k BOOLEAN,
+    bss_transition_80211v BOOLEAN,
+    mbssid BOOLEAN,
+    max_bssid_indicator int,
+    csa BOOLEAN,
+    csa_new_channel int,
+    ssid_revealed BOOLEAN,
     CONSTRAINT Key1 PRIMARY KEY (bssid)
 );
 

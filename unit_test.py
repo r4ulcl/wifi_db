@@ -79,6 +79,7 @@ class TestFunctions(unittest.TestCase):
             ('IdentityAP',),
             ('CertificateAP',),
             ('SecurityAP',),
+            ('CapabilitiesAP',),
             ('SummaryAP',)
         ]
         self.assertEqual(views, expected_views)
@@ -304,6 +305,81 @@ class TestFunctions(unittest.TestCase):
         self.assertIsNotNone(row)
         self.assertEqual(row[0], 'AP')
         self.assertEqual(row[1], 'radius')
+
+    def test_insertCapabilities(self):
+        # Store 802.11r/k/v + MBSSID + CSA capabilities on the AP row.
+        result = database_utils.insertCapabilities(
+            self.c, self.verbose, self.bssid, 'True', '0xabcd', 'True',
+            'True', 'True', 8, 'True', 36)
+        self.assertEqual(result, 0)
+        self.c.execute("SELECT ft_80211r, mobility_domain_id, rrm_80211k, "
+                       "bss_transition_80211v, mbssid, max_bssid_indicator, "
+                       "csa, csa_new_channel FROM AP WHERE bssid = ?",
+                       (self.bssid,))
+        row = self.c.fetchone()
+        self.assertEqual(row, ('True', '0xabcd', 'True', 'True', 'True', 8,
+                               'True', 36))
+
+        # A later beacon without the elements must NOT clear sticky flags, and
+        # must keep the detail fields it does not carry.
+        result = database_utils.insertCapabilities(
+            self.c, self.verbose, self.bssid, 'False', '', 'False', 'False',
+            'False', None, 'False', None)
+        self.assertEqual(result, 0)
+        self.c.execute("SELECT ft_80211r, mobility_domain_id, rrm_80211k, "
+                       "csa_new_channel FROM AP WHERE bssid = ?",
+                       (self.bssid,))
+        row = self.c.fetchone()
+        self.assertEqual(row, ('True', '0xabcd', 'True', 36))
+
+    def test_cloaked_sticky_on_merge(self):
+        # A detected cloaked='True' must survive later merges (e.g. a beacon
+        # enriching the AP via insertAPConstraint, which passes 'False').
+        database_utils.insertAP(self.c, self.verbose, self.bssid, "", "manuf",
+                                "6", "2437", "", "WPA2", "0", "0.0", "0.0",
+                                'True', 'False', 'False', 0)
+        database_utils.insertSecurity(
+            self.c, self.verbose, self.bssid, 'WPA2', 'PSK', 'CCMP-128',
+            'CCMP-128', 'False', 'Disabled', '0x0000', 'test.cap')
+        self.c.execute("SELECT cloaked FROM AP WHERE bssid = ?", (self.bssid,))
+        self.assertEqual(self.c.fetchone()[0], 'True')
+
+    def test_insertHiddenSSID(self):
+        # An AP with no SSID yet gets its name filled and flagged as revealed.
+        database_utils.insertAPConstraint(self.c, self.verbose, self.bssid)
+        result = database_utils.insertHiddenSSID(
+            self.c, self.verbose, self.bssid, "RecoveredNet")
+        self.assertEqual(result, 0)
+        self.c.execute("SELECT ssid, ssid_revealed FROM AP WHERE bssid = ?",
+                       (self.bssid,))
+        self.assertEqual(self.c.fetchone(), ("RecoveredNet", 'True'))
+
+        # A known SSID must never be overwritten by a reveal.
+        result = database_utils.insertHiddenSSID(
+            self.c, self.verbose, self.bssid, "DifferentName")
+        self.assertEqual(result, 0)
+        self.c.execute("SELECT ssid FROM AP WHERE bssid = ?", (self.bssid,))
+        self.assertEqual(self.c.fetchone()[0], "RecoveredNet")
+
+    def test_capabilities_view(self):
+        # The CapabilitiesAP view exposes the capability columns from AP and
+        # only lists APs that advertise at least one of them.
+        database_utils.insertCapabilities(
+            self.c, self.verbose, self.bssid, 'True', '0x1234', 'False',
+            'False', 'False', None, 'False', None)
+        self.c.execute("SELECT ssid, ft_80211r, mobility_domain_id "
+                       "FROM CapabilitiesAP WHERE bssid = ?", (self.bssid,))
+        row = self.c.fetchone()
+        self.assertIsNotNone(row)
+        self.assertEqual(row[1], 'True')
+        self.assertEqual(row[2], '0x1234')
+
+        # An AP with no capabilities advertised must not appear in the view.
+        other = "AA:BB:CC:DD:EE:FF"
+        database_utils.insertAPConstraint(self.c, self.verbose, other)
+        self.c.execute("SELECT COUNT(*) FROM CapabilitiesAP WHERE bssid = ?",
+                       (other,))
+        self.assertEqual(self.c.fetchone()[0], 0)
 
     def test_isRandomizedMAC(self):
         # bit 1 of the first octet set -> locally administered (randomized)

@@ -88,7 +88,8 @@ def _updateAP(cursor, verbose, bssid, essid, manuf, channel, freqmhz,
         ("""UPDATE AP SET lat_t = CASE WHEN lat_t = 0.0 THEN (?) ELSE lat_t
             END, lon_t = CASE WHEN lon_t = 0.0 THEN (?) ELSE lon_t END
             WHERE bssid = (?)""", (lat, lon, bssid)),
-        ("""UPDATE AP SET cloaked = (?) WHERE bssid = (?)""", (cloaked, bssid)),
+        ("""UPDATE AP SET cloaked = CASE WHEN cloaked = 'True' THEN 'True'
+            ELSE (?) END WHERE bssid = (?)""", (cloaked, bssid)),
         ("""UPDATE AP SET mfpc = CASE WHEN mfpc = 'False' THEN (?) ELSE mfpc
             END WHERE bssid = (?)""", (mfpc, bssid)),
         ("""UPDATE AP SET mfpr = CASE WHEN mfpr = 'False' THEN (?) ELSE mfpr
@@ -387,6 +388,77 @@ def insertSecurity(cursor, verbose, bssid, wpa_version, akm_suites,
     except sqlite3.Error as error:
         if verbose:
             print("insertSecurity Error " + str(error))
+        return int(1)
+
+
+def insertCapabilities(cursor, verbose, bssid, ft_80211r, mobility_domain_id,
+                       rrm_80211k, bss_transition_80211v, mbssid,
+                       max_bssid_indicator, csa, csa_new_channel):
+    '''Store the 802.11 management capabilities parsed from an AP beacon /
+    probe response (fast roaming and Multiple BSSID / CSA advertisements).
+
+    These are 1:1 AP attributes, so they live on the AP row. The boolean flags
+    are merged "sticky" (once 'True' they stay 'True', so a later beacon that
+    happens to omit the element does not clear it), while the detail fields
+    (mobility domain id, max BSSID indicator, CSA target channel) take the
+    latest non-empty value seen.'''
+    try:
+        # Ensure the AP row exists, then merge the capability columns into it.
+        insertAPConstraint(cursor, verbose, bssid)
+
+        cursor.execute(
+            '''UPDATE AP SET
+                 ft_80211r = CASE WHEN ft_80211r = 'True' THEN 'True'
+                             ELSE (?) END,
+                 mobility_domain_id = COALESCE(NULLIF((?), ''),
+                                               mobility_domain_id),
+                 rrm_80211k = CASE WHEN rrm_80211k = 'True' THEN 'True'
+                              ELSE (?) END,
+                 bss_transition_80211v = CASE WHEN bss_transition_80211v =
+                              'True' THEN 'True' ELSE (?) END,
+                 mbssid = CASE WHEN mbssid = 'True' THEN 'True' ELSE (?) END,
+                 max_bssid_indicator = COALESCE((?), max_bssid_indicator),
+                 csa = CASE WHEN csa = 'True' THEN 'True' ELSE (?) END,
+                 csa_new_channel = COALESCE((?), csa_new_channel)
+               WHERE bssid = (?)''',
+            (ft_80211r, mobility_domain_id, rrm_80211k, bss_transition_80211v,
+             mbssid, max_bssid_indicator, csa, csa_new_channel,
+             bssid.upper()))
+        return int(0)
+    except sqlite3.IntegrityError as error:
+        if verbose:
+            print("insertCapabilities " + str(error))
+        return int(0)
+    except sqlite3.Error as error:
+        if verbose:
+            print("insertCapabilities Error " + str(error))
+        return int(1)
+
+
+def insertHiddenSSID(cursor, verbose, bssid, ssid):
+    '''Recover a cloaked SSID seen in a probe response or (re)association
+    request and store it on the AP row. The SSID is only written when the AP
+    row has no SSID yet (empty/NULL), so a real beacon SSID is never
+    overwritten, and `ssid_revealed` records that the name was learned from a
+    non-beacon frame.'''
+    try:
+        if not ssid:
+            return int(0)
+        # Ensure the AP row exists, then fill the SSID only if still unknown.
+        insertAPConstraint(cursor, verbose, bssid)
+
+        cursor.execute(
+            '''UPDATE AP SET ssid = (?), ssid_revealed = 'True'
+               WHERE bssid = (?) AND (ssid IS NULL OR ssid = '')''',
+            (ssid, bssid.upper()))
+        return int(0)
+    except sqlite3.IntegrityError as error:
+        if verbose:
+            print("insertHiddenSSID " + str(error))
+        return int(0)
+    except sqlite3.Error as error:
+        if verbose:
+            print("insertHiddenSSID Error " + str(error))
         return int(1)
 
 
