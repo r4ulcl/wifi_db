@@ -3,22 +3,42 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/r4ulcl/wifi_db/releases"><img src="https://img.shields.io/github/v/release/r4ulcl/wifi_db" alt="GitHub releases"></a>
-  <a href="https://github.com/r4ulcl/wifi_db/stargazers"><img src="https://img.shields.io/github/stars/r4ulcl/wifi_db.svg?style=flat" alt="GitHub stars"></a>
-  <a href="https://github.com/r4ulcl/wifi_db/network"><img src="https://img.shields.io/github/forks/r4ulcl/wifi_db.svg?style=flat" alt="GitHub forks"></a>
-  <a href="https://github.com/r4ulcl/wifi_db/issues"><img src="https://img.shields.io/github/issues/r4ulcl/wifi_db.svg?style=flat" alt="GitHub issues"></a>
+  <a href="https://github.com/r4ulcl/wifi_db/releases"><img src="https://img.shields.io/github/v/release/r4ulcl/wifi_db?style=flat&logo=github" alt="Latest release"></a>
+  <a href="https://github.com/r4ulcl/wifi_db/blob/main/LICENSE"><img src="https://img.shields.io/github/license/r4ulcl/wifi_db?style=flat&logo=gnu" alt="License"></a>
+  <a href="https://github.com/r4ulcl/wifi_db/commits/master"><img src="https://img.shields.io/github/last-commit/r4ulcl/wifi_db/master?style=flat&logo=git&logoColor=white&label=last%20commit%20(master)" alt="Last commit (master)"></a>
+  <a href="https://github.com/r4ulcl/wifi_db/commits/dev"><img src="https://img.shields.io/github/last-commit/r4ulcl/wifi_db/dev?style=flat&logo=git&logoColor=white&label=last%20commit%20(dev)" alt="Last commit (dev)"></a>
+  <a href="https://github.com/r4ulcl/wifi_db"><img src="https://img.shields.io/github/languages/top/r4ulcl/wifi_db?style=flat&logo=python&logoColor=white" alt="Top language"></a>
+</p>
+
+<p align="center">
+  <a href="https://github.com/r4ulcl/wifi_db/actions/workflows/docker-image.yml"><img src="https://github.com/r4ulcl/wifi_db/actions/workflows/docker-image.yml/badge.svg" alt="Docker Image build"></a>
+  <a href="https://github.com/r4ulcl/wifi_db/actions/workflows/docker-image-dev.yml"><img src="https://github.com/r4ulcl/wifi_db/actions/workflows/docker-image-dev.yml/badge.svg" alt="Docker Image (dev) build"></a>
   <a href="https://www.codefactor.io/repository/github/r4ulcl/wifi_db"><img src="https://www.codefactor.io/repository/github/r4ulcl/wifi_db/badge" alt="CodeFactor"></a>
-  <a href="https://github.com/r4ulcl/wifi_db"><img src="https://sloc.xyz/github/r4ulcl/wifi_db" alt="Lines of Code"></a>
-  <a href="https://github.com/r4ulcl/wifi_db/blob/main/LICENSE"><img src="https://img.shields.io/github/license/r4ulcl/wifi_db.svg?style=flat" alt="GitHub license"></a>
-  <br>
-  <a href="https://hub.docker.com/r/r4ulcl/wifi_db"><img src="https://github.com/r4ulcl/wifi_db/actions/workflows/docker-image.yml/badge.svg" alt="Docker Image"></a>
-  <a href="https://hub.docker.com/r/r4ulcl/wifi_db/tags"><img src="https://github.com/r4ulcl/wifi_db/actions/workflows/docker-image-dev.yml/badge.svg" alt="Docker Image dev"></a>
+  <a href="https://github.com/r4ulcl/wifi_db"><img src="https://sloc.xyz/github/r4ulcl/wifi_db" alt="Lines of code"></a>
+  <a href="https://hub.docker.com/r/r4ulcl/wifi_db/tags"><img src="https://img.shields.io/docker/image-size/r4ulcl/wifi_db?style=flat&logo=docker&logoColor=white" alt="Docker image size"></a>
+</p>
+
+<p align="center">
+  <a href="https://github.com/r4ulcl/wifi_db/stargazers"><img src="https://img.shields.io/github/stars/r4ulcl/wifi_db?style=flat&logo=github" alt="Stars"></a>
+  <a href="https://github.com/r4ulcl/wifi_db/network/members"><img src="https://img.shields.io/github/forks/r4ulcl/wifi_db?style=flat&logo=github" alt="Forks"></a>
+  <a href="https://github.com/r4ulcl/wifi_db/issues"><img src="https://img.shields.io/github/issues/r4ulcl/wifi_db?style=flat&logo=github" alt="Open issues"></a>
+  <a href="https://github.com/r4ulcl/wifi_db/graphs/contributors"><img src="https://img.shields.io/github/contributors/r4ulcl/wifi_db?style=flat&logo=github" alt="Contributors"></a>
+  <a href="https://hub.docker.com/r/r4ulcl/wifi_db"><img src="https://img.shields.io/docker/pulls/r4ulcl/wifi_db?style=flat&logo=docker&logoColor=white" alt="Docker pulls"></a>
 </p>
 
 # wifi_db
 
 Script to parse Aircrack-ng captures into a SQLite database and extract useful information like handshakes (in 22000 hashcat format), enterprise (MGT) identities and EAP-MD5 challenge/response pairs, the X.509 certificates and RSN/WPA security configuration of each network, the 802.11r/k/v, Multiple BSSID and Channel Switch capabilities advertised by the APs, interesting relations between APs, clients and their Probes, WPS information, and a global view of all the APs seen.
 
+## Table of Contents
+
+- [Features](#features)
+- [Install](#install)
+- [Usage](#usage)
+- [Database](#database)
+- [Views](#views)
+- [TODO](#todo)
+- [License](#license)
 
 ## Features
 
