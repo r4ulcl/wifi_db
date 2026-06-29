@@ -49,10 +49,25 @@ FROM AP
 WHERE AP.wpa_version IS NOT NULL
 ORDER BY AP.bssid;
 
+DROP VIEW IF EXISTS CapabilitiesAP;
+CREATE VIEW IF NOT EXISTS CapabilitiesAP AS
+SELECT AP.bssid, AP.ssid, AP.ft_80211r, AP.mobility_domain_id, AP.rrm_80211k, AP.bss_transition_80211v, AP.mbssid, AP.max_bssid_indicator, AP.csa, AP.csa_new_channel
+FROM AP
+WHERE AP.ft_80211r = 'True' OR AP.rrm_80211k = 'True' OR AP.bss_transition_80211v = 'True' OR AP.mbssid = 'True' OR AP.csa = 'True'
+ORDER BY AP.bssid;
+
 DROP VIEW IF EXISTS SummaryAP;
 CREATE VIEW IF NOT EXISTS SummaryAP AS
-SELECT AP.ssid, COUNT(DISTINCT AP.bssid) as "APs count", AP.encryption, AP.manuf, AP.cloaked, count(DISTINCT Connected.mac) as "Clients count"
-FROM AP LEFT JOIN Connected ON AP.bssid = Connected.bssid 
+SELECT
+    AP.ssid,
+    COUNT(DISTINCT AP.bssid) AS "APs count",
+    AP.encryption,
+    GROUP_CONCAT(DISTINCT AP.wpa_version) AS wpa_version,
+    GROUP_CONCAT(DISTINCT AP.pmf) AS pmf,
+    GROUP_CONCAT(DISTINCT AP.manuf) AS manuf,
+    AP.cloaked,
+    COUNT(DISTINCT Connected.mac) AS "Clients count"
+FROM AP LEFT JOIN Connected ON AP.bssid = Connected.bssid
 WHERE AP.encryption != ""
-group by AP.ssid
-ORDER BY "APs count" DESC;
+GROUP BY AP.ssid, AP.encryption
+ORDER BY "APs count" DESC, AP.ssid;
