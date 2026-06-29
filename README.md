@@ -180,6 +180,7 @@ CAPTURESFOLDER=/home/user/wifi
 
 # Output database
 touch db.SQLITE
+chmod a+rw db.SQLITE
 
 docker run -t -v $PWD/db.SQLITE:/app/db.SQLITE -v $CAPTURESFOLDER:/captures/ r4ulcl/wifi_db
 ```
