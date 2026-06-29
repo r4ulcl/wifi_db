@@ -1,36 +1,18 @@
 <p align="center">
-  <img src="resources/wifi_db_w.png" alt="wifi_db" width="400">
+  <img src="resources/wifi_db_w.png" alt="wifi_db" width="600">
 </p>
 
 <p align="center">
-  <a href="https://github.com/r4ulcl/wifi_db/releases">
-    <img src="https://img.shields.io/github/v/release/r4ulcl/wifi_db" alt="GitHub releases">
-  </a>
-  <a href="https://github.com/r4ulcl/wifi_db/stargazers">
-    <img src="https://img.shields.io/github/stars/r4ulcl/wifi_db.svg?style=flat" alt="GitHub stars">
-  </a>
-  <a href="https://github.com/r4ulcl/wifi_db/network">
-    <img src="https://img.shields.io/github/forks/r4ulcl/wifi_db.svg?style=flat" alt="GitHub forks">
-  </a>
-  <a href="https://github.com/r4ulcl/wifi_db/issues">
-    <img src="https://img.shields.io/github/issues/r4ulcl/wifi_db.svg?style=flat" alt="GitHub issues">
-  </a>
-  <a href="https://www.codefactor.io/repository/github/r4ulcl/wifi_db">
-    <img src="https://www.codefactor.io/repository/github/r4ulcl/wifi_db/badge" alt="CodeFactor">
-  </a>
-  <a href="https://github.com/r4ulcl/wifi_db">
-    <img src="https://tokei.rs/b1/github/r4ulcl/wifi_db" alt="Lines of Code">
-  </a>
-  <a href="https://github.com/r4ulcl/wifi_db/blob/main/LICENSE">
-    <img src="https://img.shields.io/github/license/r4ulcl/wifi_db.svg?style=flat" alt="GitHub license">
-  </a>
+  <a href="https://github.com/r4ulcl/wifi_db/releases"><img src="https://img.shields.io/github/v/release/r4ulcl/wifi_db" alt="GitHub releases"></a>
+  <a href="https://github.com/r4ulcl/wifi_db/stargazers"><img src="https://img.shields.io/github/stars/r4ulcl/wifi_db.svg?style=flat" alt="GitHub stars"></a>
+  <a href="https://github.com/r4ulcl/wifi_db/network"><img src="https://img.shields.io/github/forks/r4ulcl/wifi_db.svg?style=flat" alt="GitHub forks"></a>
+  <a href="https://github.com/r4ulcl/wifi_db/issues"><img src="https://img.shields.io/github/issues/r4ulcl/wifi_db.svg?style=flat" alt="GitHub issues"></a>
+  <a href="https://www.codefactor.io/repository/github/r4ulcl/wifi_db"><img src="https://www.codefactor.io/repository/github/r4ulcl/wifi_db/badge" alt="CodeFactor"></a>
+  <a href="https://github.com/r4ulcl/wifi_db"><img src="https://sloc.xyz/github/r4ulcl/wifi_db" alt="Lines of Code"></a>
+  <a href="https://github.com/r4ulcl/wifi_db/blob/main/LICENSE"><img src="https://img.shields.io/github/license/r4ulcl/wifi_db.svg?style=flat" alt="GitHub license"></a>
   <br>
-  <a href="https://hub.docker.com/r/r4ulcl/wifi_db">
-    <img src="https://github.com/r4ulcl/wifi_db/actions/workflows/docker-image.yml/badge.svg" alt="Docker Image">
-  </a>
-  <a href="https://hub.docker.com/r/r4ulcl/wifi_db/tags">
-    <img src="https://github.com/r4ulcl/wifi_db/actions/workflows/docker-image-dev.yml/badge.svg" alt="Docker Image dev">
-  </a>
+  <a href="https://hub.docker.com/r/r4ulcl/wifi_db"><img src="https://github.com/r4ulcl/wifi_db/actions/workflows/docker-image.yml/badge.svg" alt="Docker Image"></a>
+  <a href="https://hub.docker.com/r/r4ulcl/wifi_db/tags"><img src="https://github.com/r4ulcl/wifi_db/actions/workflows/docker-image-dev.yml/badge.svg" alt="Docker Image dev"></a>
 </p>
 
 # wifi_db
