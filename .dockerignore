@@ -18,10 +18,11 @@ __pycache__
 # mounts this directory into the built container to run the suite against it.
 test_data
 
-# README image assets and the roadmap are not needed at runtime.
+# README image assets and the roadmap/changelog are not needed at runtime.
 # README.md itself is kept: the test suite hashes it as a sample input file.
 resources
-ROADMAP.md
+ROADMAP*.md
+CHANGELOG.md
 
 # Local databases / editor / tooling
 *.sqlite
