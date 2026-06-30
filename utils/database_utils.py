@@ -9,6 +9,23 @@ import datetime
 import hashlib
 
 
+def _log(verbose, msg):
+    '''Print `msg` only in verbose mode (one branch, reused everywhere).'''
+    if verbose:
+        print(msg)
+
+
+def _exec(cursor, verbose, sql, params):
+    '''Run a parameterised statement, optionally echoing it in verbose mode.
+
+    Centralising the `if verbose: print(...)` guard keeps the insert/update
+    helpers free of one branch per statement, which is what pushed several of
+    them over the cyclomatic-complexity limit.'''
+    if verbose:
+        print(sql, params)
+    cursor.execute(sql, params)
+
+
 def connectDatabase(name, verbose):
     '''Function to connect to the database'''
     try:
@@ -179,72 +196,54 @@ def insertClients(cursor, verbose, mac, ssid, manuf,
         return int(0)
     except sqlite3.IntegrityError as error:
         # errors += 1
-        if verbose:
-            print("insertClients " + str(error))
+        _log(verbose, "insertClients " + str(error))
         try:
+            mac_up = mac.upper()
 
-            # If firstTimeSeen is before current firstTimeSeen update
-            # Update `firstTimeSeen` column
+            # If firstTimeSeen is before current firstTimeSeen update.
+            # Fill the row when the stored value is a placeholder
+            # (empty/0/NULL) or later than the new one, as long as the new
+            # value is real. The previous `AND firstTimeSeen <> 0` made a
+            # 0 placeholder impossible to replace with a real timestamp.
             if firstTimeSeen != 0:
-                # Fill the row when the stored value is a placeholder
-                # (empty/0/NULL) or later than the new one, as long as the new
-                # value is real. The previous `AND firstTimeSeen <> 0` made a
-                # 0 placeholder impossible to replace with a real timestamp.
-                sql = """UPDATE client SET firstTimeSeen = CASE WHEN
+                _exec(cursor, verbose,
+                      """UPDATE client SET firstTimeSeen = CASE WHEN
                          (firstTimeSeen = '' OR firstTimeSeen = '0' OR
                          firstTimeSeen IS NULL OR firstTimeSeen > (?)) AND
                          (?) <> 0 THEN (?) ELSE
-                         firstTimeSeen END WHERE mac = (?)"""
-                if verbose:
-                    print(sql, (firstTimeSeen, mac))
-                cursor.execute(sql, (firstTimeSeen, firstTimeSeen,
-                                     firstTimeSeen, mac.upper()))
+                         firstTimeSeen END WHERE mac = (?)""",
+                      (firstTimeSeen, firstTimeSeen, firstTimeSeen, mac_up))
 
-            # Update `packetsTotal` column
-            sql = """UPDATE client SET packetsTotal = packetsTotal + (?)
-                     WHERE mac = (?)"""
-            if verbose:
-                print(sql, (packets_total, mac.upper()))
-            cursor.execute(sql, (packets_total, mac.upper()))
+            # Accumulate the packet counter.
+            _exec(cursor, verbose,
+                  """UPDATE client SET packetsTotal = packetsTotal + (?)
+                     WHERE mac = (?)""",
+                  (packets_total, mac_up))
 
-            # Write if empty
-            # Update `ssid` column
-            sql = """UPDATE client SET ssid = CASE WHEN ssid = '' OR ssid IS
-                     NULL THEN (?) ELSE ssid END WHERE mac = (?)"""
-            if verbose:
-                print(sql, (ssid, mac.upper()))
-            cursor.execute(sql, (ssid, mac.upper()))
-
-            # Update `manuf` column
-            sql = """UPDATE client SET manuf = CASE WHEN manuf = '' OR manuf IS
-                     NULL THEN (?) ELSE manuf END WHERE mac = (?)"""
-            if verbose:
-                print(sql, (manuf, mac.upper()))
-            cursor.execute(sql, (manuf, mac.upper()))
-
-            # Update `type` column
-            sql = """UPDATE client SET type = CASE WHEN type = '' OR type IS
-                     NULL THEN (?) ELSE type END WHERE mac = (?)"""
-            if verbose:
-                print(sql, (client_type, mac.upper()))
-            cursor.execute(sql, (client_type, mac.upper()))
-
-            # Update `manuf` column
-            sql = """UPDATE client SET device = CASE WHEN device = '' OR
-                     device IS NULL THEN (?) ELSE device END WHERE mac = (?)"""
-            if verbose:
-                print(sql, (device, mac.upper()))
-            cursor.execute(sql, (device, mac.upper()))
+            # Fill the remaining columns only when currently empty/NULL. Each
+            # statement is a fixed literal (no column interpolation) to stay
+            # injection-safe.
+            fill_updates = (
+                ("""UPDATE client SET ssid = CASE WHEN ssid = '' OR ssid IS
+                    NULL THEN (?) ELSE ssid END WHERE mac = (?)""", ssid),
+                ("""UPDATE client SET manuf = CASE WHEN manuf = '' OR manuf IS
+                    NULL THEN (?) ELSE manuf END WHERE mac = (?)""", manuf),
+                ("""UPDATE client SET type = CASE WHEN type = '' OR type IS
+                    NULL THEN (?) ELSE type END WHERE mac = (?)""", client_type),
+                ("""UPDATE client SET device = CASE WHEN device = '' OR
+                    device IS NULL THEN (?) ELSE device END WHERE mac = (?)""",
+                 device),
+            )
+            for sql, value in fill_updates:
+                _exec(cursor, verbose, sql, (value, mac_up))
 
             return int(0)
         except sqlite3.IntegrityError as update_error:
-            if verbose:
-                print("insertClients2 " + str(update_error))
+            _log(verbose, "insertClients2 " + str(update_error))
             return int(1)
         # print('Record already exists')
     except sqlite3.Error as error:
-        if verbose:
-            print("insertClients0 Error " + str(error))
+        _log(verbose, "insertClients0 Error " + str(error))
         return int(1)
 
 
@@ -769,58 +768,41 @@ def checkFileProcessed(cursor, verbose, file):
 
 # obfuscated the database AA:BB:CC:XX:XX:XX-DEFG,
 # needs database and not cursos to commit
-def obfuscateDB(database, verbose):
-    # APs!
+def _obfuscateColumn(database, verbose, label, select_sql, update_sql,
+                     uppercase):
+    '''Replace every address in one table column with AA:BB:CC:XX:XX:XX-<rand>.
+
+    `select_sql`/`update_sql` are fixed literals supplied by the caller (no
+    identifier interpolation, so the statements stay injection-safe). The 8
+    random lowercase letters keep the obfuscated values unique.'''
     try:
-        # Get all APs
         if verbose:
-            print("obfuscated APs")
+            print("obfuscated " + label)
         cursor = database.cursor()
-        sql = "SELECT bssid from AP; "
-        cursor.execute(sql)
-
-        output = cursor.fetchall()
-        for row in output:
-            # Replace all APs bssid (add random letter to avoid duplicates)
-            letter = string.ascii_lowercase
-            aux = ''.join(secrets.choice(letter) for _ in range(8))
-            new = (row[0][0:9] + ('XX:XX:XX') + '-' + aux)
-            # print (new)
-
-            cursor.execute('''UPDATE AP set bssid = (?) where bssid = ?''',
-                           (new, row[0]))
-            database.commit()
-
-        database.commit()
-
-    except sqlite3.IntegrityError as error:
-        print("obfuscateDB" + str(error))
-
-    # Clients!
-    try:
-        # Get all Clients
-        if verbose:
-            print("obfuscated clients")
-        cursor = database.cursor()
-        sql = "SELECT mac from Client; "
-        cursor.execute(sql)
-
-        output = cursor.fetchall()
-        for row in output:
-            # Replace all APs bssid (add random letter to avoid duplicates)
-            letter = string.ascii_lowercase
-            aux = ''.join(secrets.choice(letter) for _ in range(8))
-            new = (row[0][0:9] + ('XX:XX:XX') + '-' + aux)
-
-            cursor.execute('''UPDATE Client set mac = (?) where mac = ?''',
-                           (new.upper(), row[0].upper()))
-            database.commit()
-
+        cursor.execute(select_sql)
+        for row in cursor.fetchall():
+            aux = ''.join(secrets.choice(string.ascii_lowercase)
+                          for _ in range(8))
+            new = row[0][0:9] + 'XX:XX:XX' + '-' + aux
+            old = row[0]
+            if uppercase:
+                new, old = new.upper(), old.upper()
+            cursor.execute(update_sql, (new, old))
         database.commit()
         return int(0)
     except sqlite3.IntegrityError as error:
         print("obfuscateDB" + str(error))
         return int(1)
+
+
+def obfuscateDB(database, verbose):
+    '''Obfuscate AP BSSIDs and Client MACs so the DB can be shared safely.'''
+    _obfuscateColumn(database, verbose, "APs",
+                     "SELECT bssid from AP; ",
+                     "UPDATE AP set bssid = (?) where bssid = ?", False)
+    return _obfuscateColumn(database, verbose, "clients",
+                            "SELECT mac from Client; ",
+                            "UPDATE Client set mac = (?) where mac = ?", True)
 
 # exists = '11:22:33:44:55:77' in whitelist
 

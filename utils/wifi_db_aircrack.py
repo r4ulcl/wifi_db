@@ -338,60 +338,42 @@ def parse_netxml(ouiMap, name, database, verbose):
         print(".kismet.netxml OK, errors", errors)
 
 
+def _kismet_insert_ap(cursor, verbose, ouiMap, row):
+    '''Insert one AP row from a .kismet.csv. A per-row parse error is logged but
+    not counted (matching the original), so it returns 0 in that case.'''
+    try:
+        bssid = row[3]
+        essid = row[2].replace("'", "''")
+        date_object = datetime.datetime.strptime(
+            row[19], "%a %b %d %H:%M:%S %Y")
+        firstTimeSeen = date_object.strftime("%Y-%m-%d %H:%M:%S")
+        manuf = oui.get_vendor(ouiMap, bssid, verbose)
+        return database_utils.insertAP(
+            cursor, verbose, bssid, essid, manuf, row[5], 0, "", row[7],
+            row[16], row[32], row[33], 'False', 'False', 'False',
+            firstTimeSeen)
+    except Exception as error:
+        if verbose:
+            print("Uncontrolled error UPDATE AP kismet csv: ", error)
+        return 0
+
+
 def parse_kismet_csv(ouiMap, name, database, verbose):
     '''Function to parse the .kismet.csv files'''
-    exists = os.path.isfile(name)
     errors = 0
+    if not os.path.isfile(name):
+        print(".kismet.csv missing")
+        return
     try:
         cursor = database.cursor()
-        if exists:
-            with open(name, encoding='utf-8') as csv_file:
-                csv_reader = csv.reader((x.replace('\0', '')
-                                         for x in csv_file), delimiter=';')
-                for row in csv_reader:
-                    if len(row) > 35 and row[0] != "Network":
-                        try:
-                            bssid = row[3]
-                            essid = row[2]
-                            essid = essid.replace("'", "''")
-
-                            # firstTimeSeen
-                            firstTimeSeen_string = row[19]
-
-                            date_object = datetime.datetime.strptime(
-                                firstTimeSeen_string, "%a %b %d %H:%M:%S %Y"
-                            )
-                            firstTimeSeen = date_object.strftime(
-                                "%Y-%m-%d %H:%M:%S"
-                            )
-
-                            manuf = oui.get_vendor(ouiMap, bssid, verbose)
-
-                            channel = row[5]
-                            freqmhz = 0
-                            carrier = ""
-                            encryption = row[7]
-                            packets_total = row[16]
-                            lat = row[32]
-                            lon = row[33]
-                            cloaked = 'False'
-                            mfpc = 'False'
-                            mfpr = 'False'
-                            errors += database_utils.insertAP(
-                                cursor, verbose, bssid, essid, manuf, channel,
-                                freqmhz, carrier, encryption, packets_total,
-                                lat, lon, cloaked, mfpc, mfpr, firstTimeSeen)
-
-                            # manuf y carrier implementar
-                        except Exception as error:
-                            if verbose:
-                                print("Uncontrolled error UPDATE AP "
-                                      "kismet csv: ", error)
-
-            database.commit()
-            print(".kismet.csv OK, errors", errors)
-        else:
-            print(".kismet.csv missing")
+        with open(name, encoding='utf-8') as csv_file:
+            csv_reader = csv.reader(
+                (x.replace('\0', '') for x in csv_file), delimiter=';')
+            for row in csv_reader:
+                if len(row) > 35 and row[0] != "Network":
+                    errors += _kismet_insert_ap(cursor, verbose, ouiMap, row)
+        database.commit()
+        print(".kismet.csv OK, errors", errors)
     except Exception as error:
         errors += 1
         print("parse_kismet_csv " + str(error))
@@ -399,74 +381,74 @@ def parse_kismet_csv(ouiMap, name, database, verbose):
         print(".kismet.csv OK, errors", errors)
 
 
+def _is_ap_row(row):
+    '''True when an airodump .csv row is an AP row (not the BSSID header).'''
+    return len(row) > 13 and row[0] != "BSSID"
+
+
+def _csv_insert_ap(cursor, verbose, ouiMap, row):
+    '''Insert one AP row from an airodump-ng .csv. Returns insert errors.'''
+    bssid = row[0]
+    firstTimeSeen = row[1]
+    essid = row[13].replace("'", "''")
+    manuf = oui.get_vendor(ouiMap, bssid, verbose)
+    encrypt = row[5] + row[6] + row[7]
+    return database_utils.insertAP(
+        cursor, verbose, bssid, essid[1:], manuf, row[3], "", "", encrypt,
+        row[10], 0, 0, 'False', 'False', 'False', firstTimeSeen)
+
+
+def _csv_insert_station(cursor, verbose, ouiMap, row):
+    '''Insert one station row (plus its connection and probes) from a .csv.'''
+    mac = row[0]
+    firstTimeSeen = row[1]
+    manuf = oui.get_vendor(ouiMap, mac, verbose)
+    errors = database_utils.insertClients(
+        cursor, verbose, mac, '', manuf, 'W', row[4], 'Misc', firstTimeSeen)
+    if len(row) > 5 and row[5] != " (not associated) ":
+        errors += database_utils.insertConnected(
+            cursor, verbose, row[5].replace(' ', ''), row[0])
+    contador = 6
+    while contador < len(row) and row[contador] != "":
+        errors += database_utils.insertProbe(
+            cursor, verbose, row[0], row[contador], 0)
+        contador += 1
+    return errors
+
+
+def _parse_csv_rows(cursor, verbose, ouiMap, csv_reader):
+    '''Insert APs then stations from an airodump-ng .csv reader. Returns errors.
+
+    The file lists every AP first, then a "Station MAC" header, then the
+    stations; `client` flips to True once that header is reached.'''
+    errors = 0
+    client = False
+    for row in csv_reader:
+        if not row:
+            continue
+        if client is False and _is_ap_row(row):
+            errors += _csv_insert_ap(cursor, verbose, ouiMap, row)
+        if row[0] == "Station MAC":
+            client = True
+        elif client and len(row) > 5:
+            errors += _csv_insert_station(cursor, verbose, ouiMap, row)
+    return errors
+
+
 def parse_csv(ouiMap, name, database, verbose):
     '''Function to parse the .csv files'''
-    exists = os.path.isfile(name)
     errors = 0
+    if not os.path.isfile(name):
+        print(".csv missing")
+        return
     try:
         cursor = database.cursor()
-        if exists:
-            with open(name, encoding='utf-8') as csv_file:
-                csv_reader = csv.reader((x.replace('\0', '')
-                                         for x in csv_file), delimiter=',')
-                client = False
-                for row in csv_reader:
-                    if row:
-                        if client is False and len(row) > 13 \
-                           and row[0] != "BSSID":
-                            # insert AP de aqui tambien
-                            bssid = row[0]
-                            firstTimeSeen = row[1]
-                            essid = row[13]
-                            essid = essid.replace("'", "''")
-                            manuf = oui.get_vendor(ouiMap, bssid, verbose)
-                            channel = row[3]
-                            freq = ""
-                            carrier = ""
-                            encrypt = row[5] + row[6] + row[7]
-                            packets_total = row[10]
-                            cloaked = 'False'
-
-                            mfpc = 'False'
-                            mfpr = 'False'
-
-                            errors += database_utils.insertAP(
-                                cursor, verbose, bssid, essid[1:], manuf,
-                                channel, freq, carrier, encrypt,
-                                packets_total, 0, 0, cloaked, mfpc, mfpr,
-                                firstTimeSeen)
-
-                        if row and row[0] == "Station MAC":
-                            client = True
-                        elif row and client and len(row) > 5:
-                            # print(row[0])
-                            mac = row[0]
-                            firstTimeSeen = row[1]
-                            manuf = oui.get_vendor(ouiMap, mac, verbose)
-                            packets = row[4]
-                            # print(mac, manuf)
-
-                            errors += database_utils.insertClients(
-                                cursor, verbose, mac, '', manuf, 'W',
-                                packets, 'Misc', firstTimeSeen)
-
-                            if len(row) > 5 and row[5] != " (not associated) ":
-                                a = database_utils.insertConnected(
-                                    cursor, verbose, row[5].replace(' ', ''),
-                                    row[0])
-
-                                errors += a
-
-                            contador = 6
-                            while contador < len(row) and row[contador] != "":
-                                errors += database_utils.insertProbe(
-                                    cursor, verbose, row[0], row[contador], 0)
-                                contador += 1
-            database.commit()
-
-            print(".csv OK, errors", errors)
-        else:
-            print(".csv missing")
+        with open(name, encoding='utf-8') as csv_file:
+            csv_reader = csv.reader(
+                (x.replace('\0', '') for x in csv_file), delimiter=',')
+            errors += _parse_csv_rows(cursor, verbose, ouiMap, csv_reader)
+        database.commit()
+        print(".csv OK, errors", errors)
     except Exception as error:
         errors += 1
         print("parse_csv " + str(error))
@@ -474,67 +456,63 @@ def parse_csv(ouiMap, name, database, verbose):
         print(".csv OK, errors", errors)
 
 
+def _coords(row, fake_lat, fake_lon):
+    '''Resolve (lat, lon) for a .log.csv row, honoring the fake overrides.'''
+    lat = fake_lat if fake_lat != "" else row[6]
+    lon = fake_lon if fake_lon != "" else row[7]
+    return lat, lon
+
+
+def _log_insert_client(cursor, verbose, ouiMap, row, time, fake_lat, fake_lon):
+    '''Insert a client and its sighting from a .log.csv row. Returns errors.'''
+    mac = row[3]
+    manuf = oui.get_vendor(ouiMap, mac, verbose)
+    lat, lon = _coords(row, fake_lat, fake_lon)
+    errors = database_utils.insertClients(
+        cursor, verbose, mac, "", manuf, "", "", "", time)
+    errors += database_utils.insertSeenClient(
+        cursor, verbose, mac, time, 'aircrack-ng', row[4], lat, lon, '0.0')
+    return errors
+
+
+def _log_insert_ap(cursor, verbose, ouiMap, row, time, fake_lat, fake_lon):
+    '''Insert an AP and its sighting from a .log.csv row. Returns errors.'''
+    manuf = oui.get_vendor(ouiMap, row[3], verbose)
+    lat, lon = _coords(row, fake_lat, fake_lon)
+    errors = database_utils.insertAP(
+        cursor, verbose, row[3], row[2], manuf, 0, 0, '', '', 0, lat, lon,
+        'False', 'False', 'False', time)
+    errors += database_utils.insertSeenAP(
+        cursor, verbose, row[3], time, 'aircrack-ng', row[4], lat, lon,
+        '0.0', 0)
+    return errors
+
+
 def parse_log_csv(ouiMap, name, database, verbose, fake_lat, fake_lon):
     ''' Parse .log.csv file from Aircrack-ng to the database '''
-    exists = os.path.isfile(name)
     errors = 0
+    if not os.path.isfile(name):
+        print(".log.csv missing")
+        return
     try:
         cursor = database.cursor()
-        if exists:
-            with open(name, encoding='utf-8') as csv_file:
-                csv_reader = csv.reader(csv_file, delimiter=',')
-                for row in csv_reader:
-                    time = row[0]
-                    if time != "LocalTime":
-                        if len(row) > 10 and row[10] == "Client":
-                            mac = row[3]
-                            manuf = oui.get_vendor(ouiMap, mac, verbose)
-                            signal_rssi = row[4]
-                            lat = row[6]
-                            lon = row[7]
-                            if fake_lat != "":  # just write file in db
-                                lat = fake_lat
-                            if fake_lon != "":
-                                lon = fake_lon
-                            ssid = ""
-                            typeAux = ""
-                            packets_total = ""
-                            device = ""
-                            errors += database_utils.insertClients(
-                                cursor, verbose, mac, ssid, manuf,
-                                typeAux, packets_total, device, time)
-
-                            errors += database_utils.insertSeenClient(
-                                cursor, verbose, mac, time,
-                                'aircrack-ng', signal_rssi, lat, lon,
-                                '0.0')
-
-                        if len(row) > 10 and row[10] == "AP":
-                            lat = row[6]
-                            lon = row[7]
-                            if fake_lat != "":
-                                lat = fake_lat
-                            if fake_lon != "":
-                                lon = fake_lon
-                            manuf = oui.get_vendor(ouiMap, row[3], verbose)
-                            cloaked = 'False'
-                            mfpc = 'False'
-                            mfpr = 'False'
-                            errors += database_utils.insertAP(
-                                cursor, verbose, row[3], row[2],
-                                manuf, 0, 0, '', '', 0, lat, lon,
-                                cloaked, mfpc, mfpr, time)
-
-                            # if row[6] != "0.000000":
-                            errors += database_utils.insertSeenAP(
-                                cursor, verbose, row[3], time,
-                                'aircrack-ng', row[4], lat, lon,
-                                '0.0', 0)
-
-            database.commit()
-            print(".log.csv done, errors", errors)
-        else:
-            print(".log.csv missing")
+        with open(name, encoding='utf-8') as csv_file:
+            csv_reader = csv.reader(csv_file, delimiter=',')
+            for row in csv_reader:
+                time = row[0]
+                if time == "LocalTime":
+                    continue
+                # `kind` (and thus the row[6]/row[7] coords) is only read when
+                # len(row) > 10, so short rows cannot raise an IndexError.
+                kind = row[10] if len(row) > 10 else ""
+                if kind == "Client":
+                    errors += _log_insert_client(cursor, verbose, ouiMap, row,
+                                                 time, fake_lat, fake_lon)
+                elif kind == "AP":
+                    errors += _log_insert_ap(cursor, verbose, ouiMap, row,
+                                             time, fake_lat, fake_lon)
+        database.commit()
+        print(".log.csv done, errors", errors)
     except Exception as error:
         errors += 1
         print("parse_log_csv " + str(error))
@@ -559,45 +537,47 @@ def parse_cap(name, database, verbose, hcxpcapngtool, tshark):
 
 
 # Get handshakes from .cap
+def _handshake_for_pkt(cursor, verbose, pkt, prev, file):
+    '''Process one EAPOL packet for a 4-way-handshake message-2 match.
+
+    `prev` is the (src, dst, key_info) of the previous EAPOL frame. Returns
+    (errors, new_prev): a message-2 (key info containing '10a') that follows the
+    matching message-1 ('08a') in the opposite direction is a valid pair; any
+    other EAPOL-Key frame is remembered as a potential message-1.'''
+    if verbose:
+        print(pkt.eapol.field_names)
+        print(pkt.eapol.type)
+    if pkt.eapol.type != '3':  # only EAPOL-Key frames
+        return 0, prev
+    src = pkt.wlan.ta
+    dst = pkt.wlan.da
+    flag = pkt.eapol.wlan_rsna_keydes_key_info
+    if flag.find('10a') == -1:
+        return 0, (src, dst, flag)  # remember as a potential message-1
+    prevSrc, prevDst, prevFlag = prev
+    if prevFlag.find('08a') != -1 and dst == prevSrc and src == prevDst:
+        if verbose:
+            print("Valid handshake from client " + prevSrc + " to AP " +
+                  prevDst)
+        return database_utils.insertHandshake(
+            cursor, verbose, dst, src, file), prev
+    return 0, prev
+
+
 def parse_handshakes(name, database, verbose):
+    errors = 0
     try:
         cursor = database.cursor()
-        errors = 0
         file = name
         cap = pyshark.FileCapture(file, display_filter="eapol")
         # cap.set_debug()
-        prevSrc = ""
-        prevDst = ""
-        prevFlag = ""
+        prev = ("", "", "")
 
         for pkt in cap:
             try:
-                if verbose:
-                    print(pkt.eapol.field_names)
-                    print(pkt.eapol.type)
-                if pkt.eapol.type == '3':  # EAPOL = 3
-                    src = pkt.wlan.ta
-                    dst = pkt.wlan.da
-                    flag = pkt.eapol.wlan_rsna_keydes_key_info
-                    # print(flag)
-                    # IF is the second and the prev is the first one
-                    # add handshake
-                    if flag.find('10a') != -1:
-                        # print('handhsake 2 of 4')
-                        if (prevFlag.find('08a') != -1
-                                and dst == prevSrc and src == prevDst):
-                            # first
-                            if verbose:
-                                print("Valid handshake from client " +
-                                      prevSrc + " to AP " + prevDst)
-                            errors += database_utils.insertHandshake(cursor,
-                                                                     verbose,
-                                                                     dst,
-                                                                     src, file)
-                    else:
-                        prevSrc = src
-                        prevDst = dst
-                        prevFlag = flag
+                delta, prev = _handshake_for_pkt(cursor, verbose, pkt, prev,
+                                                 file)
+                errors += delta
             except Exception as error:
                 errors += 1
                 if verbose:
@@ -616,10 +596,32 @@ def parse_handshakes(name, database, verbose):
 
 
 # Get MFP data from .cap
+def _insert_one_mfp(cursor, verbose, pkt):
+    '''Store MFP (PMF) capable/required flags for one management frame, read
+    from its RSN Capabilities bitfield. Returns the insert error count (0/1).'''
+    if not (pkt['wlan.mgt'].wlan_rsn_capabilities and pkt.wlan.ta):
+        return 0
+    capabilities = pkt['wlan.mgt'].wlan_rsn_capabilities
+    # MFP lives in the RSN Capabilities bitfield:
+    #   bit 7 (0x80) = MFP Capable
+    #   bit 6 (0x40) = MFP Required
+    # Test the bits instead of matching exact values, so APs with other
+    # capability bits set are detected too.
+    cap_int = int(capabilities, 16)
+    mfpc = 'True' if cap_int & 0x80 else 'False'
+    mfpr = 'True' if cap_int & 0x40 else 'False'
+    if not (mfpc == 'True' or mfpr == 'True'):
+        return 0
+    if verbose:
+        print(f"MFPC: {mfpc}")
+        print(f"MFPR: {mfpr}")
+    return database_utils.insertMFP(cursor, verbose, pkt.wlan.ta, mfpc, mfpr)
+
+
 def parse_MFP(name, database, verbose):
+    errors = 0
     try:
         cursor = database.cursor()
-        errors = 0
         file = name
         # cap = pyshark.FileCapture(file,
         # display_filter='wlan.fc.type_subtype == 0x0008')
@@ -633,33 +635,7 @@ def parse_MFP(name, database, verbose):
 
         for pkt in cap:
             try:
-                mfpc = 'False'
-                mfpr = 'False'
-                if pkt['wlan.mgt'].wlan_rsn_capabilities and pkt.wlan.ta:
-                    capabilities = pkt['wlan.mgt'].wlan_rsn_capabilities
-                    # MFP lives in the RSN Capabilities bitfield:
-                    #   bit 7 (0x80) = MFP Capable
-                    #   bit 6 (0x40) = MFP Required
-                    # Test the bits instead of matching exact values, so APs
-                    # with other capability bits set are detected too.
-                    cap_int = int(capabilities, 16)
-                    if cap_int & 0x80:
-                        mfpc = 'True'
-                    if cap_int & 0x40:
-                        mfpr = 'True'
-                    src = pkt.wlan.ta
-                    # if mfpc is 1 insert in DB
-                    if mfpc == 'True' or mfpr == 'True':
-                        if verbose:
-                            print(f"MFPC: {mfpc}")
-                            print(f"MFPR: {mfpr}")
-                        errors += database_utils.insertMFP(cursor,
-                                                           verbose,
-                                                           src, mfpc,
-                                                           mfpr)
-                # wlan_options = pkt['wlan.mgt'].field_names
-                # print(wlan_options)
-                # print(pkt['wlan.mgt'])
+                errors += _insert_one_mfp(cursor, verbose, pkt)
             except Exception as error:
                 errors += 1
                 if verbose:
@@ -746,50 +722,53 @@ def parse_WPS(name, database, verbose):
 
 
 # Get Identities from MGT login
+def _identity_for_pkt(cursor, verbose, pkt, state):
+    '''Process one EAP packet, accumulating (dst, src, identity, method) state.
+
+    Returns (errors, new_state). An EAP Identity request/response (type 1)
+    refreshes the addresses (and the identity on code 2); any other EAP type is
+    a method that gets stored against the most recent identity.'''
+    dst, src, identity, method = state
+    # EAP Success (code 3) and Failure (code 4) frames carry no Type field and
+    # are not identities. Skip them, otherwise the pkt.eap.type access below
+    # raises AttributeError and every such frame is miscounted as an error.
+    if pkt.eap.code in ('3', '4'):
+        return 0, state
+    if pkt.eap.type == '1':  # EAP Identity
+        dst = pkt.wlan.da
+        src = pkt.wlan.sa
+        if pkt.eap.code == '2':
+            try:
+                identity = pkt.eap.identity
+            except Exception as error:
+                if verbose:
+                    print(error)
+                return 1, (dst, src, identity, method)
+        return 0, (dst, src, identity, method)
+    # Look up the authentication method by its EAP type, falling back to a
+    # generic label for unknown types.
+    method = EAP_METHOD_TYPES.get(
+        pkt.eap.type, "OTHER (UNKNOWN EAP METHOD) - ID: " + pkt.eap.type)
+    database_utils.insertIdentity(cursor, verbose, dst, src, identity, method)
+    return 0, (dst, src, identity, method)
+
+
 def parse_identities(name, database, verbose):
+    errors = 0
     try:
         cursor = database.cursor()
-        errors = 0
         file = name
         cap = pyshark.FileCapture(file, display_filter="eap")
         # cap.set_debug()
 
-        dst = ""
-        src = ""
-        identity = ""
-        method = ""
-
         # The information is: Identity, method, method... ,
         # Identity2, method2, method2...
+        state = ("", "", "", "")
         for pkt in cap:
             # print(pkt.eapol.field_names)
             try:
-                # EAP Success (code 3) and Failure (code 4) frames carry no
-                # Type field and are not identities. Skip them, otherwise the
-                # pkt.eap.type access below raises AttributeError and every
-                # such frame is miscounted as an error (6 false errors on the
-                # test capture, masking any genuine parse failures).
-                if pkt.eap.code in ('3', '4'):
-                    continue
-                if pkt.eap.type == '1':  # EAP Identity
-                    dst = pkt.wlan.da
-                    src = pkt.wlan.sa
-                    if pkt.eap.code == '2':
-                        try:
-                            identity = pkt.eap.identity
-                        except Exception as error:
-                            errors += 1
-                            if verbose:
-                                print(error)
-                else:
-                    # Look up the authentication method by its EAP type,
-                    # falling back to a generic label for unknown types.
-                    method = EAP_METHOD_TYPES.get(
-                        pkt.eap.type,
-                        "OTHER (UNKNOWN EAP METHOD) - ID: " + pkt.eap.type)
-                    # Insert, if its already error and continue
-                    database_utils.insertIdentity(cursor, verbose,
-                                                  dst, src, identity, method)
+                delta, state = _identity_for_pkt(cursor, verbose, pkt, state)
+                errors += delta
             except Exception as e:
                 errors += 1
                 if verbose:
@@ -1034,55 +1013,67 @@ def _extract_cert_fields(der, cert_index):
     }
 
 
+def _cert_attribution(columns):
+    '''Resolve (cert_field, bssid, mac, cert_type) for one tshark line.
+
+    Uses the EAP direction to know whose certificate this is: the authenticator
+    (AP) sends EAP-Request packets (code 1) carrying the server certificate,
+    while the supplicant sends EAP-Response packets (code 2) carrying the client
+    certificate. Either way the BSSID stored is the AP and the MAC the client.'''
+    cert_field = columns[0]
+    src = columns[1] if len(columns) > 1 else ""
+    dst = columns[2] if len(columns) > 2 else ""
+    eap_code = columns[3] if len(columns) > 3 else ""
+    if eap_code == '2':  # EAP-Response: certificate sent by the client
+        return cert_field, dst, src, 'Client'
+    if eap_code == '1':  # EAP-Request: certificate sent by the AP/server
+        return cert_field, src, dst, 'AP'
+    return cert_field, src, dst, 'Unknown'
+
+
+def _insert_one_cert(cursor, verbose, file, addr, cert_hex, cert_index):
+    '''Parse and store a single hex-encoded certificate. Returns errors (0/1).
+
+    `addr` is the (bssid, mac, cert_type) tuple from `_cert_attribution`.'''
+    bssid, mac, cert_type = addr
+    try:
+        der = binascii.unhexlify(cert_hex.replace(':', ''))
+        cert = _extract_cert_fields(der, cert_index)
+        if verbose:
+            print("Certificate (" + cert_type + ") for AP " +
+                  str(bssid) + ": " + str(cert.get('subject')))
+        return database_utils.insertCertificate(
+            cursor, verbose, bssid, mac, cert_type, file, cert)
+    except Exception as error:
+        if verbose:
+            print("parse_certificates cert error: " + str(error))
+        return 1
+
+
 def _insert_cert_line(cursor, verbose, file, columns):
     '''Insert every certificate found on one `tshark -T fields` output line.
 
     `columns` is the tab-split line: the certificate column (a chain is joined
     with commas by tshark), wlan.sa, wlan.da and eap.code. Returns the number
     of errors hit while parsing/inserting.'''
-    errors = 0
-    cert_field = columns[0]
-    src = columns[1] if len(columns) > 1 else ""
-    dst = columns[2] if len(columns) > 2 else ""
-    eap_code = columns[3] if len(columns) > 3 else ""
-
-    # Use the EAP direction to know whose certificate this is. The
-    # authenticator (AP) sends EAP-Request packets (code 1) carrying the server
-    # certificate, while the supplicant sends EAP-Response packets (code 2)
-    # carrying the client certificate. Either way the BSSID stored is the AP
-    # and the MAC is the client.
-    if eap_code == '2':  # EAP-Response: certificate sent by the client
-        bssid, mac, cert_type = dst, src, 'Client'
-    elif eap_code == '1':  # EAP-Request: certificate sent by the AP/server
-        bssid, mac, cert_type = src, dst, 'AP'
-    else:
-        bssid, mac, cert_type = src, dst, 'Unknown'
+    cert_field, bssid, mac, cert_type = _cert_attribution(columns)
 
     # Without an AP address there is nothing to key the certificate on; skip
     # it rather than create a phantom empty-BSSID AP row.
     if not bssid:
         if verbose:
             print("Certificate without wlan addresses, skip")
-        return errors
+        return 0
 
+    errors = 0
+    addr = (bssid, mac, cert_type)
     # A single Certificate message can carry a full chain (server, CA, ...);
     # tshark joins those certificates with a comma.
     for cert_index, cert_hex in enumerate(cert_field.split(',')):
         cert_hex = cert_hex.strip()
-        if not cert_hex:
-            continue
-        try:
-            der = binascii.unhexlify(cert_hex.replace(':', ''))
-            cert = _extract_cert_fields(der, cert_index)
-            if verbose:
-                print("Certificate (" + cert_type + ") for AP " +
-                      str(bssid) + ": " + str(cert.get('subject')))
-            errors += database_utils.insertCertificate(
-                cursor, verbose, bssid, mac, cert_type, file, cert)
-        except Exception as error:
-            errors += 1
-            if verbose:
-                print("parse_certificates cert error: " + str(error))
+        if cert_hex:
+            errors += _insert_one_cert(cursor, verbose, file, addr,
+                                       cert_hex, cert_index)
     return errors
 
 
@@ -1261,10 +1252,55 @@ def _ssid_from_mgt(mgt):
 # Detect 802.11r/k/v fast-roaming, Multiple BSSID and Channel Switch
 # Announcement advertisements from beacons and probe responses, storing the
 # flags on the AP row.
+def _seen_or_invalid(bssid, mgt, seen):
+    '''True when a packet lacks a usable BSSID/mgt or its AP is already seen
+    (one row per BSSID is enough; the config is stable per AP).'''
+    return bssid is None or mgt is None or bssid.upper() in seen
+
+
+def _capability_flags(mgt):
+    '''Return the 802.11r/k/v + MBSSID/CSA capability flags for one mgt frame.'''
+    tags = _mgt_tag_numbers(mgt)
+    return {
+        'ft': 'True' if TAG_MOBILITY_DOMAIN in tags else 'False',
+        'rrm': 'True' if TAG_RM_ENABLED_CAP in tags else 'False',
+        'mbssid': 'True' if TAG_MULTIPLE_BSSID in tags else 'False',
+        'csa': ('True' if (TAG_CHANNEL_SWITCH in tags
+                           or TAG_EXTENDED_CSA in tags) else 'False'),
+        # 802.11v BSS Transition Management is a bit (b19) of the Extended
+        # Capabilities element, not an element of its own.
+        'bss_trans': ('True' if _field_is_set(
+            _field_value(mgt, 'wlan_extcap_b19')) else 'False'),
+        'mdid': _first_field_value(
+            mgt, ['wlan_mobility_domain_mdid', 'wlan_ft_mdid']),
+        'max_bssid_indicator': _to_int(_first_field_value(
+            mgt, ['wlan_mbssid_max_bssid_indicator', 'wlan_mbssid_index'])),
+        'csa_new_channel': _to_int(_first_field_value(
+            mgt, ['wlan_csa_new_channel_number',
+                  'wlan_ext_chansw_announce_new_chan'])),
+    }
+
+
+def _insert_one_capability(cursor, verbose, bssid, mgt):
+    '''Store fast-roaming / MBSSID / CSA capabilities for one AP if any are
+    advertised. Returns the number of insert errors (0/1).'''
+    f = _capability_flags(mgt)
+    if not any(f[k] == 'True'
+               for k in ('ft', 'rrm', 'bss_trans', 'mbssid', 'csa')):
+        return 0
+    if verbose:
+        print("Capabilities for AP " + str(bssid) + ": 11r=" + f['ft'] +
+              " 11k=" + f['rrm'] + " 11v=" + f['bss_trans'] + " MBSSID=" +
+              f['mbssid'] + " CSA=" + f['csa'])
+    return database_utils.insertCapabilities(
+        cursor, verbose, bssid, f['ft'], f['mdid'], f['rrm'], f['bss_trans'],
+        f['mbssid'], f['max_bssid_indicator'], f['csa'], f['csa_new_channel'])
+
+
 def parse_capabilities(name, database, verbose):
+    errors = 0
     try:
         cursor = database.cursor()
-        errors = 0
         file = name
         # Beacons (0x08) and probe responses (0x05) carry the capability IEs.
         cap = pyshark.FileCapture(
@@ -1276,40 +1312,9 @@ def parse_capabilities(name, database, verbose):
         for pkt in cap:
             try:
                 bssid, mgt = _pkt_bssid_mgt(pkt)
-                # The capabilities are stable per AP, so one frame per BSSID is
-                # enough (matches parse_security; keeps big captures fast).
-                if bssid is None or mgt is None or bssid.upper() in seen:
+                if _seen_or_invalid(bssid, mgt, seen):
                     continue
-
-                tags = _mgt_tag_numbers(mgt)
-                ft = 'True' if TAG_MOBILITY_DOMAIN in tags else 'False'
-                rrm = 'True' if TAG_RM_ENABLED_CAP in tags else 'False'
-                mbssid = 'True' if TAG_MULTIPLE_BSSID in tags else 'False'
-                csa = ('True' if (TAG_CHANNEL_SWITCH in tags
-                                  or TAG_EXTENDED_CSA in tags) else 'False')
-                # 802.11v BSS Transition Management is a bit (b19) of the
-                # Extended Capabilities element, not an element of its own.
-                bss_trans = ('True' if _field_is_set(
-                    _field_value(mgt, 'wlan_extcap_b19')) else 'False')
-
-                mdid = _first_field_value(
-                    mgt, ['wlan_mobility_domain_mdid', 'wlan_ft_mdid'])
-                max_bssid_indicator = _to_int(_first_field_value(
-                    mgt, ['wlan_mbssid_max_bssid_indicator',
-                          'wlan_mbssid_index']))
-                csa_new_channel = _to_int(_first_field_value(
-                    mgt, ['wlan_csa_new_channel_number',
-                          'wlan_ext_chansw_announce_new_chan']))
-
-                if (ft == 'True' or rrm == 'True' or bss_trans == 'True'
-                        or mbssid == 'True' or csa == 'True'):
-                    if verbose:
-                        print("Capabilities for AP " + str(bssid) +
-                              ": 11r=" + ft + " 11k=" + rrm + " 11v=" +
-                              bss_trans + " MBSSID=" + mbssid + " CSA=" + csa)
-                    errors += database_utils.insertCapabilities(
-                        cursor, verbose, bssid, ft, mdid, rrm, bss_trans,
-                        mbssid, max_bssid_indicator, csa, csa_new_channel)
+                errors += _insert_one_capability(cursor, verbose, bssid, mgt)
                 seen.add(bssid.upper())
             except Exception as error:
                 errors += 1
@@ -1331,10 +1336,26 @@ def parse_capabilities(name, database, verbose):
 
 # Recover cloaked (hidden) SSIDs from probe responses and (re)association
 # requests, which carry the real SSID even when the beacon hides it.
+def _hidden_ssid_for_pkt(cursor, verbose, pkt, seen):
+    '''Recover and store one AP's cloaked SSID. Returns insert errors (0/1);
+    `seen` tracks the BSSIDs already handled and is mutated in place.'''
+    mgt = pkt['wlan.mgt']
+    ssid = _ssid_from_mgt(mgt)
+    if not ssid:
+        return 0
+    bssid = pkt.wlan.bssid
+    if bssid is None or bssid.upper() in seen:
+        return 0
+    seen.add(bssid.upper())
+    if verbose:
+        print("Revealed SSID for AP " + str(bssid) + ": " + ssid)
+    return database_utils.insertHiddenSSID(cursor, verbose, bssid, ssid)
+
+
 def parse_hidden_ssid(name, database, verbose):
+    errors = 0
     try:
         cursor = database.cursor()
-        errors = 0
         file = name
         # Probe responses (0x05) and (re)association requests (0x00 / 0x02)
         # carrying a non-wildcard SSID element. wlan.bssid is the AP in all of
@@ -1348,18 +1369,7 @@ def parse_hidden_ssid(name, database, verbose):
         seen = set()
         for pkt in cap:
             try:
-                mgt = pkt['wlan.mgt']
-                ssid = _ssid_from_mgt(mgt)
-                if not ssid:
-                    continue
-                bssid = pkt.wlan.bssid
-                if bssid is None or bssid.upper() in seen:
-                    continue
-                seen.add(bssid.upper())
-                if verbose:
-                    print("Revealed SSID for AP " + str(bssid) + ": " + ssid)
-                errors += database_utils.insertHiddenSSID(
-                    cursor, verbose, bssid, ssid)
+                errors += _hidden_ssid_for_pkt(cursor, verbose, pkt, seen)
             except Exception as error:
                 errors += 1
                 if verbose:
@@ -1380,10 +1390,62 @@ def parse_hidden_ssid(name, database, verbose):
 
 # Get RSN/WPA security details (AKM suites and ciphers) from beacons and
 # probe responses.
+def _akm_ints(akm_values):
+    '''Parse AKM suite type strings into the set of their integer values.'''
+    return {i for i in (_to_int(v) for v in akm_values) if i is not None}
+
+
+def _security_row(mgt):
+    '''Build the RSN/WPA security row for one mgt frame, or None when the frame
+    carries no AKM suite (so the caller can skip it without marking it seen).'''
+    akm_values = _all_field_values(mgt, 'wlan_rsn_akms_type')
+    if not akm_values:
+        return None
+    pcs_values = _all_field_values(mgt, 'wlan_rsn_pcs_type')
+    gcs_values = _all_field_values(mgt, 'wlan_rsn_gcs_type')
+    akm_ints = _akm_ints(akm_values)
+    pmf, rsn_capabilities, mfpc, mfpr = _rsn_pmf(mgt)
+    return {
+        'akm_suites': ", ".join(_dedupe(
+            [_suite_name(a, RSN_AKM_SUITES) for a in akm_values])),
+        'pairwise_ciphers': ", ".join(_dedupe(
+            [_suite_name(p, RSN_CIPHERS) for p in pcs_values])),
+        'group_cipher': ", ".join(_dedupe(
+            [_suite_name(g, RSN_CIPHERS) for g in gcs_values])),
+        'wpa_version': _classify_wpa(akm_ints),
+        'enterprise': 'True' if akm_ints & RSN_ENTERPRISE_AKMS else 'False',
+        'pmf': pmf,
+        'rsn_capabilities': rsn_capabilities,
+        'mfpc': mfpc,
+        'mfpr': mfpr,
+    }
+
+
+def _insert_one_security(cursor, verbose, file, bssid, mgt):
+    '''Store RSN/WPA security (and MFP) for one AP. Returns the insert error
+    count, or None when the frame has no AKM suite.'''
+    row = _security_row(mgt)
+    if row is None:
+        return None
+    if verbose:
+        print("Security for AP " + str(bssid) + ": " + row['wpa_version'] +
+              " [" + row['akm_suites'] + "] PMF=" + row['pmf'])
+    errors = database_utils.insertSecurity(
+        cursor, verbose, bssid, row['wpa_version'], row['akm_suites'],
+        row['pairwise_ciphers'], row['group_cipher'], row['enterprise'],
+        row['pmf'], row['rsn_capabilities'], file)
+    # Beacons are far more common than the association frames parsed by
+    # parse_MFP, so also update the AP mfpc/mfpr from here.
+    if row['mfpc'] == 'True' or row['mfpr'] == 'True':
+        errors += database_utils.insertMFP(
+            cursor, verbose, bssid, row['mfpc'], row['mfpr'])
+    return errors
+
+
 def parse_security(name, database, verbose):
+    errors = 0
     try:
         cursor = database.cursor()
-        errors = 0
         file = name
         # Beacons (0x08) and probe responses (0x05) that carry an RSN IE.
         cap = pyshark.FileCapture(
@@ -1394,43 +1456,12 @@ def parse_security(name, database, verbose):
         seen = set()
         for pkt in cap:
             bssid, mgt = _pkt_bssid_mgt(pkt)
-            # One row per BSSID is enough; the config is stable per AP.
-            if bssid is None or mgt is None or bssid.upper() in seen:
+            if _seen_or_invalid(bssid, mgt, seen):
                 continue
-
-            akm_values = _all_field_values(mgt, 'wlan_rsn_akms_type')
-            if not akm_values:
+            result = _insert_one_security(cursor, verbose, file, bssid, mgt)
+            if result is None:  # no AKM suite on this frame; try later ones
                 continue
-            pcs_values = _all_field_values(mgt, 'wlan_rsn_pcs_type')
-            gcs_values = _all_field_values(mgt, 'wlan_rsn_gcs_type')
-
-            akm_suites = ", ".join(_dedupe(
-                [_suite_name(a, RSN_AKM_SUITES) for a in akm_values]))
-            pairwise_ciphers = ", ".join(_dedupe(
-                [_suite_name(p, RSN_CIPHERS) for p in pcs_values]))
-            group_cipher = ", ".join(_dedupe(
-                [_suite_name(g, RSN_CIPHERS) for g in gcs_values]))
-
-            akm_ints = {i for i in (_to_int(v) for v in akm_values)
-                        if i is not None}
-            wpa_version = _classify_wpa(akm_ints)
-            enterprise = ('True' if akm_ints & RSN_ENTERPRISE_AKMS
-                          else 'False')
-            pmf, rsn_capabilities, mfpc, mfpr = _rsn_pmf(mgt)
-
-            if verbose:
-                print("Security for AP " + str(bssid) + ": " +
-                      wpa_version + " [" + akm_suites + "] PMF=" + pmf)
-
-            errors += database_utils.insertSecurity(
-                cursor, verbose, bssid, wpa_version, akm_suites,
-                pairwise_ciphers, group_cipher, enterprise, pmf,
-                rsn_capabilities, file)
-            # Beacons are far more common than the association frames parsed by
-            # parse_MFP, so also update the AP mfpc/mfpr from here.
-            if mfpc == 'True' or mfpr == 'True':
-                errors += database_utils.insertMFP(
-                    cursor, verbose, bssid, mfpc, mfpr)
+            errors += result
             seen.add(bssid.upper())
 
         database.commit()
@@ -1466,11 +1497,35 @@ def _eap_md5_hashcat(eap_id, challenge, response):
     return response + ":" + challenge + ":" + eap_id_hex
 
 
+def _eap_md5_for_pkt(cursor, verbose, pkt, challenges, file):
+    '''Correlate one EAP-MD5 packet against pending challenges. Returns the
+    insert error count (0/1). `challenges` maps (ap, client, eap_id) -> challenge
+    hex and is updated in place with each Request seen.'''
+    parsed = _eap_md5_packet(pkt)
+    if parsed is None:
+        return 0
+    code, eap_id, src, dst, md5_value = parsed
+    if code == '1':  # EAP-Request/MD5-Challenge sent by the AP
+        challenges[(src, dst, eap_id)] = md5_value
+        return 0
+    if code != '2':  # only Responses produce a crackable pair
+        return 0
+    challenge = challenges.get((dst, src, eap_id))
+    if not challenge:
+        return 0
+    hashcat = _eap_md5_hashcat(eap_id, challenge, md5_value)
+    if verbose:
+        print("EAP-MD5 " + str(src) + " -> " + str(dst) + ": " + hashcat)
+    return database_utils.insertEAPMD5(
+        cursor, verbose, dst, src, "", eap_id, challenge, md5_value, hashcat,
+        file)
+
+
 # Get EAP-MD5 challenge/response pairs (crackable with hashcat -m 4800)
 def parse_eap_md5(name, database, verbose):
+    errors = 0
     try:
         cursor = database.cursor()
-        errors = 0
         file = name
         cap = pyshark.FileCapture(file, display_filter="eap.type == 4")
         # cap.set_debug()
@@ -1479,24 +1534,7 @@ def parse_eap_md5(name, database, verbose):
         # (response, from the client) sharing the same EAP id.
         challenges = {}  # (ap, client, eap_id) -> challenge hex
         for pkt in cap:
-            parsed = _eap_md5_packet(pkt)
-            if parsed is None:
-                continue
-            code, eap_id, src, dst, md5_value = parsed
-
-            if code == '1':  # EAP-Request/MD5-Challenge sent by the AP
-                challenges[(src, dst, eap_id)] = md5_value
-            elif code == '2':  # EAP-Response/MD5-Challenge sent by the client
-                challenge = challenges.get((dst, src, eap_id))
-                if not challenge:
-                    continue
-                hashcat = _eap_md5_hashcat(eap_id, challenge, md5_value)
-                if verbose:
-                    print("EAP-MD5 " + str(src) + " -> " + str(dst) +
-                          ": " + hashcat)
-                errors += database_utils.insertEAPMD5(
-                    cursor, verbose, dst, src, "", eap_id, challenge,
-                    md5_value, hashcat, file)
+            errors += _eap_md5_for_pkt(cursor, verbose, pkt, challenges, file)
 
         database.commit()
         print(".cap EAP-MD5 done, errors", errors)
@@ -1511,12 +1549,43 @@ def parse_eap_md5(name, database, verbose):
         print(".cap EAP-MD5 done, errors", errors)
 
 
+def _probe_fingerprint_for_pkt(cursor, verbose, pkt, seen, file):
+    '''Fingerprint one probe-request frame by its ordered IE tag list. Returns
+    insert errors (0/1); `seen` de-duplicates (mac, ssid, fingerprint) keys and
+    is mutated in place.'''
+    mac = _safe(lambda: pkt.wlan.sa, None)
+    if mac is None:
+        return 0
+    mgt = _safe(lambda: pkt['wlan.mgt'], None)
+    if mgt is None:
+        return 0
+    tags = _all_field_values(mgt, 'wlan_tag_number')
+    if not tags:
+        return 0
+    ie_order = ",".join(str(tag) for tag in tags)
+    fingerprint = database_utils.getHash(ie_order.encode())[:32]
+    # The probed SSID ('' for broadcast probe requests). The merged Probe row is
+    # keyed by (mac, ssid), so the fingerprint attaches to the SSID seen in this
+    # frame. Decoded defensively (hex like the other .cap parsers), defaulting
+    # to '' on any failure.
+    ssid = _safe(lambda: binascii.unhexlify(
+        mgt.wlan_ssid.replace(':', '')).decode('ascii'))
+    key = (mac.upper(), ssid, fingerprint)
+    if key in seen:
+        return 0
+    seen.add(key)
+    if verbose:
+        print("Probe fingerprint " + str(mac) + ": " + ie_order)
+    return database_utils.insertProbeFingerprint(
+        cursor, verbose, mac, ssid, fingerprint, ie_order, file)
+
+
 # Fingerprint clients by the ordered set of information elements (tags) they
 # include in their probe requests; useful to identify device model/OS.
 def parse_probe_fingerprint(name, database, verbose):
+    errors = 0
     try:
         cursor = database.cursor()
-        errors = 0
         file = name
         cap = pyshark.FileCapture(
             file, display_filter="wlan.fc.type_subtype == 0x04")
@@ -1524,35 +1593,8 @@ def parse_probe_fingerprint(name, database, verbose):
 
         seen = set()
         for pkt in cap:
-            mac = _safe(lambda: pkt.wlan.sa, None)
-            if mac is None:
-                continue
-            mgt = _safe(lambda: pkt['wlan.mgt'], None)
-            if mgt is None:
-                continue
-
-            tags = _all_field_values(mgt, 'wlan_tag_number')
-            if not tags:
-                continue
-            ie_order = ",".join(str(tag) for tag in tags)
-            fingerprint = database_utils.getHash(ie_order.encode())[:32]
-
-            # The probed SSID ('' for broadcast probe requests). The merged
-            # Probe row is keyed by (mac, ssid), so the fingerprint attaches to
-            # the SSID seen in this frame. Decoded defensively (hex like the
-            # other .cap parsers), defaulting to '' on any failure.
-            ssid = _safe(lambda: binascii.unhexlify(
-                mgt.wlan_ssid.replace(':', '')).decode('ascii'))
-
-            key = (mac.upper(), ssid, fingerprint)
-            if key in seen:
-                continue
-            seen.add(key)
-
-            if verbose:
-                print("Probe fingerprint " + str(mac) + ": " + ie_order)
-            errors += database_utils.insertProbeFingerprint(
-                cursor, verbose, mac, ssid, fingerprint, ie_order, file)
+            errors += _probe_fingerprint_for_pkt(cursor, verbose, pkt, seen,
+                                                 file)
 
         database.commit()
         print(".cap ProbeFingerprint done, errors", errors)
