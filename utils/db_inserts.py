@@ -3,6 +3,7 @@
 # -*- coding: utf-8 -*-
 import sqlite3
 from utils.db_rows import APRow, ClientRow
+from utils.decode import decode_wps_config_methods, decode_rsn_capabilities
 
 
 def _log(verbose, msg):
@@ -208,6 +209,10 @@ def insertWPS(cursor, verbose, wps):
     wps_model_name, wps_model_number = wps.wps_model_name, wps.wps_model_number
     wps_config_methods = wps.wps_config_methods
     wps_config_methods_keypad = wps.wps_config_methods_keypad
+    # Human-readable decode of the raw config-methods bitmask (e.g. '0x218c'
+    # -> 'Label, PushButton, Keypad, Virtual Display PIN'), stored alongside
+    # the raw value and kept sticky with it.
+    wps_config_methods_text = decode_wps_config_methods(wps_config_methods)
     try:
         # Ensure the AP row exists, then merge the WPS columns into it.
         insertAPConstraint(cursor, verbose, bssid)
@@ -222,11 +227,15 @@ def insertWPS(cursor, verbose, wps):
                  wps_model_number = COALESCE(NULLIF((?), ''), wps_model_number),
                  wps_config_methods = COALESCE(NULLIF((?), ''),
                                                wps_config_methods),
+                 wps_config_methods_text = CASE
+                     WHEN NULLIF((?), '') IS NULL THEN wps_config_methods_text
+                     ELSE (?) END,
                  wps_config_methods_keypad = COALESCE(NULLIF((?), ''),
                                              wps_config_methods_keypad)
                WHERE bssid = (?)''',
             (wlan_ssid, wps_version, wps_device_name, wps_model_name,
-             wps_model_number, wps_config_methods, wps_config_methods_keypad,
+             wps_model_number, wps_config_methods, wps_config_methods,
+             wps_config_methods_text, wps_config_methods_keypad,
              bssid.upper()))
         return int(0)
     except sqlite3.IntegrityError as error:
@@ -254,16 +263,21 @@ def insertSecurity(cursor, verbose, sec):
     pairwise_ciphers, group_cipher = sec.pairwise_ciphers, sec.group_cipher
     enterprise, pmf = sec.enterprise, sec.pmf
     rsn_capabilities = sec.rsn_capabilities
+    # Human-readable decode of the raw RSN capabilities bitfield (e.g. '0x00c0'
+    # -> 'MFPR, MFPC'), stored alongside the raw value.
+    rsn_capabilities_text = decode_rsn_capabilities(rsn_capabilities)
     try:
         # Ensure the AP row exists, then merge the security columns into it.
         insertAPConstraint(cursor, verbose, bssid)
 
         cursor.execute('''UPDATE AP SET wpa_version = (?), akm_suites = (?),
                           pairwise_ciphers = (?), group_cipher = (?),
-                          enterprise = (?), pmf = (?), rsn_capabilities = (?)
+                          enterprise = (?), pmf = (?), rsn_capabilities = (?),
+                          rsn_capabilities_text = (?)
                           WHERE bssid = (?)''',
                        (wpa_version, akm_suites, pairwise_ciphers, group_cipher,
-                        enterprise, pmf, rsn_capabilities, bssid.upper()))
+                        enterprise, pmf, rsn_capabilities,
+                        rsn_capabilities_text, bssid.upper()))
         return int(0)
     except sqlite3.IntegrityError as error:
         if verbose:

@@ -49,6 +49,30 @@ def connectDatabase(name, verbose):
         exit()
 
 
+# Columns added after the initial schema. CREATE TABLE IF NOT EXISTS leaves an
+# already-existing table untouched, so these are added idempotently with ALTER
+# TABLE for databases created before the column existed. (table, column, type)
+_ADDED_COLUMNS = (
+    ('AP', 'wps_config_methods_text', 'TEXT'),
+    ('AP', 'rsn_capabilities_text', 'TEXT'),
+)
+
+
+def _migrateColumns(database, verbose):
+    '''Add any post-initial-schema columns missing from an existing database.'''
+    for table, column, col_type in _ADDED_COLUMNS:
+        cursor = database.execute("PRAGMA table_info(%s)" % table)
+        existing = [row[1] for row in cursor.fetchall()]
+        if column in existing:
+            continue
+        # table/column/type come from the fixed _ADDED_COLUMNS literal above,
+        # never from user input, so the formatted DDL stays injection-safe.
+        database.execute("ALTER TABLE %s ADD COLUMN %s %s"
+                         % (table, column, col_type))
+        if verbose:
+            print("Added column %s.%s" % (table, column))
+
+
 def createDatabase(database, verbose):
     '''Function to create the tables in the database'''
     script_path = os.path.dirname(os.path.abspath(__file__))
@@ -60,6 +84,7 @@ def createDatabase(database, verbose):
         # executescript runs the whole file in one call, so no per-statement
         # string building is needed.
         database.executescript(schema)
+        _migrateColumns(database, verbose)
         database.commit()
         if verbose:
             print("Database created")

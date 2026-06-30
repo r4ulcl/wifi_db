@@ -44,7 +44,7 @@ ORDER BY Certificate.bssid;
 
 DROP VIEW IF EXISTS SecurityAP;
 CREATE VIEW IF NOT EXISTS SecurityAP AS
-SELECT AP.bssid, AP.ssid, AP.wpa_version, AP.akm_suites, AP.pairwise_ciphers, AP.group_cipher, AP.enterprise, AP.pmf, AP.rsn_capabilities, AP.mfpc, AP.mfpr
+SELECT AP.bssid, AP.ssid, AP.wpa_version, AP.akm_suites, AP.pairwise_ciphers, AP.group_cipher, AP.enterprise, AP.pmf, AP.rsn_capabilities, AP.rsn_capabilities_text, AP.mfpc, AP.mfpr
 FROM AP
 WHERE AP.wpa_version IS NOT NULL
 ORDER BY AP.bssid;

@@ -4,6 +4,48 @@ import unittest
 from test_base import DBTestBase
 from utils import database_utils
 from utils import oui
+from utils.decode import (decode_wps_config_methods,
+                          decode_rsn_capabilities)
+
+
+class TestDecode(unittest.TestCase):
+    '''Bitmask -> human-readable decoders for the AP *_text columns.'''
+
+    def test_wps_config_methods(self):
+        # Captured examples: the raw config-methods hex bitmask and the flag
+        # list it decodes to. Display-PIN/Push-Button subtypes (0x2000/0x0200)
+        # replace their parent Display/PushButton bits.
+        cases = {
+            '0x0000': '',
+            '0x0004': 'Label',
+            '0x0086': 'Ethernet, Label, PushButton',
+            '0x008c': 'Label, Display, PushButton',
+            '0x2008': 'Virtual Display PIN',
+            '0x200c': 'Label, Virtual Display PIN',
+            '0x210c': 'Label, Keypad, Virtual Display PIN',
+            '0x218c': 'Label, PushButton, Keypad, Virtual Display PIN',
+        }
+        for raw, expected in cases.items():
+            self.assertEqual(decode_wps_config_methods(raw), expected, raw)
+
+    def test_wps_config_methods_edge(self):
+        # Empty/None/garbage decode to '' rather than raising.
+        self.assertEqual(decode_wps_config_methods(''), '')
+        self.assertEqual(decode_wps_config_methods(None), '')
+        self.assertEqual(decode_wps_config_methods('nothex'), '')
+        # A bare integer (already parsed) is accepted too.
+        self.assertEqual(decode_wps_config_methods(0x0004), 'Label')
+
+    def test_rsn_capabilities(self):
+        self.assertEqual(decode_rsn_capabilities('0x0000'), '')
+        self.assertEqual(decode_rsn_capabilities('0x0080'), 'MFPC')
+        self.assertEqual(decode_rsn_capabilities('0x00c0'), 'MFPR, MFPC')
+        self.assertEqual(decode_rsn_capabilities('0x0001'), 'Pre-Auth')
+        # Replay-counter subfields (bits 2-3 / 4-5) decode to their counts.
+        self.assertEqual(decode_rsn_capabilities('0x000c'),
+                         'PTKSA Replay Counters: 16')
+        self.assertEqual(decode_rsn_capabilities(''), '')
+        self.assertEqual(decode_rsn_capabilities(None), '')
 
 
 class TestFunctions(DBTestBase):
@@ -115,7 +157,7 @@ class TestFunctions(DBTestBase):
         wps_device_name = "Test_Device"
         wps_model_name = "Test_Model"
         wps_model_number = "12345"
-        wps_config_methods = "1234"
+        wps_config_methods = "0x008c"
         wps_config_methods_keypad = True
 
         # Insert new WPS
@@ -128,12 +170,16 @@ class TestFunctions(DBTestBase):
                 wps_config_methods_keypad=wps_config_methods_keypad))
         self.assertEqual(result, 0)
 
-        # WPS columns now live on the AP row (1:1 merge)
-        self.c.execute("SELECT wlan_ssid FROM AP WHERE bssid = ?",
+        # WPS columns now live on the AP row (1:1 merge); the raw config-methods
+        # bitmask is decoded into the sibling wps_config_methods_text column.
+        self.c.execute("SELECT wlan_ssid, wps_config_methods, "
+                       "wps_config_methods_text FROM AP WHERE bssid = ?",
                        (self.bssid,))
         rows = self.c.fetchall()
         self.assertEqual(len(rows), 1)
         self.assertEqual(rows[0][0], wlan_ssid)
+        self.assertEqual(rows[0][1], "0x008c")
+        self.assertEqual(rows[0][2], "Label, Display, PushButton")
 
     def test_isRandomizedMAC(self):
         # bit 1 of the first octet set -> locally administered (randomized)

@@ -3,6 +3,7 @@
 ## v1.6.0
 
 ### Added
+- Human-readable decode of the raw bitmask columns: `wps_config_methods_text` (e.g. `0x218c` → `Label, PushButton, Keypad, Virtual Display PIN`) and `rsn_capabilities_text` (e.g. `0x00c0` → `MFPR, MFPC`), stored on the `AP` row next to the raw value and exposed in `SecurityAP`. Existing databases gain the columns automatically via an idempotent `ALTER TABLE` migration.
 - X.509 certificate extraction from enterprise (802.1X) EAP into the new `Certificate` table and `CertificateAP` view.
 - RSN/WPA security breakdown per AP (WPA version, AKM suites, pairwise/group ciphers, enterprise flag, PMF) and `SecurityAP` view.
 - EAP-MD5 challenge/response capture for offline cracking (`EAPMD5` table, `hashcat -m 4800`).
