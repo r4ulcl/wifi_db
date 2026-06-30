@@ -675,6 +675,18 @@ def setHashcat(cursor, verbose, bssid, mac, file, hashcat):
     try:
         # Remove enter at the end
         hashcat = hashcat.strip()
+
+        # Ensure the rows referenced by the Handshake foreign keys exist
+        # before inserting. hcxpcapngtool --all extracts handshakes/PMKIDs
+        # that the strict tshark 4-way parser may have skipped, so the AP,
+        # Client and File rows are not guaranteed to already be present.
+        # Without this the INSERT below fails with "FOREIGN KEY constraint
+        # failed" and the hashcat hash is silently dropped, leaving the
+        # handshake stored with an empty hash.
+        insertFile(cursor, verbose, file)
+        insertClientConstraint(cursor, verbose, mac)
+        insertAPConstraint(cursor, verbose, bssid)
+
         with open(file, 'rb') as file_handle:
             file_hash = getHash(file_handle.read())
         if verbose:

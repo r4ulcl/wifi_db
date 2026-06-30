@@ -1601,6 +1601,7 @@ def exec_hcxpcapngtool(name, database, verbose):
                 errors += database_utils.setHashcat(cursor, verbose,
                                                     ap, client, fileName,
                                                     line)
+        database.commit()
         os.remove("test.22000")
         print(".cap hcxpcapngtool done, errors", errors)
 

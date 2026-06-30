@@ -636,10 +636,32 @@ class TestFunctions(unittest.TestCase):
         result = database_utils.setHashcat(self.c, self.verbose, self.bssid,
                                            self.mac, path, test_hashcat)
         self.assertEqual(result, 0)
-        self.c.execute("SELECT * FROM handshake WHERE bssid = ?",
+        self.c.execute("SELECT file, hashcat FROM handshake WHERE bssid = ?",
                        (self.bssid,))
         rows = self.c.fetchall()
-        self.assertEqual(rows[0][2], path)
+        self.assertEqual(rows[0][0], path)
+        # The hashcat hash must actually be stored, not left empty.
+        self.assertEqual(rows[0][1], test_hashcat)
+
+    def test_setHashcat_without_prior_handshake(self):
+        # Regression: hcxpcapngtool --all finds handshakes/PMKIDs that the
+        # tshark parser skipped, so setHashcat is called for an AP/Client that
+        # has no pre-existing Handshake/AP/Client row. It must create the
+        # referenced rows itself, otherwise the INSERT fails with a FOREIGN
+        # KEY constraint and the hashcat hash is silently dropped (empty).
+        script_path = os.path.dirname(os.path.abspath(__file__))
+        path = script_path + "/README.md"
+        test_hashcat = ("WPA*02*727f2f35c4db2779fff8b30f4d349678*"
+                        "f09fc2712212*286c076ff944*776966692d6d6f62696c65")
+
+        result = database_utils.setHashcat(self.c, self.verbose, self.bssid,
+                                           self.mac, path, test_hashcat)
+        self.assertEqual(result, 0)
+        self.c.execute("SELECT hashcat FROM handshake WHERE bssid = ? "
+                       "AND mac = ?", (self.bssid, self.mac))
+        rows = self.c.fetchall()
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0][0], test_hashcat)
 
     def test_load_vendors(self):
         ouiAux = oui.load_vendors()
