@@ -109,7 +109,7 @@ def check_for_update(version):
             else:
                 print("You chose not to update. Running the current version.")
         elif latest_version < current_version:
-            print("You are using a future version ;) ("+version+").\n")
+            print("You are using a future/dev version ;) ("+version+").\n")
         else:
             print("You are using the latest version ("+version+").\n")
     else:
