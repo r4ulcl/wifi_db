@@ -1027,24 +1027,56 @@ def _extract_cert_fields(der, cert_index):
     }
 
 
-def _get_cert_hexes(pkt, verbose):
-    '''Return the list of colon separated hex strings of every X.509
-    certificate present in a TLS Certificate handshake packet.'''
-    field = _safe(lambda: pkt.tls.get_field('handshake_certificate'), None)
-    if field is None:
-        field = _safe(lambda: pkt.tls.handshake_certificate, None)
-    if field is None:
-        return []
+def _insert_cert_line(cursor, verbose, file, columns):
+    '''Insert every certificate found on one `tshark -T fields` output line.
 
-    # A single Certificate message can carry a full chain (server, CA, ...),
-    # so collect every value of the field.
-    values = _safe(
-        lambda: [f.get_default_value() for f in field.all_fields], None)
-    if values is None:
-        values = _safe(lambda: [str(field)], [])
-        if not values and verbose:
-            print("Could not read certificate field")
-    return [value for value in values if value]
+    `columns` is the tab-split line: the certificate column (a chain is joined
+    with commas by tshark), wlan.sa, wlan.da and eap.code. Returns the number
+    of errors hit while parsing/inserting.'''
+    errors = 0
+    cert_field = columns[0]
+    src = columns[1] if len(columns) > 1 else ""
+    dst = columns[2] if len(columns) > 2 else ""
+    eap_code = columns[3] if len(columns) > 3 else ""
+
+    # Use the EAP direction to know whose certificate this is. The
+    # authenticator (AP) sends EAP-Request packets (code 1) carrying the server
+    # certificate, while the supplicant sends EAP-Response packets (code 2)
+    # carrying the client certificate. Either way the BSSID stored is the AP
+    # and the MAC is the client.
+    if eap_code == '2':  # EAP-Response: certificate sent by the client
+        bssid, mac, cert_type = dst, src, 'Client'
+    elif eap_code == '1':  # EAP-Request: certificate sent by the AP/server
+        bssid, mac, cert_type = src, dst, 'AP'
+    else:
+        bssid, mac, cert_type = src, dst, 'Unknown'
+
+    # Without an AP address there is nothing to key the certificate on; skip
+    # it rather than create a phantom empty-BSSID AP row.
+    if not bssid:
+        if verbose:
+            print("Certificate without wlan addresses, skip")
+        return errors
+
+    # A single Certificate message can carry a full chain (server, CA, ...);
+    # tshark joins those certificates with a comma.
+    for cert_index, cert_hex in enumerate(cert_field.split(',')):
+        cert_hex = cert_hex.strip()
+        if not cert_hex:
+            continue
+        try:
+            der = binascii.unhexlify(cert_hex.replace(':', ''))
+            cert = _extract_cert_fields(der, cert_index)
+            if verbose:
+                print("Certificate (" + cert_type + ") for AP " +
+                      str(bssid) + ": " + str(cert.get('subject')))
+            errors += database_utils.insertCertificate(
+                cursor, verbose, bssid, mac, cert_type, file, cert)
+        except Exception as error:
+            errors += 1
+            if verbose:
+                print("parse_certificates cert error: " + str(error))
+    return errors
 
 
 # Get X.509 certificates from EAP-TLS/PEAP/TTLS in .cap
@@ -1053,64 +1085,31 @@ def parse_certificates(name, database, verbose):
         cursor = database.cursor()
         errors = 0
         file = name
-        cap = pyshark.FileCapture(
-            file, display_filter="tls.handshake.certificate")
-        # cap.set_debug()
 
-        for pkt in cap:
-            try:
-                src = pkt.wlan.sa
-                dst = pkt.wlan.da
-            except Exception:
-                if verbose:
-                    print("Certificate packet without wlan addresses, skip")
+        # EAP-TLS certificates are reassembled by tshark across several EAPOL
+        # fragments. pyshark's per-packet display-filter iteration does not
+        # surface that reassembled `tls.handshake.certificate` field, so it
+        # never finds anything. Extract it straight from tshark in `-T fields`
+        # mode instead (the approach of the standalone reference tool), pulling
+        # the certificate together with the wlan addresses and EAP code needed
+        # to attribute it. Fixed absolute-path binary, no shell; the file name
+        # is a separate argv element, so it cannot be used for injection.
+        completed = subprocess.run(  # nosec B603
+            ["/usr/bin/tshark", "-r", file,
+             "-Y", "tls.handshake.certificate and eapol",
+             "-T", "fields",
+             "-e", "tls.handshake.certificate",
+             "-e", "wlan.sa", "-e", "wlan.da", "-e", "eap.code"],
+            stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, check=False)
+
+        output = completed.stdout.decode('utf-8', 'replace')
+        for raw_line in output.splitlines():
+            columns = raw_line.split('\t')
+            if not columns[0]:  # no certificate on this line
                 continue
-
-            # Use the EAP direction to know whose certificate this is. The
-            # authenticator (AP) sends EAP-Request packets (code 1) carrying
-            # the server certificate, while the supplicant sends EAP-Response
-            # packets (code 2) carrying the client certificate. Either way the
-            # BSSID stored is the AP and the MAC is the client.
-            try:
-                eap_code = pkt.eap.code
-            except Exception:
-                eap_code = None
-
-            if eap_code == '2':  # EAP-Response: certificate sent by the client
-                bssid = dst
-                mac = src
-                cert_type = 'Client'
-            elif eap_code == '1':  # EAP-Request: cert sent by the AP/server
-                bssid = src
-                mac = dst
-                cert_type = 'AP'
-            else:
-                # Direction unknown, assume the AP relays it (server cert)
-                bssid = src
-                mac = dst
-                cert_type = 'Unknown'
-
-            for cert_index, cert_hex in enumerate(_get_cert_hexes(pkt,
-                                                                  verbose)):
-                try:
-                    der = binascii.unhexlify(cert_hex.replace(':', ''))
-                    cert = _extract_cert_fields(der, cert_index)
-                    if verbose:
-                        print("Certificate (" + cert_type + ") for AP " +
-                              str(bssid) + ": " + str(cert.get('subject')))
-                    errors += database_utils.insertCertificate(
-                        cursor, verbose, bssid, mac, cert_type, file, cert)
-                except Exception as error:
-                    errors += 1
-                    if verbose:
-                        print("parse_certificates cert error: " + str(error))
+            errors += _insert_cert_line(cursor, verbose, file, columns)
 
         database.commit()
-        print(".cap Certificate done, errors", errors)
-    except pyshark.capture.capture.TSharkCrashException as error:
-        errors += 1
-        print("Error in parse_certificates (CAP), probably PCAP cut in the "
-              "middle of a packet: ", error)
         print(".cap Certificate done, errors", errors)
     except Exception as error:
         errors += 1

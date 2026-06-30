@@ -1,11 +1,18 @@
 import os
+import datetime
 # import sqlite3
 import unittest
+from unittest import mock
 # from database_utils import *
 from utils import database_utils
 from utils import oui
 # from utils import update
-# from utils import wifi_db_aircrack
+from utils import wifi_db_aircrack
+
+from cryptography import x509
+from cryptography.x509.oid import NameOID
+from cryptography.hazmat.primitives import hashes, serialization
+from cryptography.hazmat.primitives.asymmetric import rsa
 
 import wifi_db
 import nest_asyncio
@@ -237,6 +244,64 @@ class TestFunctions(unittest.TestCase):
         self.c.execute("SELECT COUNT(*) FROM Certificate WHERE bssid = ?",
                        (self.bssid,))
         self.assertEqual(self.c.fetchone()[0], 2)
+
+    @staticmethod
+    def _make_cert_hex(cn):
+        '''Build a real self-signed cert and return its colon-separated hex
+        DER, exactly as `tshark -e tls.handshake.certificate` emits it.'''
+        key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+        name = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, cn)])
+        cert = (x509.CertificateBuilder()
+                .subject_name(name).issuer_name(name)
+                .public_key(key.public_key())
+                .serial_number(x509.random_serial_number())
+                .not_valid_before(datetime.datetime(2024, 1, 1))
+                .not_valid_after(datetime.datetime(2030, 1, 1))
+                .sign(key, hashes.SHA256()))
+        der = cert.public_bytes(serialization.Encoding.DER)
+        return ':'.join('%02x' % b for b in der)
+
+    def test_parse_certificates(self):
+        # Regression: EAP-TLS certificates are reassembled by tshark across
+        # EAPOL fragments, which pyshark's display-filter iteration never
+        # surfaced, so the Certificate table stayed empty. parse_certificates
+        # now reads tshark -T fields output directly; mock that output (with a
+        # real cert chain + a client cert) and check the rows are stored.
+        ap, sta = "F0:9F:C2:71:22:14", "28:6C:07:6F:F9:44"
+        server = self._make_cert_hex(u"radius.contoso.local")
+        ca = self._make_cert_hex(u"Contoso Root CA")
+        client = self._make_cert_hex(u"user@contoso")
+
+        # Columns: tls.handshake.certificate \t wlan.sa \t wlan.da \t eap.code.
+        # A chain is comma-joined in a single column; eap.code 1 = AP/server,
+        # 2 = client.
+        line_ap = "\t".join([server + "," + ca, ap, sta, "1"])
+        line_client = "\t".join([client, sta, ap, "2"])
+        fake_stdout = (line_ap + "\n" + line_client + "\n").encode("utf-8")
+        fake = mock.Mock()
+        fake.stdout = fake_stdout
+
+        with mock.patch("utils.wifi_db_aircrack.subprocess.run",
+                        return_value=fake):
+            wifi_db_aircrack.parse_certificates("scanc44-01.cap",
+                                                self.database, self.verbose)
+
+        rows = self.c.execute(
+            "SELECT bssid, mac, cert_type, subject_cn, cert_index "
+            "FROM Certificate ORDER BY cert_type, cert_index").fetchall()
+        # 2 certs in the AP chain + 1 client cert
+        self.assertEqual(len(rows), 3)
+        self.assertEqual([r[2] for r in rows], ['AP', 'AP', 'Client'])
+        # AP chain keeps its order via cert_index
+        self.assertEqual(rows[0][3], 'radius.contoso.local')
+        self.assertEqual(rows[0][4], 0)
+        self.assertEqual(rows[1][3], 'Contoso Root CA')
+        self.assertEqual(rows[1][4], 1)
+        # Whoever sent the cert, the BSSID stored is always the AP and the MAC
+        # the client.
+        for row in rows:
+            self.assertEqual(row[0], ap)
+            self.assertEqual(row[1], sta)
 
     def test_insertSecurity(self):
         # Insert RSN/WPA security details for an AP (WPA3-Enterprise)
