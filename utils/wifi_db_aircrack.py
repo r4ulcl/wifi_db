@@ -191,8 +191,9 @@ def _netxml_parse_probe(cursor, verbose, ouiMap, wireless):
         print(bssid, manuf, "W", packets_total)
 
     errors += database_utils.insertClients(
-        cursor, verbose, bssid, '',
-        manuf, 'W', packets_total, 'Misc', 0)
+        cursor, verbose, database_utils.ClientRow(
+            mac=bssid, ssid='', manuf=manuf, client_type='W',
+            packets_total=packets_total, device='Misc', firstTimeSeen=0))
 
     # probe
     ssid1 = wireless.find("wireless-client").find("SSID")
@@ -229,14 +230,24 @@ def _netxml_parse_infra_clients(cursor, verbose, ouiMap, wireless, bssid):
         packets_total = packets.find("total").text
         # print (client_mac, manuf, "W", packets_total)
         errors += database_utils.insertClients(
-            cursor, verbose, client_mac, '', manuf,
-            'W', packets_total, 'Misc', firstTimeSeen)
+            cursor, verbose, database_utils.ClientRow(
+                mac=client_mac, ssid='', manuf=manuf, client_type='W',
+                packets_total=packets_total, device='Misc',
+                firstTimeSeen=firstTimeSeen))
 
         # connected
         # print (bssid, client_mac)
         errors += database_utils.insertConnected(
             cursor, verbose, bssid, client_mac)
     return errors
+
+
+def _netxml_coords(wireless):
+    '''(lat, lon) from a netxml entry's gps-info, defaulting to "0.0".'''
+    gps_info = wireless.find("gps-info")
+    if gps_info is not None and gps_info.find("max-lat") is not None:
+        return gps_info.find("max-lat").text, gps_info.find("max-lon").text
+    return "0.0", "0.0"
 
 
 def _netxml_parse_infrastructure(cursor, verbose, ouiMap, wireless):
@@ -284,25 +295,16 @@ def _netxml_parse_infrastructure(cursor, verbose, ouiMap, wireless):
     else:
         encryption = ""
 
-    lat = "0.0"
-    lon = "0.0"
-    gps_info = wireless.find("gps-info")
-    if gps_info is not None:
-        if gps_info.find("max-lat") is not None:
-            lat = gps_info.find("max-lat").text
-            lon = gps_info.find("max-lon").text
-        else:
-            lat = "0.0"
-            lon = "0.0"
+    lat, lon = _netxml_coords(wireless)
 
     packets_total = wireless[8].find("total").text
 
-    mfpc = 'False'
-    mfpr = 'False'
     errors += database_utils.insertAP(
-        cursor, verbose, bssid, essid, manuf, channel,
-        freqmhz, carrier, encryption, packets_total, lat, lon,
-        cloaked, mfpc, mfpr, firstTimeSeen)
+        cursor, verbose, database_utils.APRow(
+            bssid=bssid, essid=essid, manuf=manuf, channel=channel,
+            freqmhz=freqmhz, carrier=carrier, encryption=encryption,
+            packets_total=packets_total, lat=lat, lon=lon, cloaked=cloaked,
+            mfpc='False', mfpr='False', firstTimeSeen=firstTimeSeen))
 
     # client
     errors += _netxml_parse_infra_clients(
@@ -349,9 +351,11 @@ def _kismet_insert_ap(cursor, verbose, ouiMap, row):
         firstTimeSeen = date_object.strftime("%Y-%m-%d %H:%M:%S")
         manuf = oui.get_vendor(ouiMap, bssid, verbose)
         return database_utils.insertAP(
-            cursor, verbose, bssid, essid, manuf, row[5], 0, "", row[7],
-            row[16], row[32], row[33], 'False', 'False', 'False',
-            firstTimeSeen)
+            cursor, verbose, database_utils.APRow(
+                bssid=bssid, essid=essid, manuf=manuf, channel=row[5],
+                freqmhz=0, carrier="", encryption=row[7], packets_total=row[16],
+                lat=row[32], lon=row[33], cloaked='False', mfpc='False',
+                mfpr='False', firstTimeSeen=firstTimeSeen))
     except Exception as error:
         if verbose:
             print("Uncontrolled error UPDATE AP kismet csv: ", error)
@@ -394,8 +398,11 @@ def _csv_insert_ap(cursor, verbose, ouiMap, row):
     manuf = oui.get_vendor(ouiMap, bssid, verbose)
     encrypt = row[5] + row[6] + row[7]
     return database_utils.insertAP(
-        cursor, verbose, bssid, essid[1:], manuf, row[3], "", "", encrypt,
-        row[10], 0, 0, 'False', 'False', 'False', firstTimeSeen)
+        cursor, verbose, database_utils.APRow(
+            bssid=bssid, essid=essid[1:], manuf=manuf, channel=row[3],
+            freqmhz="", carrier="", encryption=encrypt, packets_total=row[10],
+            lat=0, lon=0, cloaked='False', mfpc='False', mfpr='False',
+            firstTimeSeen=firstTimeSeen))
 
 
 def _csv_insert_station(cursor, verbose, ouiMap, row):
@@ -404,7 +411,9 @@ def _csv_insert_station(cursor, verbose, ouiMap, row):
     firstTimeSeen = row[1]
     manuf = oui.get_vendor(ouiMap, mac, verbose)
     errors = database_utils.insertClients(
-        cursor, verbose, mac, '', manuf, 'W', row[4], 'Misc', firstTimeSeen)
+        cursor, verbose, database_utils.ClientRow(
+            mac=mac, ssid='', manuf=manuf, client_type='W',
+            packets_total=row[4], device='Misc', firstTimeSeen=firstTimeSeen))
     if len(row) > 5 and row[5] != " (not associated) ":
         errors += database_utils.insertConnected(
             cursor, verbose, row[5].replace(' ', ''), row[0])
@@ -469,9 +478,13 @@ def _log_insert_client(cursor, verbose, ouiMap, row, time, fake_lat, fake_lon):
     manuf = oui.get_vendor(ouiMap, mac, verbose)
     lat, lon = _coords(row, fake_lat, fake_lon)
     errors = database_utils.insertClients(
-        cursor, verbose, mac, "", manuf, "", "", "", time)
+        cursor, verbose, database_utils.ClientRow(
+            mac=mac, ssid="", manuf=manuf, client_type="", packets_total="",
+            device="", firstTimeSeen=time))
     errors += database_utils.insertSeenClient(
-        cursor, verbose, mac, time, 'aircrack-ng', row[4], lat, lon, '0.0')
+        cursor, verbose, database_utils.SeenClientRow(
+            mac=mac, time=time, tool='aircrack-ng', signal_rssi=row[4],
+            lat=lat, lon=lon, alt='0.0'))
     return errors
 
 
@@ -480,11 +493,14 @@ def _log_insert_ap(cursor, verbose, ouiMap, row, time, fake_lat, fake_lon):
     manuf = oui.get_vendor(ouiMap, row[3], verbose)
     lat, lon = _coords(row, fake_lat, fake_lon)
     errors = database_utils.insertAP(
-        cursor, verbose, row[3], row[2], manuf, 0, 0, '', '', 0, lat, lon,
-        'False', 'False', 'False', time)
+        cursor, verbose, database_utils.APRow(
+            bssid=row[3], essid=row[2], manuf=manuf, channel=0, freqmhz=0,
+            carrier='', encryption='', packets_total=0, lat=lat, lon=lon,
+            cloaked='False', mfpc='False', mfpr='False', firstTimeSeen=time))
     errors += database_utils.insertSeenAP(
-        cursor, verbose, row[3], time, 'aircrack-ng', row[4], lat, lon,
-        '0.0', 0)
+        cursor, verbose, database_utils.SeenAPRow(
+            bssid=row[3], time=time, tool='aircrack-ng', signal_rsi=row[4],
+            lat=lat, lon=lon, alt='0.0', bsstimestamp=0))
     return errors
 
 
@@ -701,12 +717,14 @@ def parse_WPS(name, database, verbose):
                 print(wps_version)
                 print(wps_ext_version2)
 
-            errors += database_utils.insertWPS(cursor, verbose, bssid,
-                                               wlan_ssid, wps_version,
-                                               wps_device_name, wps_model_name,
-                                               wps_model_number,
-                                               wps_config_methods,
-                                               wps_config_methods_keypad)
+            errors += database_utils.insertWPS(
+                cursor, verbose, database_utils.WPSRow(
+                    bssid=bssid, wlan_ssid=wlan_ssid, wps_version=wps_version,
+                    wps_device_name=wps_device_name,
+                    wps_model_name=wps_model_name,
+                    wps_model_number=wps_model_number,
+                    wps_config_methods=wps_config_methods,
+                    wps_config_methods_keypad=wps_config_methods_keypad))
 
         database.commit()
         print(".cap WPS done, errors", errors)
@@ -950,6 +968,20 @@ def _public_key_details(cert):
     return algorithm, size, curve, exponent
 
 
+def _cert_names(cert):
+    '''Subject/issuer CN/O/OU attributes for a certificate.'''
+    return {
+        'subject_cn': _name_attribute(cert.subject, NameOID.COMMON_NAME),
+        'subject_o': _name_attribute(cert.subject, NameOID.ORGANIZATION_NAME),
+        'subject_ou': _name_attribute(
+            cert.subject, NameOID.ORGANIZATIONAL_UNIT_NAME),
+        'issuer_cn': _name_attribute(cert.issuer, NameOID.COMMON_NAME),
+        'issuer_o': _name_attribute(cert.issuer, NameOID.ORGANIZATION_NAME),
+        'issuer_ou': _name_attribute(
+            cert.issuer, NameOID.ORGANIZATIONAL_UNIT_NAME),
+    }
+
+
 def _extract_cert_fields(der, cert_index):
     '''Parse a DER encoded X.509 certificate and return all its fields
     as a dict ready to be inserted in the Certificate table.'''
@@ -979,15 +1011,7 @@ def _extract_cert_fields(der, cert_index):
         'subject': _safe(lambda: cert.subject.rfc4514_string()),
         'not_before': _fmt(not_before_dt),
         'not_after': _fmt(not_after_dt),
-        'subject_cn': _name_attribute(cert.subject, NameOID.COMMON_NAME),
-        'subject_o': _name_attribute(
-            cert.subject, NameOID.ORGANIZATION_NAME),
-        'subject_ou': _name_attribute(
-            cert.subject, NameOID.ORGANIZATIONAL_UNIT_NAME),
-        'issuer_cn': _name_attribute(cert.issuer, NameOID.COMMON_NAME),
-        'issuer_o': _name_attribute(cert.issuer, NameOID.ORGANIZATION_NAME),
-        'issuer_ou': _name_attribute(
-            cert.issuer, NameOID.ORGANIZATIONAL_UNIT_NAME),
+        **_cert_names(cert),
         'public_key_algorithm': algorithm,
         'public_key_size': size,
         'public_key_curve': curve,
@@ -1293,8 +1317,11 @@ def _insert_one_capability(cursor, verbose, bssid, mgt):
               " 11k=" + f['rrm'] + " 11v=" + f['bss_trans'] + " MBSSID=" +
               f['mbssid'] + " CSA=" + f['csa'])
     return database_utils.insertCapabilities(
-        cursor, verbose, bssid, f['ft'], f['mdid'], f['rrm'], f['bss_trans'],
-        f['mbssid'], f['max_bssid_indicator'], f['csa'], f['csa_new_channel'])
+        cursor, verbose, database_utils.CapabilitiesRow(
+            bssid=bssid, ft_80211r=f['ft'], mobility_domain_id=f['mdid'],
+            rrm_80211k=f['rrm'], bss_transition_80211v=f['bss_trans'],
+            mbssid=f['mbssid'], max_bssid_indicator=f['max_bssid_indicator'],
+            csa=f['csa'], csa_new_channel=f['csa_new_channel']))
 
 
 def parse_capabilities(name, database, verbose):
@@ -1431,9 +1458,13 @@ def _insert_one_security(cursor, verbose, file, bssid, mgt):
         print("Security for AP " + str(bssid) + ": " + row['wpa_version'] +
               " [" + row['akm_suites'] + "] PMF=" + row['pmf'])
     errors = database_utils.insertSecurity(
-        cursor, verbose, bssid, row['wpa_version'], row['akm_suites'],
-        row['pairwise_ciphers'], row['group_cipher'], row['enterprise'],
-        row['pmf'], row['rsn_capabilities'], file)
+        cursor, verbose, database_utils.SecurityRow(
+            bssid=bssid, wpa_version=row['wpa_version'],
+            akm_suites=row['akm_suites'],
+            pairwise_ciphers=row['pairwise_ciphers'],
+            group_cipher=row['group_cipher'], enterprise=row['enterprise'],
+            pmf=row['pmf'], rsn_capabilities=row['rsn_capabilities'],
+            file=file))
     # Beacons are far more common than the association frames parsed by
     # parse_MFP, so also update the AP mfpc/mfpr from here.
     if row['mfpc'] == 'True' or row['mfpr'] == 'True':
@@ -1517,8 +1548,9 @@ def _eap_md5_for_pkt(cursor, verbose, pkt, challenges, file):
     if verbose:
         print("EAP-MD5 " + str(src) + " -> " + str(dst) + ": " + hashcat)
     return database_utils.insertEAPMD5(
-        cursor, verbose, dst, src, "", eap_id, challenge, md5_value, hashcat,
-        file)
+        cursor, verbose, database_utils.EAPMD5Row(
+            bssid=dst, mac=src, identity="", eap_id=eap_id, challenge=challenge,
+            response=md5_value, hashcat=hashcat, file=file))
 
 
 # Get EAP-MD5 challenge/response pairs (crackable with hashcat -m 4800)

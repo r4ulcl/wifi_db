@@ -18,6 +18,43 @@ import wifi_db
 import nest_asyncio
 
 
+def _sample_cert():
+    '''A parsed certificate dict as built by _extract_cert_fields, for tests.'''
+    return {
+        'cert_index': 0,
+        'version': 'v3',
+        'serial_number': 'abcdef',
+        'signature_algorithm': 'sha256WithRSAEncryption',
+        'issuer': 'CN=Test CA,O=Test Org',
+        'subject': 'CN=radius.test.local,O=Test Org',
+        'not_before': '2024-01-01 00:00:00',
+        'not_after': '2025-01-01 00:00:00',
+        'subject_cn': 'radius.test.local',
+        'subject_o': 'Test Org',
+        'subject_ou': 'IT',
+        'issuer_cn': 'Test CA',
+        'issuer_o': 'Test Org',
+        'issuer_ou': 'IT',
+        'public_key_algorithm': 'RSA',
+        'public_key_size': 2048,
+        'public_key_curve': '',
+        'public_key_exponent': '65537',
+        'subject_alt_names': 'radius.test.local, 10.0.0.1',
+        'key_usage': 'digitalSignature, keyEncipherment',
+        'ext_key_usage': 'serverAuth',
+        'is_ca': 'False',
+        'path_length': None,
+        'self_signed': 'False',
+        'authority_key_id': 'aabbcc',
+        'subject_key_id': 'ddeeff',
+        'crl_urls': 'http://crl.test.local/ca.crl',
+        'ocsp_urls': 'http://ocsp.test.local',
+        'validity_days': 366,
+        'sha1_fingerprint': '00aa11bb22cc',
+        'sha256_fingerprint': '00aa11bb22cc33dd44ee',
+    }
+
+
 class TestFunctions(unittest.TestCase):
     def setUp(self):
         self.verbose = False
@@ -105,10 +142,12 @@ class TestFunctions(unittest.TestCase):
         mfpc = 'False'
         mfpr = 'False'
         # Insert new AP
-        result = database_utils.insertAP(self.c, self.verbose, self.bssid,
-                                         essid, manuf, channel, freqmhz,
-                                         carrier, encryption, packets_total,
-                                         lat, lon, cloaked, mfpc, mfpr, 0)
+        result = database_utils.insertAP(
+            self.c, self.verbose, database_utils.APRow(
+                bssid=self.bssid, essid=essid, manuf=manuf, channel=channel,
+                freqmhz=freqmhz, carrier=carrier, encryption=encryption,
+                packets_total=packets_total, lat=lat, lon=lon, cloaked=cloaked,
+                mfpc=mfpc, mfpr=mfpr, firstTimeSeen=0))
 
         self.assertEqual(result, 0)
 
@@ -123,9 +162,10 @@ class TestFunctions(unittest.TestCase):
         packets_total = "10"
         power = "-70"
         # Insert new client
-        result = database_utils.insertClients(self.c, self.verbose, self.mac,
-                                              ssid, manuf, packets_total,
-                                              power, "Misc", 0)
+        result = database_utils.insertClients(
+            self.c, self.verbose, database_utils.ClientRow(
+                mac=self.mac, ssid=ssid, manuf=manuf, client_type=packets_total,
+                packets_total=power, device="Misc", firstTimeSeen=0))
 
         self.assertEqual(result, 0)
 
@@ -148,12 +188,13 @@ class TestFunctions(unittest.TestCase):
         wps_config_methods_keypad = True
 
         # Insert new WPS
-        result = database_utils.insertWPS(self.c, self.verbose, self.bssid,
-                                          wlan_ssid, wps_version,
-                                          wps_device_name, wps_model_name,
-                                          wps_model_number,
-                                          wps_config_methods,
-                                          wps_config_methods_keypad)
+        result = database_utils.insertWPS(
+            self.c, self.verbose, database_utils.WPSRow(
+                bssid=self.bssid, wlan_ssid=wlan_ssid, wps_version=wps_version,
+                wps_device_name=wps_device_name, wps_model_name=wps_model_name,
+                wps_model_number=wps_model_number,
+                wps_config_methods=wps_config_methods,
+                wps_config_methods_keypad=wps_config_methods_keypad))
         self.assertEqual(result, 0)
 
         # WPS columns now live on the AP row (1:1 merge)
@@ -165,39 +206,7 @@ class TestFunctions(unittest.TestCase):
 
     def test_insertCertificate(self):
         # Define a parsed certificate (as built by _extract_cert_fields)
-        cert = {
-            'cert_index': 0,
-            'version': 'v3',
-            'serial_number': 'abcdef',
-            'signature_algorithm': 'sha256WithRSAEncryption',
-            'issuer': 'CN=Test CA,O=Test Org',
-            'subject': 'CN=radius.test.local,O=Test Org',
-            'not_before': '2024-01-01 00:00:00',
-            'not_after': '2025-01-01 00:00:00',
-            'subject_cn': 'radius.test.local',
-            'subject_o': 'Test Org',
-            'subject_ou': 'IT',
-            'issuer_cn': 'Test CA',
-            'issuer_o': 'Test Org',
-            'issuer_ou': 'IT',
-            'public_key_algorithm': 'RSA',
-            'public_key_size': 2048,
-            'public_key_curve': '',
-            'public_key_exponent': '65537',
-            'subject_alt_names': 'radius.test.local, 10.0.0.1',
-            'key_usage': 'digitalSignature, keyEncipherment',
-            'ext_key_usage': 'serverAuth',
-            'is_ca': 'False',
-            'path_length': None,
-            'self_signed': 'False',
-            'authority_key_id': 'aabbcc',
-            'subject_key_id': 'ddeeff',
-            'crl_urls': 'http://crl.test.local/ca.crl',
-            'ocsp_urls': 'http://ocsp.test.local',
-            'validity_days': 366,
-            'sha1_fingerprint': '00aa11bb22cc',
-            'sha256_fingerprint': '00aa11bb22cc33dd44ee',
-        }
+        cert = _sample_cert()
 
         # Insert new certificate (AP/server certificate)
         result = database_utils.insertCertificate(self.c, self.verbose,
@@ -306,9 +315,11 @@ class TestFunctions(unittest.TestCase):
     def test_insertSecurity(self):
         # Insert RSN/WPA security details for an AP (WPA3-Enterprise)
         result = database_utils.insertSecurity(
-            self.c, self.verbose, self.bssid, 'WPA3',
-            '802.1X-SuiteB-SHA384', 'GCMP-256', 'GCMP-256', 'True',
-            'Required', '0x00c0', 'test.cap')
+            self.c, self.verbose, database_utils.SecurityRow(
+                bssid=self.bssid, wpa_version='WPA3',
+                akm_suites='802.1X-SuiteB-SHA384', pairwise_ciphers='GCMP-256',
+                group_cipher='GCMP-256', enterprise='True', pmf='Required',
+                rsn_capabilities='0x00c0', file='test.cap'))
         self.assertEqual(result, 0)
 
         # Security columns now live on the AP row (1:1 merge)
@@ -325,8 +336,11 @@ class TestFunctions(unittest.TestCase):
 
         # A second beacon for the same BSSID overwrites the AP columns
         result = database_utils.insertSecurity(
-            self.c, self.verbose, self.bssid, 'WPA2', 'PSK', 'CCMP-128',
-            'CCMP-128', 'False', 'Capable', '0x0080', 'test.cap')
+            self.c, self.verbose, database_utils.SecurityRow(
+                bssid=self.bssid, wpa_version='WPA2', akm_suites='PSK',
+                pairwise_ciphers='CCMP-128', group_cipher='CCMP-128',
+                enterprise='False', pmf='Capable', rsn_capabilities='0x0080',
+                file='test.cap'))
         self.assertEqual(result, 0)
         self.c.execute("SELECT COUNT(*), MAX(wpa_version) FROM AP "
                        "WHERE bssid = ?", (self.bssid,))
@@ -338,8 +352,11 @@ class TestFunctions(unittest.TestCase):
         # The SecurityAP and CertificateAP views must join Security/Certificate
         # to AP on the BSSID and expose the expected columns.
         database_utils.insertSecurity(
-            self.c, self.verbose, self.bssid, 'WPA3', 'SAE', 'CCMP-128',
-            'CCMP-128', 'False', 'Required', '0x00c0', 'test.cap')
+            self.c, self.verbose, database_utils.SecurityRow(
+                bssid=self.bssid, wpa_version='WPA3', akm_suites='SAE',
+                pairwise_ciphers='CCMP-128', group_cipher='CCMP-128',
+                enterprise='False', pmf='Required', rsn_capabilities='0x00c0',
+                file='test.cap'))
         self.c.execute("SELECT wpa_version, pmf FROM SecurityAP "
                        "WHERE bssid = ?", (self.bssid,))
         row = self.c.fetchone()
@@ -374,8 +391,10 @@ class TestFunctions(unittest.TestCase):
     def test_insertCapabilities(self):
         # Store 802.11r/k/v + MBSSID + CSA capabilities on the AP row.
         result = database_utils.insertCapabilities(
-            self.c, self.verbose, self.bssid, 'True', '0xabcd', 'True',
-            'True', 'True', 8, 'True', 36)
+            self.c, self.verbose, database_utils.CapabilitiesRow(
+                bssid=self.bssid, ft_80211r='True', mobility_domain_id='0xabcd',
+                rrm_80211k='True', bss_transition_80211v='True', mbssid='True',
+                max_bssid_indicator=8, csa='True', csa_new_channel=36))
         self.assertEqual(result, 0)
         self.c.execute("SELECT ft_80211r, mobility_domain_id, rrm_80211k, "
                        "bss_transition_80211v, mbssid, max_bssid_indicator, "
@@ -388,8 +407,11 @@ class TestFunctions(unittest.TestCase):
         # A later beacon without the elements must NOT clear sticky flags, and
         # must keep the detail fields it does not carry.
         result = database_utils.insertCapabilities(
-            self.c, self.verbose, self.bssid, 'False', '', 'False', 'False',
-            'False', None, 'False', None)
+            self.c, self.verbose, database_utils.CapabilitiesRow(
+                bssid=self.bssid, ft_80211r='False', mobility_domain_id='',
+                rrm_80211k='False', bss_transition_80211v='False',
+                mbssid='False', max_bssid_indicator=None, csa='False',
+                csa_new_channel=None))
         self.assertEqual(result, 0)
         self.c.execute("SELECT ft_80211r, mobility_domain_id, rrm_80211k, "
                        "csa_new_channel FROM AP WHERE bssid = ?",
@@ -400,12 +422,18 @@ class TestFunctions(unittest.TestCase):
     def test_cloaked_sticky_on_merge(self):
         # A detected cloaked='True' must survive later merges (e.g. a beacon
         # enriching the AP via insertAPConstraint, which passes 'False').
-        database_utils.insertAP(self.c, self.verbose, self.bssid, "", "manuf",
-                                "6", "2437", "", "WPA2", "0", "0.0", "0.0",
-                                'True', 'False', 'False', 0)
+        database_utils.insertAP(
+            self.c, self.verbose, database_utils.APRow(
+                bssid=self.bssid, essid="", manuf="manuf", channel="6",
+                freqmhz="2437", carrier="", encryption="WPA2",
+                packets_total="0", lat="0.0", lon="0.0", cloaked='True',
+                mfpc='False', mfpr='False', firstTimeSeen=0))
         database_utils.insertSecurity(
-            self.c, self.verbose, self.bssid, 'WPA2', 'PSK', 'CCMP-128',
-            'CCMP-128', 'False', 'Disabled', '0x0000', 'test.cap')
+            self.c, self.verbose, database_utils.SecurityRow(
+                bssid=self.bssid, wpa_version='WPA2', akm_suites='PSK',
+                pairwise_ciphers='CCMP-128', group_cipher='CCMP-128',
+                enterprise='False', pmf='Disabled', rsn_capabilities='0x0000',
+                file='test.cap'))
         self.c.execute("SELECT cloaked FROM AP WHERE bssid = ?", (self.bssid,))
         self.assertEqual(self.c.fetchone()[0], 'True')
 
@@ -430,8 +458,11 @@ class TestFunctions(unittest.TestCase):
         # The CapabilitiesAP view exposes the capability columns from AP and
         # only lists APs that advertise at least one of them.
         database_utils.insertCapabilities(
-            self.c, self.verbose, self.bssid, 'True', '0x1234', 'False',
-            'False', 'False', None, 'False', None)
+            self.c, self.verbose, database_utils.CapabilitiesRow(
+                bssid=self.bssid, ft_80211r='True', mobility_domain_id='0x1234',
+                rrm_80211k='False', bss_transition_80211v='False',
+                mbssid='False', max_bssid_indicator=None, csa='False',
+                csa_new_channel=None))
         self.c.execute("SELECT ssid, ft_80211r, mobility_domain_id "
                        "FROM CapabilitiesAP WHERE bssid = ?", (self.bssid,))
         row = self.c.fetchone()
@@ -456,11 +487,12 @@ class TestFunctions(unittest.TestCase):
 
     def test_insertEAPMD5(self):
         result = database_utils.insertEAPMD5(
-            self.c, self.verbose, self.bssid, self.mac, "user", "42",
-            "0102030405060708090a0b0c0d0e0f10",
-            "aabbccddeeff00112233445566778899",
-            "aabbccddeeff00112233445566778899:"
-            "0102030405060708090a0b0c0d0e0f10:42", 'test.cap')
+            self.c, self.verbose, database_utils.EAPMD5Row(
+                bssid=self.bssid, mac=self.mac, identity="user", eap_id="42",
+                challenge="0102030405060708090a0b0c0d0e0f10",
+                response="aabbccddeeff00112233445566778899",
+                hashcat="aabbccddeeff00112233445566778899:"
+                "0102030405060708090a0b0c0d0e0f10:42", file='test.cap'))
         self.assertEqual(result, 0)
         self.c.execute("SELECT identity, eap_id, hashcat FROM EAPMD5 "
                        "WHERE bssid = ? AND mac = ?", (self.bssid, self.mac))
@@ -508,10 +540,12 @@ class TestFunctions(unittest.TestCase):
         mfpc = 'False'
         mfpr = 'False'
         # Insert new AP
-        result = database_utils.insertAP(self.c, self.verbose, self.bssid,
-                                         essid, manuf, channel, freqmhz,
-                                         carrier, encryption, packets_total,
-                                         lat, lon, cloaked, mfpc, mfpr, 0)
+        result = database_utils.insertAP(
+            self.c, self.verbose, database_utils.APRow(
+                bssid=self.bssid, essid=essid, manuf=manuf, channel=channel,
+                freqmhz=freqmhz, carrier=carrier, encryption=encryption,
+                packets_total=packets_total, lat=lat, lon=lon, cloaked=cloaked,
+                mfpc=mfpc, mfpr=mfpr, firstTimeSeen=0))
 
         self.assertEqual(result, 0)
 
@@ -520,9 +554,10 @@ class TestFunctions(unittest.TestCase):
         packets_total = "10"
         power = "-70"
         # Insert new client
-        result = database_utils.insertClients(self.c, self.verbose, self.mac,
-                                              ssid, manuf, packets_total,
-                                              power, "Misc", 0)
+        result = database_utils.insertClients(
+            self.c, self.verbose, database_utils.ClientRow(
+                mac=self.mac, ssid=ssid, manuf=manuf, client_type=packets_total,
+                packets_total=power, device="Misc", firstTimeSeen=0))
 
         self.assertEqual(result, 0)
 
@@ -592,9 +627,10 @@ class TestFunctions(unittest.TestCase):
         packets_total = "10"
         power = "-70"
         # Insert new client
-        result = database_utils.insertClients(self.c, self.verbose, self.mac,
-                                              ssid, manuf, packets_total,
-                                              power, "Misc", 0)
+        result = database_utils.insertClients(
+            self.c, self.verbose, database_utils.ClientRow(
+                mac=self.mac, ssid=ssid, manuf=manuf, client_type=packets_total,
+                packets_total=power, device="Misc", firstTimeSeen=0))
 
         # Insert seenClient
         # station = "Test_Station"
@@ -604,9 +640,10 @@ class TestFunctions(unittest.TestCase):
         lat = "37.7749"
         lon = "-122.4194"
         alt = "10000"
-        result = database_utils.insertSeenClient(self.c, self.verbose,
-                                                 self.mac, time, tool, power,
-                                                 lat, lon, alt)
+        result = database_utils.insertSeenClient(
+            self.c, self.verbose, database_utils.SeenClientRow(
+                mac=self.mac, time=time, tool=tool, signal_rssi=power,
+                lat=lat, lon=lon, alt=alt))
         self.assertEqual(result, 0)
         self.c.execute("SELECT * FROM SeenClient WHERE mac=?", (self.mac,))
         row = self.c.fetchone()
@@ -629,10 +666,12 @@ class TestFunctions(unittest.TestCase):
         mfpc = 'False'
         mfpr = 'False'
         # Insert new AP
-        result = database_utils.insertAP(self.c, self.verbose, self.bssid,
-                                         essid, manuf, channel, freqmhz,
-                                         carrier, encryption, packets_total,
-                                         lat, lon, cloaked, mfpc, mfpr, 0)
+        result = database_utils.insertAP(
+            self.c, self.verbose, database_utils.APRow(
+                bssid=self.bssid, essid=essid, manuf=manuf, channel=channel,
+                freqmhz=freqmhz, carrier=carrier, encryption=encryption,
+                packets_total=packets_total, lat=lat, lon=lon, cloaked=cloaked,
+                mfpc=mfpc, mfpr=mfpr, firstTimeSeen=0))
 
         self.assertEqual(result, 0)
 
@@ -644,9 +683,10 @@ class TestFunctions(unittest.TestCase):
         lon = "-122.4194"
         alt = "10000"
         bsstimestamp = "2032-02-23 10:00:00"
-        result = database_utils.insertSeenAP(self.c, self.verbose, self.bssid,
-                                             time, tool, signal_rsi, lat, lon,
-                                             alt, bsstimestamp)
+        result = database_utils.insertSeenAP(
+            self.c, self.verbose, database_utils.SeenAPRow(
+                bssid=self.bssid, time=time, tool=tool, signal_rsi=signal_rsi,
+                lat=lat, lon=lon, alt=alt, bsstimestamp=bsstimestamp))
         self.assertEqual(result, 0)
         self.c.execute("SELECT * FROM SeenAP WHERE bssid = ?", (self.bssid,))
         row = self.c.fetchone()
@@ -668,10 +708,12 @@ class TestFunctions(unittest.TestCase):
         mfpc = 'False'
         mfpr = 'False'
         # Insert new AP
-        result = database_utils.insertAP(self.c, self.verbose, self.bssid,
-                                         essid, manuf, channel, freqmhz,
-                                         carrier, encryption, packets_total,
-                                         lat, lon, cloaked, mfpc, mfpr, 0)
+        result = database_utils.insertAP(
+            self.c, self.verbose, database_utils.APRow(
+                bssid=self.bssid, essid=essid, manuf=manuf, channel=channel,
+                freqmhz=freqmhz, carrier=carrier, encryption=encryption,
+                packets_total=packets_total, lat=lat, lon=lon, cloaked=cloaked,
+                mfpc=mfpc, mfpr=mfpr, firstTimeSeen=0))
 
         self.assertEqual(result, 0)
 
@@ -680,9 +722,10 @@ class TestFunctions(unittest.TestCase):
         packets_total = "10"
         power = "-70"
         # Insert new client
-        result = database_utils.insertClients(self.c, self.verbose, self.mac,
-                                              ssid, manuf, packets_total,
-                                              power, "Misc", 0)
+        result = database_utils.insertClients(
+            self.c, self.verbose, database_utils.ClientRow(
+                mac=self.mac, ssid=ssid, manuf=manuf, client_type=packets_total,
+                packets_total=power, device="Misc", firstTimeSeen=0))
 
         self.assertEqual(result, 0)
 
@@ -754,10 +797,12 @@ class TestFunctions(unittest.TestCase):
         mfpc = 'False'
         mfpr = 'False'
         # Insert new AP
-        result = database_utils.insertAP(self.c, self.verbose, self.bssid,
-                                         essid, manufAP, channel, freqmhz,
-                                         carrier, encryption, packets_total,
-                                         lat, lon, cloaked, mfpc, mfpr, 0)
+        result = database_utils.insertAP(
+            self.c, self.verbose, database_utils.APRow(
+                bssid=self.bssid, essid=essid, manuf=manufAP, channel=channel,
+                freqmhz=freqmhz, carrier=carrier, encryption=encryption,
+                packets_total=packets_total, lat=lat, lon=lon, cloaked=cloaked,
+                mfpc=mfpc, mfpr=mfpr, firstTimeSeen=0))
 
         self.assertEqual(result, 0)
 
@@ -766,9 +811,11 @@ class TestFunctions(unittest.TestCase):
         packets_total = "10"
         power = "-70"
         # Insert new client
-        result = database_utils.insertClients(self.c, self.verbose, self.mac,
-                                              ssid, manufClient, packets_total,
-                                              power, "Misc", 0)
+        result = database_utils.insertClients(
+            self.c, self.verbose, database_utils.ClientRow(
+                mac=self.mac, ssid=ssid, manuf=manufClient,
+                client_type=packets_total, packets_total=power, device="Misc",
+                firstTimeSeen=0))
 
         self.assertEqual(result, 0)
 

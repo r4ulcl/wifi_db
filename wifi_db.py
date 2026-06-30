@@ -9,11 +9,26 @@ import platform
 import subprocess  # nosec B404 - only used with fixed, non-shell commands
 import sys
 import re
+from dataclasses import dataclass
 import nest_asyncio
 from utils import wifi_db_aircrack
 from utils import update
 from utils import database_utils
 from utils import oui
+
+
+@dataclass
+class Context:
+    '''Invariant per-run configuration threaded through the capture pipeline,
+    so the parse functions take just this plus the (varying) capture path.'''
+    ouiMap: dict
+    database: object
+    verbose: bool
+    fake_lat: str
+    fake_lon: str
+    hcxpcapngtool: bool
+    tshark: bool
+    force: bool
 
 
 # import nest_asyncio ; nest_asyncio.apply() ->
@@ -122,8 +137,7 @@ def collect_capture_files(dir_capture):
     return files
 
 
-def process_folder(ouiMap, capture, database, verbose, fake_lat, fake_lon,
-                   hcxpcapngtool, tshark, force):
+def process_folder(ctx, capture):
     '''Parse every recognised capture file inside a folder.'''
     print("Parsing folder:", capture)
     dirpath = os.getcwd()
@@ -131,7 +145,7 @@ def process_folder(ouiMap, capture, database, verbose, fake_lat, fake_lon,
         dir_capture = capture
     else:
         dir_capture = dirpath + "/" + capture
-    if verbose:
+    if ctx.verbose:
         print(dir_capture)
         print("current directory is : " + dirpath)
 
@@ -145,24 +159,18 @@ def process_folder(ouiMap, capture, database, verbose, fake_lat, fake_lon,
         print("File: " + str(counter) + " of " + str(len(files)))
         capture_aux = dir_capture + "/" + f
         print("\n" + capture_aux)
-        process_capture(ouiMap, capture_aux, database,
-                        verbose, fake_lat, fake_lon,
-                        hcxpcapngtool, tshark, force)
+        process_capture(ctx, capture_aux)
 
 
-def handle_capture(ouiMap, capture, source, database, verbose, fake_lat,
-                   fake_lon, hcxpcapngtool, tshark, force):
+def handle_capture(ctx, capture, source):
     '''Process a single capture path according to the selected source.'''
     if source == "aircrack-ng":
         # If it is a folder...
         if path.isdir(capture):
-            process_folder(ouiMap, capture, database, verbose,
-                           fake_lat, fake_lon, hcxpcapngtool, tshark, force)
+            process_folder(ctx, capture)
         else:  # it is a file
             print("Parsing file:", capture)
-            process_capture(ouiMap, capture, database,
-                            verbose, fake_lat, fake_lon,
-                            hcxpcapngtool, tshark, force)
+            process_capture(ctx, capture)
     elif source == "kismet":
         print("Parsing Kismet capture")
         # TO DO
@@ -222,14 +230,17 @@ def main():
 
     ouiMap = oui.load_vendors()
 
+    ctx = Context(ouiMap=ouiMap, database=database, verbose=verbose,
+                  fake_lat=fake_lat, fake_lon=fake_lon,
+                  hcxpcapngtool=hcxpcapngtool, tshark=tshark, force=force)
+
     for capture in captures:
         # Remove the trailing forward slash, if it exists
         if capture.endswith('/'):
             capture = capture[:-1]
         capture = replace_multiple_slashes(capture)
 
-        handle_capture(ouiMap, capture, source, database, verbose,
-                       fake_lat, fake_lon, hcxpcapngtool, tshark, force)
+        handle_capture(ctx, capture, source)
 
     # Cleat whitelist MACs
     script_path = os.path.dirname(os.path.abspath(__file__))
@@ -266,54 +277,51 @@ FALLBACK_FORMATS = [
 ]
 
 
-def run_parser(name, ouiMap, capture, database, verbose, fake_lat, fake_lon,
-               hcxpcapngtool, tshark):
+def run_parser(ctx, name, capture):
     '''Dispatch to the parser identified by `name`.'''
     if name == "cap":
-        wifi_db_aircrack.parse_cap(capture, database, verbose,
-                                   hcxpcapngtool, tshark)
+        wifi_db_aircrack.parse_cap(capture, ctx.database, ctx.verbose,
+                                   ctx.hcxpcapngtool, ctx.tshark)
     elif name == "netxml":
-        wifi_db_aircrack.parse_netxml(ouiMap, capture, database, verbose)
+        wifi_db_aircrack.parse_netxml(ctx.ouiMap, capture, ctx.database,
+                                      ctx.verbose)
     elif name == "kismet_csv":
-        wifi_db_aircrack.parse_kismet_csv(ouiMap, capture, database, verbose)
+        wifi_db_aircrack.parse_kismet_csv(ctx.ouiMap, capture, ctx.database,
+                                          ctx.verbose)
     elif name == "log_csv":
-        wifi_db_aircrack.parse_log_csv(ouiMap, capture, database, verbose,
-                                       fake_lat, fake_lon)
+        wifi_db_aircrack.parse_log_csv(ctx.ouiMap, capture, ctx.database,
+                                       ctx.verbose, ctx.fake_lat, ctx.fake_lon)
     elif name == "csv":
-        wifi_db_aircrack.parse_csv(ouiMap, capture, database, verbose)
+        wifi_db_aircrack.parse_csv(ctx.ouiMap, capture, ctx.database,
+                                   ctx.verbose)
 
 
-def ingest_capture(name, ouiMap, capture, database, verbose, fake_lat,
-                   fake_lon, hcxpcapngtool, tshark, force, announce=False):
+def ingest_capture(ctx, name, capture, announce=False):
     '''Insert, parse and mark a single capture file as processed (skipping it
     if it was already processed and --force was not given).'''
-    cursor = database.cursor()
+    cursor = ctx.database.cursor()
     if announce:
         print("Parsing file:", capture)
-    if (database_utils.checkFileProcessed(cursor, verbose, capture) == 1
-            and not force):
+    if (database_utils.checkFileProcessed(cursor, ctx.verbose, capture) == 1
+            and not ctx.force):
         print("File", "already processed\n")
         return
-    database_utils.insertFile(cursor, verbose, capture)
-    run_parser(name, ouiMap, capture, database, verbose, fake_lat, fake_lon,
-               hcxpcapngtool, tshark)
-    database_utils.setFileProcessed(cursor, verbose, capture)
+    database_utils.insertFile(cursor, ctx.verbose, capture)
+    run_parser(ctx, name, capture)
+    database_utils.setFileProcessed(cursor, ctx.verbose, capture)
 
 
-def process_capture(ouiMap, capture, database,
-                    verbose, fake_lat, fake_lon,
-                    hcxpcapngtool, tshark, force):
-    cursor = database.cursor()
+def process_capture(ctx, capture):
+    cursor = ctx.database.cursor()
 
-    if (database_utils.checkFileProcessed(cursor, verbose, capture) == 1
-            and not force):
+    if (database_utils.checkFileProcessed(cursor, ctx.verbose, capture) == 1
+            and not ctx.force):
         print("File", "already processed\n")
         return
 
     for ext, name in CAPTURE_FORMATS:
         if ext in capture:
-            ingest_capture(name, ouiMap, capture, database, verbose,
-                           fake_lat, fake_lon, hcxpcapngtool, tshark, force)
+            ingest_capture(ctx, name, capture)
             return
 
     # No recognised extension: try every known format by appending its suffix.
@@ -321,9 +329,7 @@ def process_capture(ouiMap, capture, database,
     if capture.endswith('.'):
         capture = capture[:-1]
     for suffix, name in FALLBACK_FORMATS:
-        ingest_capture(name, ouiMap, capture + suffix, database, verbose,
-                       fake_lat, fake_lon, hcxpcapngtool, tshark, force,
-                       announce=True)
+        ingest_capture(ctx, name, capture + suffix, announce=True)
 
 
 if __name__ == "__main__":

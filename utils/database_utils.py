@@ -7,6 +7,123 @@ import secrets
 import string
 import datetime
 import hashlib
+from dataclasses import dataclass
+from typing import Any
+
+
+# Row carriers: bundle the column values for the wider insert helpers into one
+# object so the helpers take (cursor, verbose, row) instead of a long positional
+# list. Fields are typed Any because callers pass whatever the parser produced
+# (str/int/'True'/'False'); the values are not reinterpreted here.
+@dataclass
+class APRow:
+    '''Column values for one AP row (insertAP / _updateAP).'''
+    bssid: Any
+    essid: Any
+    manuf: Any
+    channel: Any
+    freqmhz: Any
+    carrier: Any
+    encryption: Any
+    packets_total: Any
+    lat: Any
+    lon: Any
+    cloaked: Any
+    mfpc: Any
+    mfpr: Any
+    firstTimeSeen: Any
+
+
+@dataclass
+class ClientRow:
+    '''Column values for one Client row (insertClients).'''
+    mac: Any
+    ssid: Any
+    manuf: Any
+    client_type: Any
+    packets_total: Any
+    device: Any
+    firstTimeSeen: Any
+
+
+@dataclass
+class WPSRow:
+    '''WPS attributes merged onto an AP row (insertWPS).'''
+    bssid: Any
+    wlan_ssid: Any
+    wps_version: Any
+    wps_device_name: Any
+    wps_model_name: Any
+    wps_model_number: Any
+    wps_config_methods: Any
+    wps_config_methods_keypad: Any
+
+
+@dataclass
+class SecurityRow:
+    '''RSN/WPA attributes merged onto an AP row (insertSecurity).'''
+    bssid: Any
+    wpa_version: Any
+    akm_suites: Any
+    pairwise_ciphers: Any
+    group_cipher: Any
+    enterprise: Any
+    pmf: Any
+    rsn_capabilities: Any
+    file: Any
+
+
+@dataclass
+class CapabilitiesRow:
+    '''802.11r/k/v + MBSSID/CSA attributes merged onto an AP row
+    (insertCapabilities).'''
+    bssid: Any
+    ft_80211r: Any
+    mobility_domain_id: Any
+    rrm_80211k: Any
+    bss_transition_80211v: Any
+    mbssid: Any
+    max_bssid_indicator: Any
+    csa: Any
+    csa_new_channel: Any
+
+
+@dataclass
+class EAPMD5Row:
+    '''One captured EAP-MD5 challenge/response pair (insertEAPMD5).'''
+    bssid: Any
+    mac: Any
+    identity: Any
+    eap_id: Any
+    challenge: Any
+    response: Any
+    hashcat: Any
+    file: Any
+
+
+@dataclass
+class SeenClientRow:
+    '''One client sighting (insertSeenClient).'''
+    mac: Any
+    time: Any
+    tool: Any
+    signal_rssi: Any
+    lat: Any
+    lon: Any
+    alt: Any
+
+
+@dataclass
+class SeenAPRow:
+    '''One AP sighting (insertSeenAP).'''
+    bssid: Any
+    time: Any
+    tool: Any
+    signal_rsi: Any
+    lat: Any
+    lon: Any
+    alt: Any
+    bsstimestamp: Any
 
 
 def _log(verbose, msg):
@@ -74,69 +191,64 @@ def createViews(database, verbose):
         print("createViews" + str(error))
 
 
-def _updateAP(cursor, verbose, bssid, essid, manuf, channel, freqmhz,
-              carrier, encryption, packets_total, lat, lon, cloaked, mfpc,
-              mfpr, firstTimeSeen):
+def _updateAP(cursor, verbose, ap):
     '''Merge new values into an existing AP row. Called by insertAP when the
     INSERT hits the primary-key constraint: only fills empty/placeholder
     columns and accumulates packetsTotal.'''
-    bssid = bssid.upper()
+    bssid = ap.bssid.upper()
     # Per-column merge rules applied in order. Each only fills an
     # empty/placeholder value (or accumulates packetsTotal), so re-seeing an
     # AP enriches its row without overwriting existing data.
     updates = [
         ("""UPDATE AP SET ssid = CASE WHEN ssid = '' OR ssid IS NULL
-            THEN (?) ELSE ssid END WHERE bssid = (?)""", (essid, bssid)),
+            THEN (?) ELSE ssid END WHERE bssid = (?)""", (ap.essid, bssid)),
         ("""UPDATE AP SET manuf = CASE WHEN manuf = '' OR manuf IS NULL
-            THEN (?) ELSE manuf END WHERE bssid = (?)""", (manuf, bssid)),
+            THEN (?) ELSE manuf END WHERE bssid = (?)""", (ap.manuf, bssid)),
         ("""UPDATE AP SET channel = CASE WHEN channel = '' OR channel IS NULL
             OR channel = 0 THEN (?) ELSE channel END WHERE bssid = (?)""",
-         (channel, bssid)),
+         (ap.channel, bssid)),
         ("""UPDATE AP SET frequency = CASE WHEN frequency = '' OR frequency
             IS NULL OR frequency < 2000 THEN (?) ELSE frequency END
-            WHERE bssid = (?)""", (freqmhz, bssid)),
+            WHERE bssid = (?)""", (ap.freqmhz, bssid)),
         ("""UPDATE AP SET carrier = CASE WHEN carrier = '' OR carrier IS NULL
-            THEN (?) ELSE carrier END WHERE bssid = (?)""", (carrier, bssid)),
+            THEN (?) ELSE carrier END WHERE bssid = (?)""",
+         (ap.carrier, bssid)),
         ("""UPDATE AP SET encryption = CASE WHEN encryption = '' OR encryption
             IS NULL THEN (?) ELSE encryption END WHERE bssid = (?)""",
-         (encryption, bssid)),
+         (ap.encryption, bssid)),
         ("""UPDATE AP SET packetsTotal = packetsTotal + (?)
-            WHERE bssid = (?)""", (packets_total, bssid)),
+            WHERE bssid = (?)""", (ap.packets_total, bssid)),
         ("""UPDATE AP SET lat_t = CASE WHEN lat_t = 0.0 THEN (?) ELSE lat_t
             END, lon_t = CASE WHEN lon_t = 0.0 THEN (?) ELSE lon_t END
-            WHERE bssid = (?)""", (lat, lon, bssid)),
+            WHERE bssid = (?)""", (ap.lat, ap.lon, bssid)),
         ("""UPDATE AP SET cloaked = CASE WHEN cloaked = 'True' THEN 'True'
-            ELSE (?) END WHERE bssid = (?)""", (cloaked, bssid)),
+            ELSE (?) END WHERE bssid = (?)""", (ap.cloaked, bssid)),
         ("""UPDATE AP SET mfpc = CASE WHEN mfpc = 'False' THEN (?) ELSE mfpc
-            END WHERE bssid = (?)""", (mfpc, bssid)),
+            END WHERE bssid = (?)""", (ap.mfpc, bssid)),
         ("""UPDATE AP SET mfpr = CASE WHEN mfpr = 'False' THEN (?) ELSE mfpr
-            END WHERE bssid = (?)""", (mfpr, bssid)),
+            END WHERE bssid = (?)""", (ap.mfpr, bssid)),
     ]
     try:
         # Keep the earliest firstTimeSeen seen for this AP.
-        if firstTimeSeen != 0:
+        if ap.firstTimeSeen != 0:
             sql = """UPDATE AP SET firstTimeSeen = CASE WHEN
                      firstTimeSeen = '' OR firstTimeSeen = '0' OR
                      firstTimeSeen IS NULL OR firstTimeSeen > (?) AND
                      (?) <> 0 AND firstTimeSeen <> 0 THEN (?) ELSE
                      firstTimeSeen END WHERE bssid = (?)"""
-            cursor.execute(sql, (firstTimeSeen, firstTimeSeen,
-                                 firstTimeSeen, bssid))
+            cursor.execute(sql, (ap.firstTimeSeen, ap.firstTimeSeen,
+                                 ap.firstTimeSeen, bssid))
         for sql, params in updates:
-            if verbose:
-                print(sql, params)
-            cursor.execute(sql, params)
+            _exec(cursor, verbose, sql, params)
         return int(0)
     except sqlite3.IntegrityError as update_error:
-        if verbose:
-            print("insertAP2 " + str(update_error))
+        _log(verbose, "insertAP2 " + str(update_error))
         return int(0)
 
 
-def insertAP(cursor, verbose, bssid, essid, manuf, channel, freqmhz, carrier,
-             encryption, packets_total, lat, lon, cloaked, mfpc, mfpr,
-             firstTimeSeen):
-    ''''''
+def insertAP(cursor, verbose, ap):
+    '''Insert an AP row, merging into the existing row on a primary-key clash.
+    `ap` is an APRow.'''
     try:
         # Explicit column list so AP can carry extra attribute columns (the
         # merged Security/WPS fields) without breaking this 14-value insert.
@@ -145,19 +257,16 @@ def insertAP(cursor, verbose, bssid, essid, manuf, channel, freqmhz, carrier,
                            carrier, encryption, packetsTotal, lat_t, lon_t,
                            mfpc, mfpr, firstTimeSeen)
                           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)''',
-                       (bssid.upper(), essid, cloaked, manuf, channel, freqmhz,
-                        carrier, encryption, packets_total, lat, lon, mfpc,
-                        mfpr, firstTimeSeen))
+                       (ap.bssid.upper(), ap.essid, ap.cloaked, ap.manuf,
+                        ap.channel, ap.freqmhz, ap.carrier, ap.encryption,
+                        ap.packets_total, ap.lat, ap.lon, ap.mfpc, ap.mfpr,
+                        ap.firstTimeSeen))
         return int(0)
     except sqlite3.IntegrityError as error:
-        if verbose:
-            print("insertAP " + str(error))
-        return _updateAP(cursor, verbose, bssid, essid, manuf, channel,
-                         freqmhz, carrier, encryption, packets_total,
-                         lat, lon, cloaked, mfpc, mfpr, firstTimeSeen)
+        _log(verbose, "insertAP " + str(error))
+        return _updateAP(cursor, verbose, ap)
     except sqlite3.Error as error:
-        if verbose:
-            print("insertAP Error " + str(error))
+        _log(verbose, "insertAP Error " + str(error))
         return int(1)
 
 
@@ -174,19 +283,25 @@ def isRandomizedMAC(mac):
 def insertAPConstraint(cursor, verbose, bssid):
     '''Ensure the AP row referenced by a foreign key exists, creating a
     placeholder row if needed. Returns the insertAP result code.'''
-    return insertAP(cursor, verbose, bssid, "", "", "", "", "", "", "",
-                    "0.0", "0.0", 'False', 'False', 'False', 0)
+    return insertAP(cursor, verbose, APRow(
+        bssid=bssid, essid="", manuf="", channel="", freqmhz="", carrier="",
+        encryption="", packets_total="", lat="0.0", lon="0.0", cloaked='False',
+        mfpc='False', mfpr='False', firstTimeSeen=0))
 
 
 def insertClientConstraint(cursor, verbose, mac):
     '''Ensure the Client row referenced by a foreign key exists, creating a
     placeholder row if needed. Returns the insertClients result code.'''
-    return insertClients(cursor, verbose, mac, "", "", "", "0", "", 0)
+    return insertClients(cursor, verbose, ClientRow(
+        mac=mac, ssid="", manuf="", client_type="", packets_total="0",
+        device="", firstTimeSeen=0))
 
 
-def insertClients(cursor, verbose, mac, ssid, manuf,
-                  client_type, packets_total, device, firstTimeSeen):
-    '''Function to insert clients in the database'''
+def insertClients(cursor, verbose, client):
+    '''Function to insert clients in the database. `client` is a ClientRow.'''
+    mac, ssid, manuf = client.mac, client.ssid, client.manuf
+    client_type, packets_total = client.client_type, client.packets_total
+    device, firstTimeSeen = client.device, client.firstTimeSeen
     try:
         randomized = isRandomizedMAC(mac)
         cursor.execute('''INSERT INTO client VALUES(?,?,?,?,?,?,?,?)''',
@@ -267,13 +382,17 @@ def insertProbe(cursor, verbose, bssid, essid, time):
         return int(1)
 
 
-def insertWPS(cursor, verbose, bssid, wlan_ssid, wps_version, wps_device_name,
-              wps_model_name, wps_model_number, wps_config_methods,
-              wps_config_methods_keypad):
+def insertWPS(cursor, verbose, wps):
     '''Store the WPS (Wi-Fi Protected Setup) details parsed for an AP.
 
     WPS configuration is a 1:1 AP attribute, so it lives on the AP row: the AP
-    row is ensured to exist, then its WPS columns are merged in.'''
+    row is ensured to exist, then its WPS columns are merged in. `wps` is a
+    WPSRow.'''
+    bssid, wlan_ssid = wps.bssid, wps.wlan_ssid
+    wps_version, wps_device_name = wps.wps_version, wps.wps_device_name
+    wps_model_name, wps_model_number = wps.wps_model_name, wps.wps_model_number
+    wps_config_methods = wps.wps_config_methods
+    wps_config_methods_keypad = wps.wps_config_methods_keypad
     try:
         # Ensure the AP row exists, then merge the WPS columns into it.
         insertAPConstraint(cursor, verbose, bssid)
@@ -357,9 +476,7 @@ def insertCertificate(cursor, verbose, bssid, mac, cert_type, file, cert):
         return int(1)
 
 
-def insertSecurity(cursor, verbose, bssid, wpa_version, akm_suites,
-                   pairwise_ciphers, group_cipher, enterprise, pmf,
-                   rsn_capabilities, file):
+def insertSecurity(cursor, verbose, sec):
     '''Store the RSN/WPA security details parsed from an AP beacon.
 
     These are 1:1 AP attributes, so they live on the AP row itself: the AP
@@ -367,8 +484,12 @@ def insertSecurity(cursor, verbose, bssid, wpa_version, akm_suites,
     latest beacon wins, since the security configuration is stable for a given
     AP). `pmf` is the management-frame-protection state ('Required', 'Capable'
     or 'Disabled') and `rsn_capabilities` is the raw RSN capabilities bitfield.
-    `file` is kept in the signature for call-site compatibility but no longer
-    stored (AP rows do not track a per-attribute source file).'''
+    `sec` is a SecurityRow; its `file` field is accepted for call-site
+    compatibility but no longer stored (AP rows track no per-attribute file).'''
+    bssid, wpa_version, akm_suites = sec.bssid, sec.wpa_version, sec.akm_suites
+    pairwise_ciphers, group_cipher = sec.pairwise_ciphers, sec.group_cipher
+    enterprise, pmf = sec.enterprise, sec.pmf
+    rsn_capabilities = sec.rsn_capabilities
     try:
         # Ensure the AP row exists, then merge the security columns into it.
         insertAPConstraint(cursor, verbose, bssid)
@@ -390,9 +511,7 @@ def insertSecurity(cursor, verbose, bssid, wpa_version, akm_suites,
         return int(1)
 
 
-def insertCapabilities(cursor, verbose, bssid, ft_80211r, mobility_domain_id,
-                       rrm_80211k, bss_transition_80211v, mbssid,
-                       max_bssid_indicator, csa, csa_new_channel):
+def insertCapabilities(cursor, verbose, cap):
     '''Store the 802.11 management capabilities parsed from an AP beacon /
     probe response (fast roaming and Multiple BSSID / CSA advertisements).
 
@@ -400,7 +519,12 @@ def insertCapabilities(cursor, verbose, bssid, ft_80211r, mobility_domain_id,
     are merged "sticky" (once 'True' they stay 'True', so a later beacon that
     happens to omit the element does not clear it), while the detail fields
     (mobility domain id, max BSSID indicator, CSA target channel) take the
-    latest non-empty value seen.'''
+    latest non-empty value seen. `cap` is a CapabilitiesRow.'''
+    bssid, ft_80211r = cap.bssid, cap.ft_80211r
+    mobility_domain_id, rrm_80211k = cap.mobility_domain_id, cap.rrm_80211k
+    bss_transition_80211v, mbssid = cap.bss_transition_80211v, cap.mbssid
+    max_bssid_indicator, csa = cap.max_bssid_indicator, cap.csa
+    csa_new_channel = cap.csa_new_channel
     try:
         # Ensure the AP row exists, then merge the capability columns into it.
         insertAPConstraint(cursor, verbose, bssid)
@@ -483,20 +607,11 @@ def insertConnected(cursor, verbose, bssid, mac):
 def insertMFP(cursor, verbose, bssid, mfpc, mfpr):
     ''''''
     try:
-        # Insert AP or update
-        essid = ""
-        manuf = ""
-        channel = ""
-        freqmhz = ""
-        carrier = ""
-        encryption = ""
-        packets_total = ""
-        lat = "0.0"
-        lon = "0.0"
-        cloaked = 'False'
-        insertAP(cursor, verbose, bssid, essid, manuf, channel, freqmhz,
-                 carrier, encryption, packets_total, lat, lon, cloaked, mfpc,
-                 mfpr, 0)
+        # Ensure the AP row exists, carrying through the MFP flags.
+        insertAP(cursor, verbose, APRow(
+            bssid=bssid, essid="", manuf="", channel="", freqmhz="",
+            carrier="", encryption="", packets_total="", lat="0.0", lon="0.0",
+            cloaked='False', mfpc=mfpc, mfpr=mfpr, firstTimeSeen=0))
 
         return int(0)
     except sqlite3.IntegrityError as error:
@@ -575,10 +690,13 @@ def insertIdentity(cursor, verbose, bssid, mac, identity, method):
         return int(1)
 
 
-def insertEAPMD5(cursor, verbose, bssid, mac, identity, eap_id, challenge,
-                 response, hashcat, file):
+def insertEAPMD5(cursor, verbose, eap):
     '''Insert a captured EAP-MD5 challenge/response pair (crackable offline
-    with hashcat -m 4800). Keyed by (bssid, mac, eap_id).'''
+    with hashcat -m 4800). Keyed by (bssid, mac, eap_id). `eap` is an
+    EAPMD5Row.'''
+    bssid, mac, identity = eap.bssid, eap.mac, eap.identity
+    eap_id, challenge = eap.eap_id, eap.challenge
+    response, hashcat, file = eap.response, eap.hashcat, eap.file
     try:
         # Insert Client and AP CONSTRAINT
         insertClientConstraint(cursor, verbose, mac)
@@ -632,9 +750,10 @@ def insertProbeFingerprint(cursor, verbose, mac, ssid, fingerprint, ie_order,
         return int(1)
 
 
-def insertSeenClient(cursor, verbose, mac, time, tool, signal_rssi,
-                     lat, lon, alt):
-    ''''''
+def insertSeenClient(cursor, verbose, seen):
+    '''Insert one client sighting. `seen` is a SeenClientRow.'''
+    mac, time, tool = seen.mac, seen.time, seen.tool
+    signal_rssi, lat, lon, alt = seen.signal_rssi, seen.lat, seen.lon, seen.alt
     try:
         cursor.execute('''INSERT INTO SeenClient
                        VALUES(?,?,?,?,?,?,?)''',
@@ -651,9 +770,12 @@ def insertSeenClient(cursor, verbose, mac, time, tool, signal_rssi,
         return int(1)
 
 
-def insertSeenAP(cursor, verbose, bssid, time, tool, signal_rsi,
-                 lat, lon, alt, bsstimestamp):
-    ''''''
+def insertSeenAP(cursor, verbose, seen):
+    '''Insert one AP sighting. `seen` is a SeenAPRow.'''
+    bssid, time, tool, signal_rsi = seen.bssid, seen.time, seen.tool, \
+        seen.signal_rsi
+    lat, lon = seen.lat, seen.lon
+    alt, bsstimestamp = seen.alt, seen.bsstimestamp
     try:
         cursor.execute('''INSERT INTO SeenAp VALUES(?,?,?,?,?,?,?,?)''',
                        (bssid.upper(), time, tool, signal_rsi,
