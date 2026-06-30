@@ -1,4 +1,8 @@
-from test_base import *  # noqa: F401,F403
+from unittest import mock
+
+from test_base import DBTestBase, sample_cert
+from utils import database_utils
+from utils import wifi_db_aircrack
 
 
 class TestViews(DBTestBase):

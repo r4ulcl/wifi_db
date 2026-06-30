@@ -2,9 +2,7 @@
 ''' Insert/update helpers for the wider DB tables (row-dataclass based). '''
 # -*- coding: utf-8 -*-
 import sqlite3
-from utils.db_rows import (APRow, ClientRow, WPSRow,
-                           SecurityRow, CapabilitiesRow,
-                           EAPMD5Row, SeenClientRow, SeenAPRow)
+from utils.db_rows import APRow, ClientRow
 
 
 def _log(verbose, msg):

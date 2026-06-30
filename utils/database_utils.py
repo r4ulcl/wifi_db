@@ -7,8 +7,32 @@ import secrets
 import string
 import datetime
 import hashlib
-from utils.db_rows import *  # noqa: F401,F403  (re-export row dataclasses)
-from utils.db_inserts import *  # noqa: F401,F403  (re-export inserts)
+# Row dataclasses (db_rows) and the wide insert helpers (db_inserts) were split
+# out of this module; re-export them here so callers keep using
+# `database_utils.<name>`. `__all__` lists the re-exports so they are not
+# flagged as unused imports.
+from utils.db_rows import (APRow, ClientRow, WPSRow, SecurityRow,
+                           CapabilitiesRow, EAPMD5Row, SeenClientRow, SeenAPRow)
+from utils.db_inserts import (
+    isRandomizedMAC, insertAP, insertAPConstraint, insertClientConstraint,
+    insertClients, insertWPS, insertSecurity, insertCapabilities,
+    insertEAPMD5, insertSeenClient, insertSeenAP)
+
+__all__ = [
+    # re-exported from db_rows
+    'APRow', 'ClientRow', 'WPSRow', 'SecurityRow', 'CapabilitiesRow',
+    'EAPMD5Row', 'SeenClientRow', 'SeenAPRow',
+    # re-exported from db_inserts
+    'isRandomizedMAC', 'insertAP', 'insertAPConstraint',
+    'insertClientConstraint', 'insertClients', 'insertWPS', 'insertSecurity',
+    'insertCapabilities', 'insertEAPMD5', 'insertSeenClient', 'insertSeenAP',
+    # defined in this module
+    'connectDatabase', 'createDatabase', 'createViews', 'insertProbe',
+    'insertCertificate', 'insertHiddenSSID', 'insertConnected', 'insertMFP',
+    'insertHandshake', 'insertIdentity', 'insertProbeFingerprint',
+    'setHashcat', 'insertFile', 'getHash', 'setFileProcessed',
+    'checkFileProcessed', 'obfuscateDB', 'clearWhitelist',
+]
 
 
 def connectDatabase(name, verbose):

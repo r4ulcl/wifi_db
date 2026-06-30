@@ -1,16 +1,8 @@
 import os
-import datetime
 import unittest
-from unittest import mock
 
 from utils import database_utils
 from utils import oui
-from utils import wifi_db_aircrack
-
-from cryptography import x509
-from cryptography.x509.oid import NameOID
-from cryptography.hazmat.primitives import hashes, serialization
-from cryptography.hazmat.primitives.asymmetric import rsa
 
 import wifi_db
 import nest_asyncio
