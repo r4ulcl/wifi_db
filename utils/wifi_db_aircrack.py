@@ -691,62 +691,90 @@ def parse_MFP(name, database, verbose):
         print(".cap MFP done, errors", errors)
 
 
-# Get handshakes from .cap
+def _wps_fields_for_pkt(pkt):
+    '''Decode the WPS attributes of one Beacon / Probe Response into
+    (bssid, fields), where fields' keys are the WPSRow attribute names. Every
+    attribute is read defensively with _safe(): an absent field yields ''
+    rather than raising, since a Beacon's reduced WPS IE legitimately omits
+    most of them.'''
+    wmgt = 'wlan.mgt'
+    bssid = _safe(lambda: pkt.wlan.sa.upper())
+    # tshark exposes the SSID as colon-separated hex; decode it the same way as
+    # the other .cap parsers, defaulting to '' on a non-hex / undecodable value
+    # instead of raising "Non-hexadecimal digit found".
+    wlan_ssid = _safe(lambda: binascii.unhexlify(
+        pkt[wmgt].wlan_ssid.replace(':', '')).decode('ascii'))
+    # WPS 2.0 advertises itself through the Version2 extension; read it on its
+    # own so a non-hex SSID can no longer suppress the 2.0 flag.
+    wps_ext_version2 = _safe(lambda: pkt[wmgt].wps_ext_version2)
+    fields = {
+        'wlan_ssid': wlan_ssid,
+        'wps_version': '2.0' if '20' in (wps_ext_version2 or '') else '1.0',
+        'wps_device_name': _safe(lambda: pkt[wmgt].wps_device_name),
+        'wps_model_name': _safe(lambda: pkt[wmgt].wps_model_name),
+        'wps_model_number': _safe(lambda: pkt[wmgt].wps_model_number),
+        'wps_config_methods': _safe(lambda: pkt[wmgt].wps_config_methods),
+        'wps_config_methods_keypad': _safe(
+            lambda: pkt[wmgt].wps_config_methods_keypad),
+    }
+    return bssid, fields
+
+
+def _merge_wps_fields(acc, fields):
+    '''Sticky-merge one frame's WPS fields into the per-BSSID accumulator: keep
+    the first non-empty value for each attribute (so a later Beacon's reduced
+    IE never blanks a Probe Response's device/model name) and let wps_version
+    climb to '2.0'. Returns the (new or updated) accumulator dict.'''
+    if acc is None:
+        return dict(fields)
+    for key, value in fields.items():
+        if key == 'wps_version':
+            if value == '2.0':
+                acc[key] = '2.0'
+        elif value and not acc.get(key):
+            acc[key] = value
+    return acc
+
+
+# Get WPS (Wi-Fi Protected Setup) details from AP Beacons / Probe Responses.
 def parse_WPS(name, database, verbose):
     try:
         cursor = database.cursor()
         errors = 0
         file = name
+        # The rich WPS attributes (device/model name, model number, config
+        # methods) only appear in AP-originated Beacons and, in full form,
+        # Probe Responses -- never in the client Probe Requests that also carry
+        # a WPS IE. The old filter required wlan.da == broadcast, which matched
+        # only Beacons (whose reduced WPS IE omits those attributes), so the
+        # detail columns were always empty. Select Beacons (0x08) and Probe
+        # Responses (0x05) that advertise the AP-only Wi-Fi Protected Setup
+        # State; that attribute is absent from client Probe Requests, so they
+        # are excluded and no client device lands in the AP table.
         cap = pyshark.FileCapture(
-            file, display_filter="wps.wifi_protected_setup_state == 0x02 and\
-                                  wlan.da == ff:ff:ff:ff:ff:ff")
+            file, display_filter="wps.wifi_protected_setup_state && "
+            "(wlan.fc.type_subtype == 0x08 || wlan.fc.type_subtype == 0x05)")
         # cap.set_debug()
 
+        # A WPS-enabled AP re-advertises the same details in every Beacon and
+        # Probe Response, so collapse them to one merged row per BSSID and run
+        # insertWPS (which ensures the AP row and updates its WPS columns) once
+        # per AP instead of once per frame.
+        wps_by_bssid = {}
         for pkt in cap:
-            # print(dir(pkt['wlan.mgt'].wps_version))
-            wmgt = 'wlan.mgt'
-            # bssid is the only field a WPS row genuinely needs. Every other
-            # field below is an optional WPS attribute that is frequently
-            # absent from a given frame, so each is decoded defensively with
-            # _safe(): a missing field yields '' instead of inflating the
-            # error count (which is why a clean capture used to report dozens
-            # of "errors").
-            bssid = _safe(lambda: pkt.wlan.sa.upper())
+            bssid, fields = _wps_fields_for_pkt(pkt)
+            if not bssid:
+                continue
+            wps_by_bssid[bssid] = _merge_wps_fields(
+                wps_by_bssid.get(bssid), fields)
 
-            # tshark exposes the SSID as colon-separated hex; decode it the
-            # same way the other .cap parsers do, defaulting to '' on a
-            # non-hex / undecodable value instead of raising
-            # "Non-hexadecimal digit found".
-            wlan_ssid = _safe(lambda: binascii.unhexlify(
-                pkt[wmgt].wlan_ssid.replace(':', '')).decode('ascii'))
-
-            # WPS 2.0 advertises itself through the Version2 extension. Read it
-            # on its own so a non-hex SSID can no longer suppress the 2.0 flag
-            # (the two used to share a try/except, so a bad SSID forced 1.0).
-            wps_ext_version2 = _safe(lambda: pkt[wmgt].wps_ext_version2)
-            wps_version = '2.0' if '20' in (wps_ext_version2 or '') else '1.0'
-
-            wps_device_name = _safe(lambda: pkt[wmgt].wps_device_name)
-            wps_model_name = _safe(lambda: pkt[wmgt].wps_model_name)
-            wps_model_number = _safe(lambda: pkt[wmgt].wps_model_number)
-            wps_config_methods = _safe(lambda: pkt[wmgt].wps_config_methods)
-            wps_config_methods_keypad = _safe(
-                lambda: pkt[wmgt].wps_config_methods_keypad)
-
+        for bssid, fields in wps_by_bssid.items():
             if verbose:
                 print('==============================')
-                print(bssid)
-                print(wps_version)
-                print(wps_ext_version2)
-
+                print(bssid, fields['wps_version'])
             errors += database_utils.insertWPS(
-                cursor, verbose, database_utils.WPSRow(
-                    bssid=bssid, wlan_ssid=wlan_ssid, wps_version=wps_version,
-                    wps_device_name=wps_device_name,
-                    wps_model_name=wps_model_name,
-                    wps_model_number=wps_model_number,
-                    wps_config_methods=wps_config_methods,
-                    wps_config_methods_keypad=wps_config_methods_keypad))
+                cursor, verbose,
+                database_utils.WPSRow(bssid=bssid, **fields))
 
         database.commit()
         print(".cap WPS done, errors", errors)
@@ -1319,8 +1347,12 @@ def _capability_flags(mgt):
             _field_value(mgt, 'wlan_extcap_b19')) else 'False'),
         'mdid': _first_field_value(
             mgt, ['wlan_mobility_domain_mdid', 'wlan_ft_mdid']),
+        # tshark exposes the Multiple BSSID element's "Max BSSID Indicator"
+        # as wlan.multiple_bssid (the wlan_mbssid_* names never existed, so
+        # this column was always empty even for MBSSID-advertising APs).
         'max_bssid_indicator': _to_int(_first_field_value(
-            mgt, ['wlan_mbssid_max_bssid_indicator', 'wlan_mbssid_index'])),
+            mgt, ['wlan_multiple_bssid', 'wlan_mbssid_max_bssid_indicator',
+                  'wlan_mbssid_index'])),
         'csa_new_channel': _to_int(_first_field_value(
             mgt, ['wlan_csa_new_channel_number',
                   'wlan_ext_chansw_announce_new_chan'])),

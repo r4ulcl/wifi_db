@@ -197,8 +197,12 @@ def insertWPS(cursor, verbose, wps):
     '''Store the WPS (Wi-Fi Protected Setup) details parsed for an AP.
 
     WPS configuration is a 1:1 AP attribute, so it lives on the AP row: the AP
-    row is ensured to exist, then its WPS columns are merged in. `wps` is a
-    WPSRow.'''
+    row is ensured to exist, then its WPS columns are merged in. The merge is
+    "sticky": a Beacon carries only a reduced WPS IE (no device/model name),
+    while a Probe Response carries the full set, and the two interleave in a
+    capture -- so each detail column keeps its existing non-empty value rather
+    than being overwritten with the '' a later Beacon yields, and wps_version
+    only ever climbs to '2.0'. `wps` is a WPSRow.'''
     bssid, wlan_ssid = wps.bssid, wps.wlan_ssid
     wps_version, wps_device_name = wps.wps_version, wps.wps_device_name
     wps_model_name, wps_model_number = wps.wps_model_name, wps.wps_model_number
@@ -208,13 +212,22 @@ def insertWPS(cursor, verbose, wps):
         # Ensure the AP row exists, then merge the WPS columns into it.
         insertAPConstraint(cursor, verbose, bssid)
 
-        cursor.execute('''UPDATE AP SET wlan_ssid = (?), wps_version = (?),
-                          wps_device_name = (?), wps_model_name = (?),
-                          wps_model_number = (?), wps_config_methods = (?),
-                          wps_config_methods_keypad = (?) WHERE bssid = (?)''',
-                       (wlan_ssid, wps_version, wps_device_name, wps_model_name,
-                        wps_model_number, wps_config_methods,
-                        wps_config_methods_keypad, bssid.upper()))
+        cursor.execute(
+            '''UPDATE AP SET
+                 wlan_ssid = COALESCE(NULLIF((?), ''), wlan_ssid),
+                 wps_version = CASE WHEN wps_version = '2.0' THEN '2.0'
+                               ELSE (?) END,
+                 wps_device_name = COALESCE(NULLIF((?), ''), wps_device_name),
+                 wps_model_name = COALESCE(NULLIF((?), ''), wps_model_name),
+                 wps_model_number = COALESCE(NULLIF((?), ''), wps_model_number),
+                 wps_config_methods = COALESCE(NULLIF((?), ''),
+                                               wps_config_methods),
+                 wps_config_methods_keypad = COALESCE(NULLIF((?), ''),
+                                             wps_config_methods_keypad)
+               WHERE bssid = (?)''',
+            (wlan_ssid, wps_version, wps_device_name, wps_model_name,
+             wps_model_number, wps_config_methods, wps_config_methods_keypad,
+             bssid.upper()))
         return int(0)
     except sqlite3.IntegrityError as error:
         # errors += 1
