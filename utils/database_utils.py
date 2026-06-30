@@ -714,8 +714,14 @@ def insertFile(cursor, verbose, file):
         # need to guarantee the row exists (insertHandshake, setHashcat during
         # the hcxpcapngtool pass) would silently destroy already-parsed
         # handshakes. IGNORE leaves the existing row untouched.
+        # Store the timestamp as a formatted string instead of a datetime
+        # object. Passing a datetime to sqlite3 relies on the default adapter,
+        # deprecated since Python 3.12 (and slated for removal), which emitted
+        # a DeprecationWarning on every insert. The "%Y-%m-%d %H:%M:%S" format
+        # matches the firstTimeSeen timestamps stored elsewhere.
         cursor.execute('''INSERT OR IGNORE INTO Files VALUES(?,?,?,?)''',
-                       (file, "False", file_hash, datetime.datetime.now()))
+                       (file, "False", file_hash,
+                        datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
         return int(0)
     except sqlite3.IntegrityError as error:
         print("insertFile" + str(error))

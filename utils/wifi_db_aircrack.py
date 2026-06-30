@@ -764,6 +764,13 @@ def parse_identities(name, database, verbose):
         for pkt in cap:
             # print(pkt.eapol.field_names)
             try:
+                # EAP Success (code 3) and Failure (code 4) frames carry no
+                # Type field and are not identities. Skip them, otherwise the
+                # pkt.eap.type access below raises AttributeError and every
+                # such frame is miscounted as an error (6 false errors on the
+                # test capture, masking any genuine parse failures).
+                if pkt.eap.code in ('3', '4'):
+                    continue
                 if pkt.eap.type == '1':  # EAP Identity
                     dst = pkt.wlan.da
                     src = pkt.wlan.sa
