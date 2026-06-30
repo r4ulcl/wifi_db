@@ -51,26 +51,29 @@ def connectDatabase(name, verbose):
 
 # Columns added after the initial schema. CREATE TABLE IF NOT EXISTS leaves an
 # already-existing table untouched, so these are added idempotently with ALTER
-# TABLE for databases created before the column existed. (table, column, type)
+# TABLE for databases created before the column existed. Each entry carries the
+# table, column name, and the two fully-literal SQL statements run for it -- the
+# DDL is never built from input, so there is no string formatting / injection
+# surface for the migration to introduce.
 _ADDED_COLUMNS = (
-    ('AP', 'wps_config_methods_text', 'TEXT'),
-    ('AP', 'rsn_capabilities_text', 'TEXT'),
+    ('AP', 'wps_config_methods_text',
+     'PRAGMA table_info(AP)',
+     'ALTER TABLE AP ADD COLUMN wps_config_methods_text TEXT'),
+    ('AP', 'rsn_capabilities_text',
+     'PRAGMA table_info(AP)',
+     'ALTER TABLE AP ADD COLUMN rsn_capabilities_text TEXT'),
 )
 
 
 def _migrateColumns(database, verbose):
     '''Add any post-initial-schema columns missing from an existing database.'''
-    for table, column, col_type in _ADDED_COLUMNS:
-        cursor = database.execute("PRAGMA table_info(%s)" % table)
-        existing = [row[1] for row in cursor.fetchall()]
+    for table, column, info_sql, alter_sql in _ADDED_COLUMNS:
+        existing = [row[1] for row in database.execute(info_sql).fetchall()]
         if column in existing:
             continue
-        # table/column/type come from the fixed _ADDED_COLUMNS literal above,
-        # never from user input, so the formatted DDL stays injection-safe.
-        database.execute("ALTER TABLE %s ADD COLUMN %s %s"
-                         % (table, column, col_type))
+        database.execute(alter_sql)
         if verbose:
-            print("Added column %s.%s" % (table, column))
+            print("Added column " + table + "." + column)
 
 
 def createDatabase(database, verbose):
