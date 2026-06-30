@@ -1,12 +1,6 @@
 # Changelog
 
-## Unreleased
-
-### Fixed
-- Handshake `hashcat` hash is no longer stored empty: `setHashcat` now creates the AP/Client/File rows it references before inserting, so hashes that `hcxpcapngtool --all` extracts for handshakes/PMKIDs the tshark parser skipped no longer fail with a `FOREIGN KEY constraint failed` and get dropped.
-- `exec_hcxpcapngtool` now commits its writes, matching every other parser.
-
-## v1.6.0 (2026-06-29)
+## v1.6.0
 
 ### Added
 - X.509 certificate extraction from enterprise (802.1X) EAP into the new `Certificate` table and `CertificateAP` view.

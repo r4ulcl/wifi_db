@@ -707,7 +707,14 @@ def insertFile(cursor, verbose, file):
             file_hash = getHash(file_handle.read())
         if verbose:
             print("HASH: ", file_hash)
-        cursor.execute('''INSERT OR REPLACE INTO Files VALUES(?,?,?,?)''',
+        # INSERT OR IGNORE, not OR REPLACE: the Files (file,hashSHA) row is the
+        # parent of Handshake via an ON DELETE CASCADE foreign key. REPLACE
+        # deletes the existing parent row (firing the cascade and wiping every
+        # Handshake for this file) before re-inserting it, so callers that just
+        # need to guarantee the row exists (insertHandshake, setHashcat during
+        # the hcxpcapngtool pass) would silently destroy already-parsed
+        # handshakes. IGNORE leaves the existing row untouched.
+        cursor.execute('''INSERT OR IGNORE INTO Files VALUES(?,?,?,?)''',
                        (file, "False", file_hash, datetime.datetime.now()))
         return int(0)
     except sqlite3.IntegrityError as error:
