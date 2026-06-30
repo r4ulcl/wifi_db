@@ -156,9 +156,11 @@ def process_folder(ctx, capture):
     # for each file with correct format of folder ...
     for f in files:
         counter += 1
+        if counter > 1:
+            print()
         print("File: " + str(counter) + " of " + str(len(files)))
         capture_aux = dir_capture + "/" + f
-        print("\n" + capture_aux)
+        print(capture_aux)
         process_capture(ctx, capture_aux)
 
 

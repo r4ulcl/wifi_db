@@ -10,6 +10,7 @@ import binascii
 import contextlib
 import datetime
 import subprocess  # nosec B404 - only used with a fixed, absolute-path command
+import sys
 # import xml.etree.ElementTree as ET # vuln!
 import defusedxml.ElementTree as ET
 import ftfy
@@ -61,7 +62,28 @@ for _watcher_name in ("AbstractChildWatcher", "SafeChildWatcher",
         setattr(asyncio, _watcher_name, _NullChildWatcher)
 
 import pyshark  # noqa: E402  (imported after the child-watcher shim above)
-from cryptography import x509
+
+
+# pyshark's Capture.__del__ calls close(), which re-raises TSharkCrashException
+# when tshark exited non-zero (e.g. a PCAP cut short in the middle of a packet).
+# Because that happens during garbage collection, Python prints a noisy
+# "Exception ignored in: <function Capture.__del__>" traceback even though every
+# call site already catches the crash explicitly. Swallow only that specific
+# unraisable and defer everything else to the default hook so real bugs still
+# surface.
+_default_unraisablehook = sys.unraisablehook
+
+
+def _quiet_tshark_unraisablehook(unraisable):
+    if isinstance(unraisable.exc_value,
+                  pyshark.capture.capture.TSharkCrashException):
+        return
+    _default_unraisablehook(unraisable)
+
+
+sys.unraisablehook = _quiet_tshark_unraisablehook
+
+from cryptography import x509  # noqa: E402
 from cryptography.hazmat.primitives import hashes
 from cryptography.x509.oid import (NameOID, ExtensionOID,
                                    AuthorityInformationAccessOID)
