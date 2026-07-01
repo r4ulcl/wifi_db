@@ -9,9 +9,10 @@ import binascii
 import contextlib
 import sys
 
-# Installs the asyncio child-watcher shim as an import side effect; must run
-# before pyshark is imported below (see utils/asyncio_shim.py).
-from utils import asyncio_shim  # noqa: F401
+# Install the asyncio child-watcher shim; must run before pyshark is imported
+# below (see utils/asyncio_shim.py).
+from utils import asyncio_shim
+asyncio_shim.install()
 
 import pyshark  # noqa: E402  (imported after the child-watcher shim above)
 
