@@ -4,7 +4,7 @@ import sqlite3
 import tempfile
 import unittest
 
-from test_base import DBTestBase
+from test_base import DBTestBase, PROJECT_ROOT
 from utils import database_utils
 from utils import oui
 from utils.decode import (decode_wps_config_methods,
@@ -255,8 +255,7 @@ class TestFunctions(DBTestBase):
         self.assertEqual(rows[0][0], self.bssid)
 
     def test_inserFile(self):
-        script_path = os.path.dirname(os.path.abspath(__file__))
-        path = script_path+"/README.md"
+        path = os.path.join(PROJECT_ROOT, "README.md")
 
         result = database_utils.insertFile(self.c, self.verbose, path)
         self.assertEqual(result, 0)
@@ -367,8 +366,7 @@ class TestFunctions(DBTestBase):
         # has no pre-existing Handshake/AP/Client row. It must create the
         # referenced rows itself, otherwise the INSERT fails with a FOREIGN
         # KEY constraint and the hashcat hash is silently dropped (empty).
-        script_path = os.path.dirname(os.path.abspath(__file__))
-        path = script_path + "/README.md"
+        path = os.path.join(PROJECT_ROOT, "README.md")
         test_hashcat = ("WPA*02*727f2f35c4db2779fff8b30f4d349678*"
                         "f09fc2712212*286c076ff944*776966692d6d6f62696c65")
 
@@ -492,8 +490,7 @@ class TestFunctions(DBTestBase):
     def test_file_processed_lifecycle(self):
         # insertFile stores processed='False'; setFileProcessed flips it to
         # 'True'; checkFileProcessed reports 0 before and 1 after.
-        path = os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                            "README.md")
+        path = os.path.join(PROJECT_ROOT, "README.md")
         self.assertEqual(database_utils.insertFile(self.c, self.verbose, path),
                          0)
         self.assertEqual(

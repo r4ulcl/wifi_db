@@ -9,6 +9,10 @@ from cryptography.x509.oid import NameOID
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
 
+# Repo root (tests/ lives one level below it). Used to locate real files the
+# suite hashes as sample inputs, e.g. README.md, regardless of cwd.
+PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
 
 def sample_cert():
     '''A parsed certificate dict as built by _extract_cert_fields, for tests.'''
@@ -104,8 +108,7 @@ class DBTestBase(unittest.TestCase):
     def insert_test_handshake(self):
         '''Insert a handshake (self.bssid/self.mac) referencing README.md,
         assert success and return the file path used.'''
-        path = os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                            "README.md")
+        path = os.path.join(PROJECT_ROOT, "README.md")
         result = database_utils.insertHandshake(self.c, self.verbose,
                                                 self.bssid, self.mac, path)
         self.assertEqual(result, 0)
