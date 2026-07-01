@@ -1,9 +1,13 @@
+import hashlib
 import os
+import sqlite3
+import tempfile
 import unittest
 
 from test_base import DBTestBase
 from utils import database_utils
 from utils import oui
+from utils.db_inserts import safe_insert
 from utils.decode import (decode_wps_config_methods,
                           decode_rsn_capabilities)
 
@@ -416,6 +420,168 @@ class TestFunctions(DBTestBase):
         self.assertEqual(rows[0][1], client['ssid'])
         self.assertEqual(rows[0][2], client['manuf'])
         self.assertEqual(rows[0][3], client['client_type'])
+
+    def test_insertAPConstraint(self):
+        # Creates a placeholder AP row (empty attributes) so foreign keys that
+        # reference an as-yet-unseen BSSID resolve.
+        bssid = "AA:BB:CC:44:55:66"
+        result = database_utils.insertAPConstraint(self.c, self.verbose, bssid)
+        self.assertEqual(result, 0)
+        self.c.execute("SELECT bssid, ssid FROM AP WHERE bssid=?", (bssid,))
+        row = self.c.fetchone()
+        self.assertIsNotNone(row)
+        self.assertEqual(row[0], bssid)
+        self.assertEqual(row[1], "")
+
+    def test_insertClientConstraint(self):
+        # Creates a placeholder Client row for an as-yet-unseen MAC.
+        mac = "AA:BB:CC:11:22:33"
+        result = database_utils.insertClientConstraint(self.c, self.verbose,
+                                                       mac)
+        self.assertEqual(result, 0)
+        self.c.execute("SELECT mac FROM Client WHERE mac=?", (mac,))
+        self.assertEqual(self.c.fetchone()[0], mac)
+
+    def test_insertMFP(self):
+        # insertMFP ensures the AP row and stores the PMF capable/required
+        # flags on it.
+        result = database_utils.insertMFP(self.c, self.verbose, self.bssid,
+                                          'True', 'True')
+        self.assertEqual(result, 0)
+        self.c.execute("SELECT mfpc, mfpr FROM AP WHERE bssid=?", (self.bssid,))
+        self.assertEqual(self.c.fetchone(), ('True', 'True'))
+
+        # A later frame reporting no PMF must not clear the sticky flags.
+        database_utils.insertMFP(self.c, self.verbose, self.bssid,
+                                 'False', 'False')
+        self.c.execute("SELECT mfpc, mfpr FROM AP WHERE bssid=?", (self.bssid,))
+        self.assertEqual(self.c.fetchone(), ('True', 'True'))
+
+    def test_insertProbe(self):
+        # A plain SSID-only probe row (fingerprint columns left NULL). The
+        # Client row is the FK parent, so it must exist first.
+        self.insert_test_client()
+        result = database_utils.insertProbe(self.c, self.verbose, self.mac,
+                                            "MyNet", 0)
+        self.assertEqual(result, 0)
+        self.c.execute("SELECT ssid, fingerprint FROM Probe "
+                       "WHERE mac=? AND ssid=?", (self.mac, "MyNet"))
+        row = self.c.fetchone()
+        self.assertEqual(row[0], "MyNet")
+        self.assertIsNone(row[1])
+
+    def test_getHash(self):
+        # Stable SHA-256 hex digest of the given bytes.
+        data = b"wifi_db"
+        self.assertEqual(database_utils.getHash(data),
+                         hashlib.sha256(data).hexdigest())
+        self.assertEqual(len(database_utils.getHash(b"")), 64)
+
+    def test_insertFile_idempotent_keeps_handshake(self):
+        # insertFile must be INSERT OR IGNORE, never OR REPLACE: the Files row
+        # is the ON DELETE CASCADE parent of Handshake, so re-inserting the
+        # same file must not wipe already-stored handshakes.
+        self.insert_test_ap()
+        self.insert_test_client()
+        path = self.insert_test_handshake()
+        self.assertEqual(database_utils.insertFile(self.c, self.verbose, path),
+                         0)
+        self.c.execute("SELECT COUNT(*) FROM Handshake WHERE bssid=?",
+                       (self.bssid,))
+        self.assertEqual(self.c.fetchone()[0], 1)
+
+    def test_file_processed_lifecycle(self):
+        # insertFile stores processed='False'; setFileProcessed flips it to
+        # 'True'; checkFileProcessed reports 0 before and 1 after.
+        path = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                            "README.md")
+        self.assertEqual(database_utils.insertFile(self.c, self.verbose, path),
+                         0)
+        self.assertEqual(
+            database_utils.checkFileProcessed(self.c, self.verbose, path), 0)
+        self.assertEqual(
+            database_utils.setFileProcessed(self.c, self.verbose, path), 0)
+        self.c.execute("SELECT processed FROM Files WHERE file=?", (path,))
+        self.assertEqual(self.c.fetchone()[0], "True")
+        self.assertEqual(
+            database_utils.checkFileProcessed(self.c, self.verbose, path), 1)
+
+    def test_checkFileProcessed_missing_file(self):
+        # A non-existent path is reported as not-processed (0) without raising.
+        self.assertEqual(
+            database_utils.checkFileProcessed(self.c, self.verbose,
+                                              "/no/such/file.cap"), 0)
+
+    def test_clearWhitelist(self):
+        # Every table row keyed on a whitelisted BSSID/MAC is deleted.
+        self.insert_test_ap()
+        self.insert_test_client()
+        database_utils.insertConnected(self.c, self.verbose, self.bssid,
+                                       self.mac)
+        self.database.commit()
+        with tempfile.NamedTemporaryFile('w', suffix='.txt',
+                                         delete=False) as handle:
+            handle.write(self.bssid + "\n" + self.mac + "\n")
+            whitelist_path = handle.name
+        self.addCleanup(os.remove, whitelist_path)
+
+        database_utils.clearWhitelist(self.database, self.verbose,
+                                      whitelist_path)
+        self.c.execute("SELECT COUNT(*) FROM AP WHERE bssid=?", (self.bssid,))
+        self.assertEqual(self.c.fetchone()[0], 0)
+        self.c.execute("SELECT COUNT(*) FROM Client WHERE mac=?", (self.mac,))
+        self.assertEqual(self.c.fetchone()[0], 0)
+        self.c.execute("SELECT COUNT(*) FROM Connected")
+        self.assertEqual(self.c.fetchone()[0], 0)
+
+    def test_migrateColumns_adds_text_columns_idempotently(self):
+        # 1.6 migration: an AP table created before the *_text columns existed
+        # gains them via ALTER TABLE, and re-running the migration is a no-op.
+        conn = sqlite3.connect(":memory:")
+        self.addCleanup(conn.close)
+        conn.execute("CREATE TABLE AP (bssid TEXT PRIMARY KEY, ssid TEXT)")
+        cols = [r[1] for r in conn.execute("PRAGMA table_info(AP)").fetchall()]
+        self.assertNotIn("rsn_capabilities_text", cols)
+
+        database_utils._migrateColumns(conn, self.verbose)
+        cols = [r[1] for r in conn.execute("PRAGMA table_info(AP)").fetchall()]
+        self.assertIn("wps_config_methods_text", cols)
+        self.assertIn("rsn_capabilities_text", cols)
+
+        # Idempotent: a second run must not raise "duplicate column".
+        database_utils._migrateColumns(conn, self.verbose)
+
+
+class TestSafeInsert(unittest.TestCase):
+    '''The shared safe_insert decorator's sqlite error handling.'''
+
+    def test_passthrough_return_value(self):
+        @safe_insert
+        def ok(cursor, verbose, value):
+            return value
+        self.assertEqual(ok(None, False, 7), 7)
+
+    def test_integrity_error_returns_0(self):
+        # A duplicate row (IntegrityError) is a no-op success -> 0.
+        @safe_insert
+        def dup(cursor, verbose):
+            raise sqlite3.IntegrityError("UNIQUE constraint failed")
+        self.assertEqual(dup(None, False), 0)
+
+    def test_other_sqlite_error_returns_1(self):
+        # Any other sqlite3.Error is a failure -> 1.
+        @safe_insert
+        def bad(cursor, verbose):
+            raise sqlite3.OperationalError("no such table")
+        self.assertEqual(bad(None, False), 1)
+
+    def test_non_sqlite_exception_propagates(self):
+        # Non-sqlite bugs must not be swallowed.
+        @safe_insert
+        def boom(cursor, verbose):
+            raise ValueError("real bug")
+        with self.assertRaises(ValueError):
+            boom(None, False)
 
 
 if __name__ == '__main__':
