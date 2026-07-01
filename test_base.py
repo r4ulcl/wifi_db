@@ -77,11 +77,12 @@ class DBTestBase(unittest.TestCase):
             'freqmhz': "2437", 'carrier': "test", 'encryption': "WPA2",
             'packets_total': "10", 'lat': "37.7749", 'lon': "-122.4194",
             'cloaked': 'False', 'mfpc': 'False', 'mfpr': 'False',
+            'firstTimeSeen': 0,
         }
         fields.update(overrides)
         result = database_utils.insertAP(
             self.c, self.verbose, database_utils.APRow(
-                bssid=self.bssid, firstTimeSeen=0, **fields))
+                bssid=self.bssid, **fields))
         self.assertEqual(result, 0)
         return fields
 
@@ -91,12 +92,12 @@ class DBTestBase(unittest.TestCase):
         ``ssid=...``) and read them back from the returned dict for assertions.'''
         fields = {
             'ssid': "", 'manuf': "Test_Manufacturer", 'client_type': "10",
-            'packets_total': "-70", 'device': "Misc",
+            'packets_total': "-70", 'device': "Misc", 'firstTimeSeen': 0,
         }
         fields.update(overrides)
         result = database_utils.insertClients(
             self.c, self.verbose, database_utils.ClientRow(
-                mac=self.mac, firstTimeSeen=0, **fields))
+                mac=self.mac, **fields))
         self.assertEqual(result, 0)
         return fields
 

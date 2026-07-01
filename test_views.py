@@ -263,3 +263,81 @@ class TestViews(DBTestBase):
                        (other,))
         self.assertEqual(self.c.fetchone()[0], 0)
 
+    def test_rsn_capabilities_text(self):
+        # 1.6: insertSecurity decodes the raw rsn_capabilities bitmask into the
+        # sibling rsn_capabilities_text column, exposed via SecurityAP.
+        database_utils.insertSecurity(
+            self.c, self.verbose, database_utils.SecurityRow(
+                bssid=self.bssid, wpa_version='WPA2', akm_suites='PSK',
+                pairwise_ciphers='CCMP-128', group_cipher='CCMP-128',
+                enterprise='False', pmf='Required', rsn_capabilities='0x00c0',
+                file='test.cap'))
+        self.c.execute("SELECT rsn_capabilities, rsn_capabilities_text "
+                       "FROM AP WHERE bssid = ?", (self.bssid,))
+        self.assertEqual(self.c.fetchone(), ('0x00c0', 'MFPR, MFPC'))
+        self.c.execute("SELECT rsn_capabilities_text FROM SecurityAP "
+                       "WHERE bssid = ?", (self.bssid,))
+        self.assertEqual(self.c.fetchone()[0], 'MFPR, MFPC')
+
+        # An empty/zero bitmask decodes to '' rather than a bogus flag list.
+        other = "AA:BB:CC:DD:EE:01"
+        database_utils.insertSecurity(
+            self.c, self.verbose, database_utils.SecurityRow(
+                bssid=other, wpa_version='WPA2', akm_suites='PSK',
+                pairwise_ciphers='CCMP-128', group_cipher='CCMP-128',
+                enterprise='False', pmf='Disabled', rsn_capabilities='0x0000',
+                file='test.cap'))
+        self.c.execute("SELECT rsn_capabilities_text FROM AP WHERE bssid = ?",
+                       (other,))
+        self.assertEqual(self.c.fetchone()[0], '')
+
+    def test_summary_view(self):
+        # 1.6: SummaryAP groups by SSID *and* encryption, counting APs and
+        # connected clients and concatenating the distinct wpa_version, pmf and
+        # manuf seen per group.
+        ap2 = "AA:BB:CC:DD:EE:02"
+        # Two WPA2 APs sharing one SSID, different manufacturers.
+        self.insert_test_ap(essid="Corp", encryption="WPA2",
+                            manuf="VendorA")
+        database_utils.insertAP(
+            self.c, self.verbose, database_utils.APRow(
+                bssid=ap2, essid="Corp", manuf="VendorB", channel="11",
+                freqmhz="2462", carrier="", encryption="WPA2",
+                packets_total="5", lat="0.0", lon="0.0", cloaked='False',
+                mfpc='False', mfpr='False', firstTimeSeen=0))
+        for bssid in (self.bssid, ap2):
+            database_utils.insertSecurity(
+                self.c, self.verbose, database_utils.SecurityRow(
+                    bssid=bssid, wpa_version='WPA2', akm_suites='PSK',
+                    pairwise_ciphers='CCMP-128', group_cipher='CCMP-128',
+                    enterprise='False', pmf='Capable',
+                    rsn_capabilities='0x0080', file='test.cap'))
+        # One client connected to the first AP.
+        self.insert_test_client()
+        database_utils.insertConnected(self.c, self.verbose, self.bssid,
+                                       self.mac)
+        # A same-SSID AP with a *different* encryption forms its own group.
+        database_utils.insertAP(
+            self.c, self.verbose, database_utils.APRow(
+                bssid="AA:BB:CC:DD:EE:03", essid="Corp", manuf="VendorC",
+                channel="36", freqmhz="5180", carrier="", encryption="WPA3",
+                packets_total="1", lat="0.0", lon="0.0", cloaked='False',
+                mfpc='False', mfpr='False', firstTimeSeen=0))
+
+        self.c.execute(
+            'SELECT "APs count", wpa_version, pmf, manuf, "Clients count" '
+            'FROM SummaryAP WHERE ssid = ? AND encryption = ?',
+            ("Corp", "WPA2"))
+        aps_count, wpa_version, pmf, manuf, clients_count = self.c.fetchone()
+        self.assertEqual(aps_count, 2)
+        self.assertEqual(wpa_version, 'WPA2')
+        self.assertEqual(pmf, 'Capable')
+        self.assertIn('VendorA', manuf)
+        self.assertIn('VendorB', manuf)
+        self.assertEqual(clients_count, 1)
+
+        # The WPA3 AP is a separate group, so "Corp" spans two rows.
+        self.c.execute("SELECT COUNT(*) FROM SummaryAP WHERE ssid = ?",
+                       ("Corp",))
+        self.assertEqual(self.c.fetchone()[0], 2)
+

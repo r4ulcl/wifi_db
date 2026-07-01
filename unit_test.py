@@ -159,6 +159,43 @@ class TestFunctions(DBTestBase):
         self.assertEqual(database_utils.isRandomizedMAC("00:11:22:33:44:55"),
                          'False')
 
+    def test_insertClients_randomized_flag(self):
+        # 1.6: insertClients derives and stores the randomized flag. A
+        # locally-administered MAC (first octet 0xDA, bit 1 set) -> 'True'.
+        rand_mac = "DA:BB:CC:DD:EE:FF"
+        result = database_utils.insertClients(
+            self.c, self.verbose, database_utils.ClientRow(
+                mac=rand_mac, ssid="", manuf="m", client_type="",
+                packets_total="0", device="", firstTimeSeen=0))
+        self.assertEqual(result, 0)
+        self.c.execute("SELECT randomized FROM Client WHERE mac=?",
+                       (rand_mac.upper(),))
+        self.assertEqual(self.c.fetchone()[0], 'True')
+
+    def test_firstTimeSeen_merge(self):
+        # 1.6 fix: a real firstTimeSeen must replace the '0' placeholder left by
+        # a foreign-key constraint insert, the earliest timestamp must win, and
+        # a later timestamp (or a 0 placeholder) must never overwrite it.
+        database_utils.insertAPConstraint(self.c, self.verbose, self.bssid)
+
+        def stored_fts():
+            self.c.execute("SELECT firstTimeSeen FROM AP WHERE bssid=?",
+                           (self.bssid,))
+            return self.c.fetchone()[0]
+
+        # Real timestamp replaces the 0 placeholder.
+        self.insert_test_ap(firstTimeSeen="2024-06-01 00:00:00")
+        self.assertEqual(stored_fts(), "2024-06-01 00:00:00")
+        # A later timestamp does not overwrite the earlier one.
+        self.insert_test_ap(firstTimeSeen="2025-01-01 00:00:00")
+        self.assertEqual(stored_fts(), "2024-06-01 00:00:00")
+        # An earlier timestamp wins.
+        self.insert_test_ap(firstTimeSeen="2020-01-01 00:00:00")
+        self.assertEqual(stored_fts(), "2020-01-01 00:00:00")
+        # A 0 placeholder never clobbers a real timestamp.
+        self.insert_test_ap(firstTimeSeen=0)
+        self.assertEqual(stored_fts(), "2020-01-01 00:00:00")
+
     def test_insertEAPMD5(self):
         result = database_utils.insertEAPMD5(
             self.c, self.verbose, database_utils.EAPMD5Row(
