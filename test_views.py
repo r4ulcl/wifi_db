@@ -76,7 +76,7 @@ class TestViews(DBTestBase):
         fake = mock.Mock()
         fake.stdout = fake_stdout
 
-        with mock.patch("utils.wifi_db_aircrack.subprocess.run",
+        with mock.patch("utils.cert_parsers.subprocess.run",
                         return_value=fake):
             wifi_db_aircrack.parse_certificates("scanc44-01.cap",
                                                 self.database, self.verbose)

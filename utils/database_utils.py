@@ -137,7 +137,7 @@ def insertCertificate(cursor, verbose, bssid, mac, cert_type, file, cert):
     `bssid` is always the access point and `mac` the client, regardless of
     which side sent the certificate. `cert_type` tells whose certificate it
     is ('AP', 'Client' or 'Unknown'). `cert` is a dict with the parsed
-    certificate fields (see wifi_db_aircrack._extract_cert_fields).'''
+    certificate fields (see cert_parsers._extract_cert_fields).'''
     try:
         # Insert AP CONSTRAINT (create the AP row if it does not exist yet)
         insertAPConstraint(cursor, verbose, bssid)
