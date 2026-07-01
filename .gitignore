@@ -13,5 +13,6 @@ __pycache__/
 .coverage
 .coverage.*
 coverage.xml
+.coverage_out.*
 htmlcov/
 .pytest_cache/

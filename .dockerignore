@@ -18,6 +18,7 @@ __pycache__
 .coverage
 .coverage.*
 coverage.xml
+.coverage_out.*
 htmlcov
 
 # Test fixtures: not baked into the image. The release pipeline / test_docker.sh
