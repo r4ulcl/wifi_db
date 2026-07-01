@@ -102,51 +102,21 @@ class TestFunctions(DBTestBase):
         self.assertEqual(views, expected_views)
 
     def test_insertAP(self):
-        essid = "Test_AP"
-        manuf = "Test_Manufacturer"
-        channel = "6"
-        freqmhz = "2437"
-        carrier = "test"
-        encryption = "WPA2"
-        packets_total = "10"
-        lat = "37.7749"
-        lon = "-122.4194"
-        cloaked = 'False'
-        mfpc = 'False'
-        mfpr = 'False'
-        # Insert new AP
-        result = database_utils.insertAP(
-            self.c, self.verbose, database_utils.APRow(
-                bssid=self.bssid, essid=essid, manuf=manuf, channel=channel,
-                freqmhz=freqmhz, carrier=carrier, encryption=encryption,
-                packets_total=packets_total, lat=lat, lon=lon, cloaked=cloaked,
-                mfpc=mfpc, mfpr=mfpr, firstTimeSeen=0))
-
-        self.assertEqual(result, 0)
+        ap = self.insert_test_ap()
 
         self.c.execute("SELECT ssid FROM AP WHERE bssid = ?", (self.bssid,))
         rows = self.c.fetchall()
         self.assertEqual(len(rows), 1)
-        self.assertEqual(rows[0][0], essid)
+        self.assertEqual(rows[0][0], ap['essid'])
 
     def test_insertClients(self):
-        ssid = "Test_AP"
-        manuf = "Test_Manufacturer"
-        packets_total = "10"
-        power = "-70"
-        # Insert new client
-        result = database_utils.insertClients(
-            self.c, self.verbose, database_utils.ClientRow(
-                mac=self.mac, ssid=ssid, manuf=manuf, client_type=packets_total,
-                packets_total=power, device="Misc", firstTimeSeen=0))
-
-        self.assertEqual(result, 0)
+        client = self.insert_test_client(ssid="Test_AP")
 
         self.c.execute("SELECT manuf, randomized FROM Client WHERE mac=?",
                        (self.mac,))
         rows = self.c.fetchall()
         self.assertEqual(len(rows), 1)
-        self.assertEqual(rows[0][0], manuf)
+        self.assertEqual(rows[0][0], client['manuf'])
         # 55:.. first octet 0x55, locally-administered bit clear -> not random
         self.assertEqual(rows[0][1], 'False')
 
@@ -231,39 +201,8 @@ class TestFunctions(DBTestBase):
 
     def test_insertConnected(self):
         # add needed data
-        essid = "Test_AP"
-        manuf = "Test_Manufacturer"
-        channel = "6"
-        freqmhz = "2437"
-        carrier = "test"
-        encryption = "WPA2"
-        packets_total = "10"
-        lat = "37.7749"
-        lon = "-122.4194"
-        cloaked = False
-        mfpc = 'False'
-        mfpr = 'False'
-        # Insert new AP
-        result = database_utils.insertAP(
-            self.c, self.verbose, database_utils.APRow(
-                bssid=self.bssid, essid=essid, manuf=manuf, channel=channel,
-                freqmhz=freqmhz, carrier=carrier, encryption=encryption,
-                packets_total=packets_total, lat=lat, lon=lon, cloaked=cloaked,
-                mfpc=mfpc, mfpr=mfpr, firstTimeSeen=0))
-
-        self.assertEqual(result, 0)
-
-        ssid = ""
-        manuf = "Test_Manufacturer"
-        packets_total = "10"
-        power = "-70"
-        # Insert new client
-        result = database_utils.insertClients(
-            self.c, self.verbose, database_utils.ClientRow(
-                mac=self.mac, ssid=ssid, manuf=manuf, client_type=packets_total,
-                packets_total=power, device="Misc", firstTimeSeen=0))
-
-        self.assertEqual(result, 0)
+        self.insert_test_ap()
+        self.insert_test_client()
 
         # Insert new connected device
         result = database_utils.insertConnected(self.c, self.verbose,
@@ -288,12 +227,7 @@ class TestFunctions(DBTestBase):
         self.assertEqual(rows[0][0], path)
 
     def test_insertHandshake(self):
-        script_path = os.path.dirname(os.path.abspath(__file__))
-        path = script_path+"/README.md"
-
-        result = database_utils.insertHandshake(self.c, self.verbose,
-                                                self.bssid, self.mac, path)
-        self.assertEqual(result, 0)
+        path = self.insert_test_handshake()
 
         self.c.execute("SELECT * FROM handshake WHERE bssid = ?",
                        (self.bssid,))
@@ -326,15 +260,7 @@ class TestFunctions(DBTestBase):
 
     def test_insertSeenClient(self):
         # add needed data
-        ssid = ""
-        manuf = "Test_Manufacturer"
-        packets_total = "10"
-        power = "-70"
-        # Insert new client
-        result = database_utils.insertClients(
-            self.c, self.verbose, database_utils.ClientRow(
-                mac=self.mac, ssid=ssid, manuf=manuf, client_type=packets_total,
-                packets_total=power, device="Misc", firstTimeSeen=0))
+        self.insert_test_client()
 
         # Insert seenClient
         # station = "Test_Station"
@@ -357,27 +283,7 @@ class TestFunctions(DBTestBase):
 
     def test_insertSeenAP(self):
         # add needed data
-        essid = "Test_AP"
-        manuf = "Test_Manufacturer"
-        channel = "6"
-        freqmhz = "2437"
-        carrier = "test"
-        encryption = "WPA2"
-        packets_total = "10"
-        lat = "37.7749"
-        lon = "-122.4194"
-        cloaked = False
-        mfpc = 'False'
-        mfpr = 'False'
-        # Insert new AP
-        result = database_utils.insertAP(
-            self.c, self.verbose, database_utils.APRow(
-                bssid=self.bssid, essid=essid, manuf=manuf, channel=channel,
-                freqmhz=freqmhz, carrier=carrier, encryption=encryption,
-                packets_total=packets_total, lat=lat, lon=lon, cloaked=cloaked,
-                mfpc=mfpc, mfpr=mfpr, firstTimeSeen=0))
-
-        self.assertEqual(result, 0)
+        self.insert_test_ap()
 
         # Insert SeenAP
         time = "2032-02-23 10:00:00"
@@ -399,51 +305,11 @@ class TestFunctions(DBTestBase):
 
     def test_setHashcat(self):
         # add needed data
-        essid = "Test_AP"
-        manuf = "Test_Manufacturer"
-        channel = "6"
-        freqmhz = "2437"
-        carrier = "test"
-        encryption = "WPA2"
-        packets_total = "10"
-        lat = "37.7749"
-        lon = "-122.4194"
-        cloaked = False
-        mfpc = 'False'
-        mfpr = 'False'
-        # Insert new AP
-        result = database_utils.insertAP(
-            self.c, self.verbose, database_utils.APRow(
-                bssid=self.bssid, essid=essid, manuf=manuf, channel=channel,
-                freqmhz=freqmhz, carrier=carrier, encryption=encryption,
-                packets_total=packets_total, lat=lat, lon=lon, cloaked=cloaked,
-                mfpc=mfpc, mfpr=mfpr, firstTimeSeen=0))
-
-        self.assertEqual(result, 0)
-
-        ssid = ""
-        manuf = "Test_Manufacturer"
-        packets_total = "10"
-        power = "-70"
-        # Insert new client
-        result = database_utils.insertClients(
-            self.c, self.verbose, database_utils.ClientRow(
-                mac=self.mac, ssid=ssid, manuf=manuf, client_type=packets_total,
-                packets_total=power, device="Misc", firstTimeSeen=0))
-
-        self.assertEqual(result, 0)
-
-        # insert Handshake
-        script_path = os.path.dirname(os.path.abspath(__file__))
-        path = script_path+"/README.md"
-
-        result = database_utils.insertHandshake(self.c, self.verbose,
-                                                self.bssid, self.mac, path)
-        self.assertEqual(result, 0)
+        self.insert_test_ap()
+        self.insert_test_client()
+        path = self.insert_test_handshake()
 
         # Insert hashcat HASH
-        script_path = os.path.dirname(os.path.abspath(__file__))
-        path = script_path+"/README.md"
         test_hashcat = "aa:bb:cc:dd:ee:ff:11:22:33:44:55:66:77"
         result = database_utils.setHashcat(self.c, self.verbose, self.bssid,
                                            self.mac, path, test_hashcat)
@@ -488,48 +354,10 @@ class TestFunctions(DBTestBase):
 
     def test_obfuscateDB(self):
         # add needed data
-        essid = "Test_AP"
-        manufAP = "Test_Manufacturer_AP"
-        channel = "6"
-        freqmhz = "2437"
-        carrier = "test"
-        encryption = "WPA2"
-        packets_total = "10"
-        lat = "37.7749"
-        lon = "-122.4194"
-        cloaked = False
-        mfpc = 'False'
-        mfpr = 'False'
-        # Insert new AP
-        result = database_utils.insertAP(
-            self.c, self.verbose, database_utils.APRow(
-                bssid=self.bssid, essid=essid, manuf=manufAP, channel=channel,
-                freqmhz=freqmhz, carrier=carrier, encryption=encryption,
-                packets_total=packets_total, lat=lat, lon=lon, cloaked=cloaked,
-                mfpc=mfpc, mfpr=mfpr, firstTimeSeen=0))
-
-        self.assertEqual(result, 0)
-
-        ssid = "null_ssid"
-        manufClient = "Test_Manufacturer_Client"
-        packets_total = "10"
-        power = "-70"
-        # Insert new client
-        result = database_utils.insertClients(
-            self.c, self.verbose, database_utils.ClientRow(
-                mac=self.mac, ssid=ssid, manuf=manufClient,
-                client_type=packets_total, packets_total=power, device="Misc",
-                firstTimeSeen=0))
-
-        self.assertEqual(result, 0)
-
-        # insert Handshake
-        script_path = os.path.dirname(os.path.abspath(__file__))
-        path = script_path+"/README.md"
-
-        result = database_utils.insertHandshake(self.c, self.verbose,
-                                                self.bssid, self.mac, path)
-        self.assertEqual(result, 0)
+        ap = self.insert_test_ap(manuf="Test_Manufacturer_AP")
+        client = self.insert_test_client(ssid="null_ssid",
+                                         manuf="Test_Manufacturer_Client")
+        self.insert_test_handshake()
 
         # obfuscateDB
         result = database_utils.obfuscateDB(self.database, self.verbose)
@@ -537,20 +365,20 @@ class TestFunctions(DBTestBase):
 
         # self.c.execute("SELECT * FROM handshake WHERE bssid = ?",
         #                (self.bssid,))
-        self.c.execute("SELECT * FROM AP WHERE ssid=?", (essid,))
+        self.c.execute("SELECT * FROM AP WHERE ssid=?", (ap['essid'],))
         rows = self.c.fetchall()
         # Same ESSID but different BSSID
-        self.assertEqual(rows[0][1], essid)
-        self.assertEqual(rows[0][3], manufAP)
-        self.assertEqual(rows[0][4], int(channel))
+        self.assertEqual(rows[0][1], ap['essid'])
+        self.assertEqual(rows[0][3], ap['manuf'])
+        self.assertEqual(rows[0][4], int(ap['channel']))
         self.assertNotEqual(rows[0][0], self.bssid)
 
-        self.c.execute("SELECT * FROM CLIENT WHERE ssid=?", (ssid,))
+        self.c.execute("SELECT * FROM CLIENT WHERE ssid=?", (client['ssid'],))
         rows = self.c.fetchall()
         self.assertEqual(len(rows), 1)
-        self.assertEqual(rows[0][1], ssid)
-        self.assertEqual(rows[0][2], manufClient)
-        self.assertEqual(rows[0][3], packets_total)
+        self.assertEqual(rows[0][1], client['ssid'])
+        self.assertEqual(rows[0][2], client['manuf'])
+        self.assertEqual(rows[0][3], client['client_type'])
 
 
 if __name__ == '__main__':

@@ -68,6 +68,48 @@ class DBTestBase(unittest.TestCase):
         if os.path.exists(self.test_database_name):
             os.remove(self.test_database_name)
 
+    def insert_test_ap(self, **overrides):
+        '''Insert a standard test AP (self.bssid), assert success and return the
+        APRow field values used. Pass keyword overrides to vary a field (e.g.
+        ``manuf=...``) and read them back from the returned dict for assertions.'''
+        fields = {
+            'essid': "Test_AP", 'manuf': "Test_Manufacturer", 'channel': "6",
+            'freqmhz': "2437", 'carrier': "test", 'encryption': "WPA2",
+            'packets_total': "10", 'lat': "37.7749", 'lon': "-122.4194",
+            'cloaked': 'False', 'mfpc': 'False', 'mfpr': 'False',
+        }
+        fields.update(overrides)
+        result = database_utils.insertAP(
+            self.c, self.verbose, database_utils.APRow(
+                bssid=self.bssid, firstTimeSeen=0, **fields))
+        self.assertEqual(result, 0)
+        return fields
+
+    def insert_test_client(self, **overrides):
+        '''Insert a standard test Client (self.mac), assert success and return
+        the ClientRow field values used. Pass keyword overrides (e.g.
+        ``ssid=...``) and read them back from the returned dict for assertions.'''
+        fields = {
+            'ssid': "", 'manuf': "Test_Manufacturer", 'client_type': "10",
+            'packets_total': "-70", 'device': "Misc",
+        }
+        fields.update(overrides)
+        result = database_utils.insertClients(
+            self.c, self.verbose, database_utils.ClientRow(
+                mac=self.mac, firstTimeSeen=0, **fields))
+        self.assertEqual(result, 0)
+        return fields
+
+    def insert_test_handshake(self):
+        '''Insert a handshake (self.bssid/self.mac) referencing README.md,
+        assert success and return the file path used.'''
+        path = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                            "README.md")
+        result = database_utils.insertHandshake(self.c, self.verbose,
+                                                self.bssid, self.mac, path)
+        self.assertEqual(result, 0)
+        return path
+
     @staticmethod
     def _make_cert_hex(cn):
         '''Build a real self-signed cert and return its colon-separated hex
