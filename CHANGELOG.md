@@ -25,5 +25,6 @@
 - Merged the 1:1 Security, WPS and probe-fingerprint attributes onto the `AP`/`Probe` rows to simplify the schema.
 - Improved the `SummaryAP` view: grouped by SSID **and** encryption, now showing WPA version, PMF state, every manufacturer per group, and client counts.
 - Slimmed the Docker image from ~360 MB to ~220 MB (Alpine base, ship only the `hcxpcapngtool` binary, drop bytecode/build caches); amd64 and arm64 builds and the full test suite all verified.
-- `Files.time` stored as a formatted string to avoid the Python 3.12 sqlite3 adapter deprecation; pyshark asyncio child-watcher warnings silenced in the test suite (`pytest.ini`).
-- Split the oversized `utils/wifi_db_aircrack.py` into cohesive modules (`wifi_constants`, `cap_common`, `text_parsers`, `cert_parsers`, `beacon_parsers`, `cap_parsers`); `wifi_db_aircrack` stays as a thin re-export facade, so all callers and the public `parse_*` API are unchanged.
+- Store `Files.time` as a formatted string (fixes the Python 3.12 sqlite3 adapter deprecation) and silence pyshark asyncio warnings in tests.
+- Split the oversized `utils/wifi_db_aircrack.py` into focused modules behind a re-export facade; public `parse_*` API and callers unchanged.
+- Reduce parser/DB cyclomatic complexity below the Codacy limit (shared `safe_insert` decorator and `cap_runner`, lookup tables over `if/elif` ladders), no behaviour change.
