@@ -119,12 +119,14 @@ def detect_tools():
     return hcxpcapngtool, tshark
 
 
+# Substrings that mark a recognised capture file.
+_CAPTURE_EXTENSIONS = ('.cap', '.csv', '.kismet.csv', 'kismet.netxml',
+                       '.log.csv')
+
+
 def _is_capture_file(file):
     '''Return True if `file` has one of the recognised capture extensions.'''
-    return (('.cap' in file) or ('.csv' in file)
-            or ('.kismet.csv' in file)
-            or ('kismet.netxml' in file)
-            or ('.log.csv' in file))
+    return any(ext in file for ext in _CAPTURE_EXTENSIONS)
 
 
 def collect_capture_files(dir_capture):
@@ -279,23 +281,29 @@ FALLBACK_FORMATS = [
 ]
 
 
+# Parser name -> how to invoke it (the parsers differ in which Context fields
+# they take, so each entry adapts `(ctx, capture)` to that call). Replaces the
+# former if/elif ladder in run_parser.
+_PARSER_DISPATCH = {
+    "cap": lambda ctx, capture: wifi_db_aircrack.parse_cap(
+        capture, ctx.database, ctx.verbose, ctx.hcxpcapngtool, ctx.tshark),
+    "netxml": lambda ctx, capture: wifi_db_aircrack.parse_netxml(
+        ctx.ouiMap, capture, ctx.database, ctx.verbose),
+    "kismet_csv": lambda ctx, capture: wifi_db_aircrack.parse_kismet_csv(
+        ctx.ouiMap, capture, ctx.database, ctx.verbose),
+    "log_csv": lambda ctx, capture: wifi_db_aircrack.parse_log_csv(
+        ctx.ouiMap, capture, ctx.database, ctx.verbose, ctx.fake_lat,
+        ctx.fake_lon),
+    "csv": lambda ctx, capture: wifi_db_aircrack.parse_csv(
+        ctx.ouiMap, capture, ctx.database, ctx.verbose),
+}
+
+
 def run_parser(ctx, name, capture):
     '''Dispatch to the parser identified by `name`.'''
-    if name == "cap":
-        wifi_db_aircrack.parse_cap(capture, ctx.database, ctx.verbose,
-                                   ctx.hcxpcapngtool, ctx.tshark)
-    elif name == "netxml":
-        wifi_db_aircrack.parse_netxml(ctx.ouiMap, capture, ctx.database,
-                                      ctx.verbose)
-    elif name == "kismet_csv":
-        wifi_db_aircrack.parse_kismet_csv(ctx.ouiMap, capture, ctx.database,
-                                          ctx.verbose)
-    elif name == "log_csv":
-        wifi_db_aircrack.parse_log_csv(ctx.ouiMap, capture, ctx.database,
-                                       ctx.verbose, ctx.fake_lat, ctx.fake_lon)
-    elif name == "csv":
-        wifi_db_aircrack.parse_csv(ctx.ouiMap, capture, ctx.database,
-                                   ctx.verbose)
+    parser = _PARSER_DISPATCH.get(name)
+    if parser is not None:
+        parser(ctx, capture)
 
 
 def ingest_capture(ctx, name, capture, announce=False):

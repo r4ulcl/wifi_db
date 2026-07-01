@@ -7,9 +7,11 @@ each file small:
 * :mod:`utils.wifi_constants` -- EAP/RSN/tag constant tables.
 * :mod:`utils.cap_common`     -- asyncio child-watcher shim, the single pyshark
                                  import and the shared pyshark field helpers.
-* :mod:`utils.text_parsers`   -- .kismet.netxml / .kismet.csv / airodump .csv /
-                                 .log.csv parsers (no pyshark needed).
-* :mod:`utils.cert_parsers`   -- X.509 certificate extraction.
+* :mod:`utils.netxml_parser`  -- .kismet.netxml parser (no pyshark needed).
+* :mod:`utils.text_parsers`   -- .kismet.csv / airodump .csv / .log.csv parsers
+                                 (no pyshark needed).
+* :mod:`utils.cert_parsers`   -- X.509 certificate extraction (fields in
+                                 :mod:`utils.cert_fields`).
 * :mod:`utils.beacon_parsers` -- RSN/WPA security, 11r/k/v capabilities and
                                  hidden-SSID recovery from beacons.
 * :mod:`utils.cap_parsers`    -- handshakes, MFP, WPS, identities, EAP-MD5,
@@ -20,8 +22,8 @@ The public ``parse_*`` entry points are re-exported here so existing callers
 (``wifi_db.py`` and the tests) keep importing them from ``wifi_db_aircrack``.
 '''
 # -*- coding: utf-8 -*-
-from utils.text_parsers import (parse_netxml, parse_kismet_csv, parse_csv,
-                                parse_log_csv)
+from utils.netxml_parser import parse_netxml
+from utils.text_parsers import parse_kismet_csv, parse_csv, parse_log_csv
 from utils.cert_parsers import parse_certificates
 from utils.beacon_parsers import (parse_security, parse_capabilities,
                                   parse_hidden_ssid)

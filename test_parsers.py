@@ -9,7 +9,8 @@ import unittest
 from utils.cap_common import _suite_name, _dedupe, _to_int
 from utils.beacon_parsers import _classify_wpa, _akm_ints
 from utils.cert_parsers import _cert_attribution
-from utils.cap_parsers import _eap_md5_hashcat, _merge_wps_fields
+from utils.cap_parsers import _merge_wps_fields
+from utils.eap_parsers import _eap_md5_hashcat
 from utils.wifi_constants import (RSN_AKM_SUITES, RSN_CIPHERS,
                                   RSN_ENTERPRISE_AKMS, EAP_METHOD_TYPES)
 

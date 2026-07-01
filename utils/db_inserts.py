@@ -1,6 +1,7 @@
 #!/bin/python3
 ''' Insert/update helpers for the wider DB tables (row-dataclass based). '''
 # -*- coding: utf-8 -*-
+import functools
 import sqlite3
 from utils.db_rows import APRow, ClientRow
 from utils.decode import decode_wps_config_methods, decode_rsn_capabilities
@@ -10,6 +11,26 @@ def _log(verbose, msg):
     '''Print `msg` only in verbose mode (one branch, reused everywhere).'''
     if verbose:
         print(msg)
+
+
+def safe_insert(fn):
+    '''Wrap a DB insert helper with the sqlite error handling every one of them
+    used to repeat inline: a sqlite3.IntegrityError means the row is already
+    present (log in verbose mode, return 0) and any other sqlite3.Error is a
+    failure (return 1). The wrapped helper takes (cursor, verbose, ...) and its
+    own name is used in the log line. Shared with database_utils, so both
+    modules drop one try/except per insert.'''
+    @functools.wraps(fn)
+    def wrapper(cursor, verbose, *args, **kwargs):
+        try:
+            return fn(cursor, verbose, *args, **kwargs)
+        except sqlite3.IntegrityError as error:
+            _log(verbose, fn.__name__ + " " + str(error))
+            return int(0)
+        except sqlite3.Error as error:
+            _log(verbose, fn.__name__ + " Error " + str(error))
+            return int(1)
+    return wrapper
 
 
 def _exec(cursor, verbose, sql, params):
@@ -194,6 +215,7 @@ def insertClients(cursor, verbose, client):
         return int(1)
 
 
+@safe_insert
 def insertWPS(cursor, verbose, wps):
     '''Store the WPS (Wi-Fi Protected Setup) details parsed for an AP.
 
@@ -213,42 +235,33 @@ def insertWPS(cursor, verbose, wps):
     # -> 'Label, PushButton, Keypad, Virtual Display PIN'), stored alongside
     # the raw value and kept sticky with it.
     wps_config_methods_text = decode_wps_config_methods(wps_config_methods)
-    try:
-        # Ensure the AP row exists, then merge the WPS columns into it.
-        insertAPConstraint(cursor, verbose, bssid)
+    # Ensure the AP row exists, then merge the WPS columns into it.
+    insertAPConstraint(cursor, verbose, bssid)
 
-        cursor.execute(
-            '''UPDATE AP SET
-                 wlan_ssid = COALESCE(NULLIF((?), ''), wlan_ssid),
-                 wps_version = CASE WHEN wps_version = '2.0' THEN '2.0'
-                               ELSE (?) END,
-                 wps_device_name = COALESCE(NULLIF((?), ''), wps_device_name),
-                 wps_model_name = COALESCE(NULLIF((?), ''), wps_model_name),
-                 wps_model_number = COALESCE(NULLIF((?), ''), wps_model_number),
-                 wps_config_methods = COALESCE(NULLIF((?), ''),
-                                               wps_config_methods),
-                 wps_config_methods_text = CASE
-                     WHEN NULLIF((?), '') IS NULL THEN wps_config_methods_text
-                     ELSE (?) END,
-                 wps_config_methods_keypad = COALESCE(NULLIF((?), ''),
-                                             wps_config_methods_keypad)
-               WHERE bssid = (?)''',
-            (wlan_ssid, wps_version, wps_device_name, wps_model_name,
-             wps_model_number, wps_config_methods, wps_config_methods,
-             wps_config_methods_text, wps_config_methods_keypad,
-             bssid.upper()))
-        return int(0)
-    except sqlite3.IntegrityError as error:
-        # errors += 1
-        if verbose:
-            print("insertWPS " + str(error))
-        return int(0)
-    except sqlite3.Error as error:
-        if verbose:
-            print("insertWPS Error " + str(error))
-        return int(1)
+    cursor.execute(
+        '''UPDATE AP SET
+             wlan_ssid = COALESCE(NULLIF((?), ''), wlan_ssid),
+             wps_version = CASE WHEN wps_version = '2.0' THEN '2.0'
+                           ELSE (?) END,
+             wps_device_name = COALESCE(NULLIF((?), ''), wps_device_name),
+             wps_model_name = COALESCE(NULLIF((?), ''), wps_model_name),
+             wps_model_number = COALESCE(NULLIF((?), ''), wps_model_number),
+             wps_config_methods = COALESCE(NULLIF((?), ''),
+                                           wps_config_methods),
+             wps_config_methods_text = CASE
+                 WHEN NULLIF((?), '') IS NULL THEN wps_config_methods_text
+                 ELSE (?) END,
+             wps_config_methods_keypad = COALESCE(NULLIF((?), ''),
+                                         wps_config_methods_keypad)
+           WHERE bssid = (?)''',
+        (wlan_ssid, wps_version, wps_device_name, wps_model_name,
+         wps_model_number, wps_config_methods, wps_config_methods,
+         wps_config_methods_text, wps_config_methods_keypad,
+         bssid.upper()))
+    return int(0)
 
 
+@safe_insert
 def insertSecurity(cursor, verbose, sec):
     '''Store the RSN/WPA security details parsed from an AP beacon.
 
@@ -266,29 +279,21 @@ def insertSecurity(cursor, verbose, sec):
     # Human-readable decode of the raw RSN capabilities bitfield (e.g. '0x00c0'
     # -> 'MFPR, MFPC'), stored alongside the raw value.
     rsn_capabilities_text = decode_rsn_capabilities(rsn_capabilities)
-    try:
-        # Ensure the AP row exists, then merge the security columns into it.
-        insertAPConstraint(cursor, verbose, bssid)
+    # Ensure the AP row exists, then merge the security columns into it.
+    insertAPConstraint(cursor, verbose, bssid)
 
-        cursor.execute('''UPDATE AP SET wpa_version = (?), akm_suites = (?),
-                          pairwise_ciphers = (?), group_cipher = (?),
-                          enterprise = (?), pmf = (?), rsn_capabilities = (?),
-                          rsn_capabilities_text = (?)
-                          WHERE bssid = (?)''',
-                       (wpa_version, akm_suites, pairwise_ciphers, group_cipher,
-                        enterprise, pmf, rsn_capabilities,
-                        rsn_capabilities_text, bssid.upper()))
-        return int(0)
-    except sqlite3.IntegrityError as error:
-        if verbose:
-            print("insertSecurity " + str(error))
-        return int(0)
-    except sqlite3.Error as error:
-        if verbose:
-            print("insertSecurity Error " + str(error))
-        return int(1)
+    cursor.execute('''UPDATE AP SET wpa_version = (?), akm_suites = (?),
+                      pairwise_ciphers = (?), group_cipher = (?),
+                      enterprise = (?), pmf = (?), rsn_capabilities = (?),
+                      rsn_capabilities_text = (?)
+                      WHERE bssid = (?)''',
+                   (wpa_version, akm_suites, pairwise_ciphers, group_cipher,
+                    enterprise, pmf, rsn_capabilities,
+                    rsn_capabilities_text, bssid.upper()))
+    return int(0)
 
 
+@safe_insert
 def insertCapabilities(cursor, verbose, cap):
     '''Store the 802.11 management capabilities parsed from an AP beacon /
     probe response (fast roaming and Multiple BSSID / CSA advertisements).
@@ -303,39 +308,31 @@ def insertCapabilities(cursor, verbose, cap):
     bss_transition_80211v, mbssid = cap.bss_transition_80211v, cap.mbssid
     max_bssid_indicator, csa = cap.max_bssid_indicator, cap.csa
     csa_new_channel = cap.csa_new_channel
-    try:
-        # Ensure the AP row exists, then merge the capability columns into it.
-        insertAPConstraint(cursor, verbose, bssid)
+    # Ensure the AP row exists, then merge the capability columns into it.
+    insertAPConstraint(cursor, verbose, bssid)
 
-        cursor.execute(
-            '''UPDATE AP SET
-                 ft_80211r = CASE WHEN ft_80211r = 'True' THEN 'True'
-                             ELSE (?) END,
-                 mobility_domain_id = COALESCE(NULLIF((?), ''),
-                                               mobility_domain_id),
-                 rrm_80211k = CASE WHEN rrm_80211k = 'True' THEN 'True'
-                              ELSE (?) END,
-                 bss_transition_80211v = CASE WHEN bss_transition_80211v =
-                              'True' THEN 'True' ELSE (?) END,
-                 mbssid = CASE WHEN mbssid = 'True' THEN 'True' ELSE (?) END,
-                 max_bssid_indicator = COALESCE((?), max_bssid_indicator),
-                 csa = CASE WHEN csa = 'True' THEN 'True' ELSE (?) END,
-                 csa_new_channel = COALESCE((?), csa_new_channel)
-               WHERE bssid = (?)''',
-            (ft_80211r, mobility_domain_id, rrm_80211k, bss_transition_80211v,
-             mbssid, max_bssid_indicator, csa, csa_new_channel,
-             bssid.upper()))
-        return int(0)
-    except sqlite3.IntegrityError as error:
-        if verbose:
-            print("insertCapabilities " + str(error))
-        return int(0)
-    except sqlite3.Error as error:
-        if verbose:
-            print("insertCapabilities Error " + str(error))
-        return int(1)
+    cursor.execute(
+        '''UPDATE AP SET
+             ft_80211r = CASE WHEN ft_80211r = 'True' THEN 'True'
+                         ELSE (?) END,
+             mobility_domain_id = COALESCE(NULLIF((?), ''),
+                                           mobility_domain_id),
+             rrm_80211k = CASE WHEN rrm_80211k = 'True' THEN 'True'
+                          ELSE (?) END,
+             bss_transition_80211v = CASE WHEN bss_transition_80211v =
+                          'True' THEN 'True' ELSE (?) END,
+             mbssid = CASE WHEN mbssid = 'True' THEN 'True' ELSE (?) END,
+             max_bssid_indicator = COALESCE((?), max_bssid_indicator),
+             csa = CASE WHEN csa = 'True' THEN 'True' ELSE (?) END,
+             csa_new_channel = COALESCE((?), csa_new_channel)
+           WHERE bssid = (?)''',
+        (ft_80211r, mobility_domain_id, rrm_80211k, bss_transition_80211v,
+         mbssid, max_bssid_indicator, csa, csa_new_channel,
+         bssid.upper()))
+    return int(0)
 
 
+@safe_insert
 def insertEAPMD5(cursor, verbose, eap):
     '''Insert a captured EAP-MD5 challenge/response pair (crackable offline
     with hashcat -m 4800). Keyed by (bssid, mac, eap_id). `eap` is an
@@ -343,63 +340,36 @@ def insertEAPMD5(cursor, verbose, eap):
     bssid, mac, identity = eap.bssid, eap.mac, eap.identity
     eap_id, challenge = eap.eap_id, eap.challenge
     response, hashcat, file = eap.response, eap.hashcat, eap.file
-    try:
-        # Insert Client and AP CONSTRAINT
-        insertClientConstraint(cursor, verbose, mac)
-        insertAPConstraint(cursor, verbose, bssid)
+    # Insert Client and AP CONSTRAINT
+    insertClientConstraint(cursor, verbose, mac)
+    insertAPConstraint(cursor, verbose, bssid)
 
-        cursor.execute('''INSERT OR REPLACE INTO EAPMD5
-                          VALUES(?,?,?,?,?,?,?,?)''',
-                       (bssid.upper(), mac.upper(), identity, eap_id,
-                        challenge, response, hashcat, file))
-        return int(0)
-    except sqlite3.IntegrityError as error:
-        if verbose:
-            print("insertEAPMD5 " + str(error))
-        return int(0)
-    except sqlite3.Error as error:
-        if verbose:
-            print("insertEAPMD5 Error " + str(error))
-        return int(1)
+    cursor.execute('''INSERT OR REPLACE INTO EAPMD5
+                      VALUES(?,?,?,?,?,?,?,?)''',
+                   (bssid.upper(), mac.upper(), identity, eap_id,
+                    challenge, response, hashcat, file))
+    return int(0)
 
 
+@safe_insert
 def insertSeenClient(cursor, verbose, seen):
     '''Insert one client sighting. `seen` is a SeenClientRow.'''
     mac, time, tool = seen.mac, seen.time, seen.tool
     signal_rssi, lat, lon, alt = seen.signal_rssi, seen.lat, seen.lon, seen.alt
-    try:
-        cursor.execute('''INSERT INTO SeenClient
-                       VALUES(?,?,?,?,?,?,?)''',
-                       (mac.upper(), time, tool, signal_rssi, lat, lon, alt))
-        return int(0)
-    except sqlite3.IntegrityError as error:
-        # errors += 1
-        if verbose:
-            print("insertSeenClient" + str(error))
-        return int(0)
-    except sqlite3.Error as error:
-        if verbose:
-            print("insertSeenClient Error " + str(error))
-        return int(1)
+    cursor.execute('''INSERT INTO SeenClient
+                   VALUES(?,?,?,?,?,?,?)''',
+                   (mac.upper(), time, tool, signal_rssi, lat, lon, alt))
+    return int(0)
 
 
+@safe_insert
 def insertSeenAP(cursor, verbose, seen):
     '''Insert one AP sighting. `seen` is a SeenAPRow.'''
     bssid, time, tool, signal_rsi = seen.bssid, seen.time, seen.tool, \
         seen.signal_rsi
     lat, lon = seen.lat, seen.lon
     alt, bsstimestamp = seen.alt, seen.bsstimestamp
-    try:
-        cursor.execute('''INSERT INTO SeenAp VALUES(?,?,?,?,?,?,?,?)''',
-                       (bssid.upper(), time, tool, signal_rsi,
-                        lat, lon, alt, bsstimestamp))
-        return int(0)
-    except sqlite3.IntegrityError as error:
-        # errors += 1
-        if verbose:
-            print("insertSeenAP" + str(error))
-        return int(0)
-    except sqlite3.Error as error:
-        if verbose:
-            print("insertSeenAP Error " + str(error))
-        return int(1)
+    cursor.execute('''INSERT INTO SeenAp VALUES(?,?,?,?,?,?,?,?)''',
+                   (bssid.upper(), time, tool, signal_rsi,
+                    lat, lon, alt, bsstimestamp))
+    return int(0)
