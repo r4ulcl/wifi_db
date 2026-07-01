@@ -27,10 +27,19 @@ echo ">> Testing image: ${IMAGE}"
 
 # Override the entrypoint to run pytest instead of wifi_db.py. test_data is
 # mounted read-only at the path the tests expect (./test_data, cwd is /app).
+#
+# pytest generates a Cobertura coverage.xml (see pytest.ini / .coveragerc). The
+# repo root is mounted at /host_out so that report survives the --rm container
+# and lands at ./coverage.xml on the host, ready to upload to Codacy:
+#     export CODACY_PROJECT_TOKEN=<repository coverage token>
+#     bash <(curl -Ls https://coverage.codacy.com/get.sh) report -r coverage.xml
+# (run from the repo root of the checked-out branch; see
+#  https://docs.codacy.com/coverage-reporter/).
 docker run --rm \
     --entrypoint python3 \
     -v "${SCRIPT_DIR}/test_data:/app/test_data:ro" \
+    -v "${SCRIPT_DIR}:/host_out" \
     -w /app \
-    "${IMAGE}" -m pytest
+    "${IMAGE}" -m pytest --cov-report=xml:/host_out/coverage.xml
 
-echo ">> Tests passed for ${IMAGE}"
+echo ">> Tests passed for ${IMAGE}; coverage written to ${SCRIPT_DIR}/coverage.xml"

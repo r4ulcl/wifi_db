@@ -1,0 +1,28 @@
+# Coverage.py configuration. `pytest --cov` (pytest-cov) reads this and, with
+# --cov-report=xml, writes a Cobertura coverage.xml -- the format Codacy expects
+# for Python (https://docs.codacy.com/coverage-reporter/).
+[run]
+branch = True
+# Store repo-root-relative file paths (utils/foo.py, wifi_db.py) instead of
+# absolute ones, so Codacy can match the report to the repository files.
+relative_files = True
+# Measure from the repo root so paths stay repo-relative, then omit everything
+# that is not application code (tests, helper scripts, the local virtualenv).
+source = .
+omit =
+    tests/*
+    scripts/*
+    conftest.py
+    wifi_db_env/*
+    */__pycache__/*
+
+[report]
+show_missing = True
+# Non-executable lines that should never count against coverage.
+exclude_lines =
+    pragma: no cover
+    if __name__ == .__main__.:
+    raise NotImplementedError
+
+[xml]
+output = coverage.xml

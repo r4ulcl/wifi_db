@@ -5,3 +5,4 @@ nest_asyncio>=1.6.0
 pyshark==0.6
 Requests>=2.33.0
 pytest>=9.0.3
+pytest-cov>=6.0.0

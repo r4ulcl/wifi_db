@@ -14,6 +14,12 @@ __pycache__
 *.pyc
 .pytest_cache
 
+# Coverage artifacts (regenerated inside the image when running the suite)
+.coverage
+.coverage.*
+coverage.xml
+htmlcov
+
 # Test fixtures: not baked into the image. The release pipeline / test_docker.sh
 # mounts this directory into the built container to run the suite against it.
 test_data
