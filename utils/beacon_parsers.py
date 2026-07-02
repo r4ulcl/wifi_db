@@ -111,11 +111,3 @@ def parse_hidden_ssid(name, database, verbose):
         "(wlan.fc.type_subtype == 0x05 || wlan.fc.type_subtype == 0x00 || "
         "wlan.fc.type_subtype == 0x02) && wlan.ssid",
         lambda cursor, pkt: _hidden_ssid_for_pkt(cursor, verbose, pkt, seen))
-
-
-# RSN/WPA security parsing lives in utils.security_parsers to keep this file's
-# total cyclomatic complexity down. Re-imported here so existing callers (and
-# tests) can still import these names from utils.beacon_parsers.
-from utils.security_parsers import (  # noqa: E402,F401
-    parse_security, _classify_wpa, _akm_ints, _security_row,
-    _insert_one_security)

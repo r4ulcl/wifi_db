@@ -8,11 +8,6 @@ import os
 from utils import oui
 from utils import database_utils
 
-# The .kismet.csv and .log.csv parsers live in log_parsers; re-imported here so
-# `from utils.text_parsers import parse_kismet_csv, parse_log_csv` still works.
-from utils.log_parsers import parse_kismet_csv  # noqa: F401
-from utils.log_parsers import parse_log_csv  # noqa: F401
-
 
 def _is_ap_row(row):
     '''True when an airodump .csv row is an AP row (not the BSSID header).'''

@@ -8,8 +8,8 @@ from utils import database_utils
 from utils.cap_common import _safe
 from utils.cap_runner import run_cap_parse
 from utils.cert_parsers import parse_certificates
-from utils.beacon_parsers import (parse_security, parse_capabilities,
-                                  parse_hidden_ssid)
+from utils.beacon_parsers import parse_capabilities, parse_hidden_ssid
+from utils.security_parsers import parse_security
 from utils.eap_parsers import (parse_identities, parse_eap_md5,
                                parse_probe_fingerprint, exec_hcxpcapngtool)
 

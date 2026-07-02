@@ -7,7 +7,7 @@ pyshark packet objects nor a database, so they are tested directly.'''
 import unittest
 
 from utils.cap_common import _suite_name, _dedupe, _to_int
-from utils.beacon_parsers import _classify_wpa, _akm_ints
+from utils.security_parsers import _classify_wpa, _akm_ints
 from utils.cert_parsers import _cert_attribution
 from utils.cap_parsers import _merge_wps_fields
 from utils.eap_parsers import _eap_md5_hashcat

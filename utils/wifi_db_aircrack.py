@@ -23,10 +23,11 @@ The public ``parse_*`` entry points are re-exported here so existing callers
 '''
 # -*- coding: utf-8 -*-
 from utils.netxml_parser import parse_netxml
-from utils.text_parsers import parse_kismet_csv, parse_csv, parse_log_csv
+from utils.text_parsers import parse_csv
+from utils.log_parsers import parse_kismet_csv, parse_log_csv
 from utils.cert_parsers import parse_certificates
-from utils.beacon_parsers import (parse_security, parse_capabilities,
-                                  parse_hidden_ssid)
+from utils.beacon_parsers import parse_capabilities, parse_hidden_ssid
+from utils.security_parsers import parse_security
 from utils.cap_parsers import (
     parse_cap, parse_handshakes, parse_MFP, parse_WPS, parse_identities,
     parse_eap_md5, parse_probe_fingerprint, exec_hcxpcapngtool)
