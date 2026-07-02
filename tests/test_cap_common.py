@@ -3,7 +3,6 @@
 These take plain layer/packet stand-ins (no tshark), so they exercise the
 field extraction, SSID decoding and suite-name mapping used by every .cap
 parser without opening a capture.'''
-import binascii
 import unittest
 
 from utils import cap_common

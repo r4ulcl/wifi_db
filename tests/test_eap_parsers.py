@@ -10,12 +10,12 @@ from utils import eap_parsers
 
 
 class _Eap:
-    def __init__(self, code=None, type=None, identity=None,
+    def __init__(self, code=None, etype=None, identity=None,
                  md5_value=None, eap_id=None):
         if code is not None:
             self.code = code
-        if type is not None:
-            self.type = type
+        if etype is not None:
+            self.type = etype
         if identity is not None:
             self.identity = identity
         if md5_value is not None:
@@ -54,7 +54,7 @@ class TestIdentityForPkt(unittest.TestCase):
             insert.assert_not_called()
 
     def test_identity_response_records_identity(self):
-        pkt = _Pkt(_Eap(code="2", type="1", identity="alice"),
+        pkt = _Pkt(_Eap(code="2", etype="1", identity="alice"),
                    _Wlan(da="AP", sa="CLIENT"))
         errors, state, insert = self._call(pkt)
         self.assertEqual(errors, 0)
@@ -63,14 +63,14 @@ class TestIdentityForPkt(unittest.TestCase):
 
     def test_identity_response_missing_field(self):
         # code 2 identity request whose .identity raises is counted once.
-        eap = _Eap(code="2", type="1")
+        eap = _Eap(code="2", etype="1")
         pkt = _Pkt(eap, _Wlan(da="AP", sa="CLIENT"))
         errors, state, insert = self._call(pkt)
         self.assertEqual(errors, 1)
 
     def test_method_packet_inserts(self):
         # A non-identity EAP type stores the method against the last identity.
-        pkt = _Pkt(_Eap(code="1", type="13"))  # 13 = EAP-TLS
+        pkt = _Pkt(_Eap(code="1", etype="13"))  # 13 = EAP-TLS
         errors, state, insert = self._call(
             pkt, state=("AP", "CLIENT", "alice", ""))
         self.assertEqual(errors, 0)
@@ -78,7 +78,7 @@ class TestIdentityForPkt(unittest.TestCase):
         insert.assert_called_once()
 
     def test_unknown_method_type(self):
-        pkt = _Pkt(_Eap(code="1", type="250"))
+        pkt = _Pkt(_Eap(code="1", etype="250"))
         errors, state, insert = self._call(pkt)
         self.assertIn("OTHER (UNKNOWN EAP METHOD)", state[3])
         self.assertIn("250", state[3])
