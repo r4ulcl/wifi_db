@@ -41,6 +41,17 @@ jobs:
           chmod +x ./test_docker.sh
           ./test_docker.sh wifi_db:test
 
+      # test_docker.sh leaves the Cobertura report at ./coverage.xml. Upload it
+      # so the Codacy dashboard reflects the coverage of the code just built,
+      # instead of freezing on whatever was last sent by hand. This workflow
+      # only runs on push to master / tags, so the CODACY_PROJECT_TOKEN secret
+      # is always available here.
+      - name: Upload coverage to Codacy
+        uses: codacy/codacy-coverage-reporter-action@89d6c85cfafaec52c72b6c5e8b2878d33104c699 # v1.3.0
+        with:
+          project-token: ${{ secrets.CODACY_PROJECT_TOKEN }}
+          coverage-reports: coverage.xml
+
       # manager docker
       - name: Extract metadata (tags, labels) for Docker
         id: meta
