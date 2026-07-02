@@ -15,6 +15,10 @@ omit =
     conftest.py
     wifi_db_env/*
     */__pycache__/*
+    # Empty package marker: 0 statements. coverage.py calls that vacuously
+    # 100%, but Codacy computes covered/total and renders 0/0 as a misleading
+    # 0%, so keep it out of the report entirely.
+    utils/__init__.py
 
 [report]
 show_missing = True
