@@ -3,8 +3,8 @@ import unittest
 
 from utils import database_utils
 from utils import oui
+from utils import capture_pipeline
 
-import wifi_db
 import nest_asyncio
 
 
@@ -38,12 +38,12 @@ class TestFunctionsRealData(unittest.TestCase):
         fake_lat = ''
         fake_lon = ''
         force = False
-        ctx = wifi_db.Context(
+        ctx = capture_pipeline.Context(
             ouiMap=ouiMap, database=self.database, verbose=self.verbose,
             fake_lat=fake_lat, fake_lon=fake_lon,
             hcxpcapngtool=hcxpcapngtool, tshark=tshark, force=force)
         for capture in captures:
-            wifi_db.process_capture(ctx, capture)
+            capture_pipeline.process_capture(ctx, capture)
 
     def tearDown(self):
         self.database.close()
