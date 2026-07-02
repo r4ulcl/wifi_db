@@ -1,8 +1,10 @@
-'''Tests for utils/eap_parsers.py driven by fake pyshark packets.
+'''Tests for the EAP identity and EAP-MD5 logic in utils/eap_parsers.py,
+driven by fake pyshark packets.
 
 The per-packet callbacks are pure state machines once the packet fields are
-supplied, so plain stand-in objects exercise the EAP identity, EAP-MD5 and
-probe-fingerprint logic without tshark. Database inserts are mocked.'''
+supplied, so plain stand-in objects exercise them without tshark. Database
+inserts are mocked. The probe-fingerprint parser lives in the same module but
+is tested separately in test_probe_fingerprint.py to keep each file small.'''
 import unittest
 from unittest import mock
 
@@ -10,18 +12,14 @@ from utils import eap_parsers
 
 
 class _Eap:
-    def __init__(self, code=None, etype=None, identity=None,
-                 md5_value=None, eap_id=None):
-        if code is not None:
-            self.code = code
-        if etype is not None:
-            self.type = etype
-        if identity is not None:
-            self.identity = identity
-        if md5_value is not None:
-            self.md5_value = md5_value
-        if eap_id is not None:
-            self.id = eap_id
+    '''Stand-in pyshark eap layer. Only the fields passed in are set, so a
+    packet missing a field raises AttributeError just like the real one.'''
+    # Constructor kwarg -> attribute name (pyshark exposes .type and .id).
+    _ALIASES = {"etype": "type", "eap_id": "id"}
+
+    def __init__(self, **fields):
+        for name, value in fields.items():
+            setattr(self, self._ALIASES.get(name, name), value)
 
 
 class _Wlan:
@@ -152,80 +150,6 @@ class TestEapMd5(unittest.TestCase):
         pkt = _Pkt(_Eap(code="1"), _Wlan(da="AP", sa="CLIENT"))
         errors, insert = self._for_pkt(pkt, {})
         self.assertEqual(errors, 0)
-
-
-class _MgtLayer:
-    def __init__(self, tags, ssid_hex=None):
-        self._tags = tags
-        self._ssid_hex = ssid_hex
-
-    def get_field(self, name):
-        class _F:
-            def __init__(self, values):
-                self.all_fields = [type("SF", (), {
-                    "get_default_value": (lambda self, v=v: v)})()
-                    for v in values]
-        if name == "wlan_tag_number":
-            return _F(self._tags)
-        raise KeyError(name)
-
-    @property
-    def wlan_ssid(self):
-        if self._ssid_hex is None:
-            raise AttributeError("wlan_ssid")
-        return self._ssid_hex
-
-
-class _ProbePkt:
-    def __init__(self, sa=None, mgt=None):
-        if sa is not None:
-            self.wlan = _Wlan(sa=sa)
-        self._mgt = mgt
-
-    def __getitem__(self, key):
-        if key == "wlan.mgt" and self._mgt is not None:
-            return self._mgt
-        raise KeyError(key)
-
-
-class TestProbeFingerprint(unittest.TestCase):
-    def _call(self, pkt, seen):
-        cursor = mock.Mock()
-        with mock.patch(
-                "utils.eap_parsers.database_utils.insertProbeFingerprint",
-                return_value=0) as insert:
-            errors = eap_parsers._probe_fingerprint_for_pkt(
-                cursor, False, pkt, seen, "file.cap")
-        return errors, insert
-
-    def test_missing_mac(self):
-        errors, insert = self._call(_ProbePkt(), set())
-        self.assertEqual(errors, 0)
-        insert.assert_not_called()
-
-    def test_missing_mgt(self):
-        errors, insert = self._call(_ProbePkt(sa="AA"), set())
-        self.assertEqual(errors, 0)
-        insert.assert_not_called()
-
-    def test_no_tags(self):
-        mgt = _MgtLayer(tags=[])
-        errors, insert = self._call(_ProbePkt(sa="AA", mgt=mgt), set())
-        self.assertEqual(errors, 0)
-        insert.assert_not_called()
-
-    def test_fingerprint_inserted_and_deduped(self):
-        ssid_hex = ":".join("%02x" % b for b in b"Net")
-        mgt = _MgtLayer(tags=["0", "1", "48"], ssid_hex=ssid_hex)
-        seen = set()
-        errors, insert = self._call(
-            _ProbePkt(sa="aa:bb:cc:dd:ee:ff", mgt=mgt), seen)
-        self.assertEqual(errors, 0)
-        insert.assert_called_once()
-        # Same MAC/SSID/fingerprint again is skipped.
-        errors, insert = self._call(
-            _ProbePkt(sa="aa:bb:cc:dd:ee:ff", mgt=mgt), seen)
-        insert.assert_not_called()
 
 
 if __name__ == "__main__":
