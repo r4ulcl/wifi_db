@@ -4,7 +4,6 @@ logging, malformed certs, address-less lines, the reassembly error path) and
 the cert_fields/cert_extensions helpers that need certificate features (EC and
 Ed25519 keys, SAN, encipher/decipher-only key usage, OCSP) absent from the RSA
 sample cert.'''
-import datetime
 import ipaddress
 import unittest
 from unittest import mock
@@ -15,17 +14,9 @@ from cryptography.x509.oid import (NameOID, ExtendedKeyUsageOID,
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import rsa, ed25519
 
-from utils import cert_parsers, cert_fields, cert_extensions, database_utils
+from utils import cert_parsers, cert_fields, cert_extensions
 
-
-def _mem_db():
-    database = database_utils.connectDatabase(':memory:', False)
-    database_utils.createDatabase(database, False)
-    return database
-
-
-def _hex(der):
-    return ':'.join('%02x' % b for b in der)
+from test_base import mem_db, colon_hex, build_self_signed
 
 
 def _rich_cert_der():
@@ -37,41 +28,34 @@ def _rich_cert_der():
                       x509.NameAttribute(NameOID.ORGANIZATION_NAME, 'Org'),
                       x509.NameAttribute(NameOID.ORGANIZATIONAL_UNIT_NAME,
                                          'Unit')])
-    builder = (
-        x509.CertificateBuilder()
-        .subject_name(name).issuer_name(name)
-        .public_key(key.public_key())
-        .serial_number(x509.random_serial_number())
-        .not_valid_before(datetime.datetime(2024, 1, 1))
-        .not_valid_after(datetime.datetime(2030, 1, 1))
-        .add_extension(x509.SubjectAlternativeName(
+    extensions = [
+        (x509.SubjectAlternativeName(
             [x509.DNSName('rich.test'),
-             x509.IPAddress(ipaddress.ip_address('10.0.0.1'))]), False)
-        .add_extension(x509.KeyUsage(
+             x509.IPAddress(ipaddress.ip_address('10.0.0.1'))]), False),
+        (x509.KeyUsage(
             digital_signature=True, content_commitment=False,
             key_encipherment=True, data_encipherment=False,
             key_agreement=True, key_cert_sign=True, crl_sign=True,
-            encipher_only=True, decipher_only=True), True)
-        .add_extension(x509.BasicConstraints(ca=True, path_length=1), True)
-        .add_extension(x509.ExtendedKeyUsage(
-            [ExtendedKeyUsageOID.SERVER_AUTH]), False)
-        .add_extension(x509.SubjectKeyIdentifier.from_public_key(
-            key.public_key()), False)
-        .add_extension(x509.AuthorityKeyIdentifier.from_issuer_public_key(
-            key.public_key()), False)
-        .add_extension(x509.CRLDistributionPoints([x509.DistributionPoint(
+            encipher_only=True, decipher_only=True), True),
+        (x509.BasicConstraints(ca=True, path_length=1), True),
+        (x509.ExtendedKeyUsage([ExtendedKeyUsageOID.SERVER_AUTH]), False),
+        (x509.SubjectKeyIdentifier.from_public_key(key.public_key()), False),
+        (x509.AuthorityKeyIdentifier.from_issuer_public_key(
+            key.public_key()), False),
+        (x509.CRLDistributionPoints([x509.DistributionPoint(
             full_name=[x509.UniformResourceIdentifier(
                 'http://crl.test/ca.crl')],
-            relative_name=None, reasons=None, crl_issuer=None)]), False)
-        .add_extension(x509.AuthorityInformationAccess([
+            relative_name=None, reasons=None, crl_issuer=None)]), False),
+        (x509.AuthorityInformationAccess([
             x509.AccessDescription(
                 AuthorityInformationAccessOID.OCSP,
                 x509.UniformResourceIdentifier('http://ocsp.test')),
             x509.AccessDescription(
                 AuthorityInformationAccessOID.CA_ISSUERS,
                 x509.UniformResourceIdentifier('http://ca.test/ca.crt'))]),
-            False))
-    cert = builder.sign(key, hashes.SHA256())
+         False),
+    ]
+    cert = build_self_signed(key, name, extensions, sign_hash=hashes.SHA256())
     return cert.public_bytes(serialization.Encoding.DER)
 
 
@@ -85,26 +69,15 @@ def _key_usage_cert(**flags):
                  key_agreement=False, key_cert_sign=False, crl_sign=False,
                  encipher_only=False, decipher_only=False)
     usage.update(flags)
-    return (x509.CertificateBuilder()
-            .subject_name(name).issuer_name(name)
-            .public_key(key.public_key())
-            .serial_number(x509.random_serial_number())
-            .not_valid_before(datetime.datetime(2024, 1, 1))
-            .not_valid_after(datetime.datetime(2030, 1, 1))
-            .add_extension(x509.KeyUsage(**usage), True)
-            .sign(key, hashes.SHA256()))
+    return build_self_signed(key, name, [(x509.KeyUsage(**usage), True)],
+                             sign_hash=hashes.SHA256())
 
 
 def _ed25519_cert_der():
     key = ed25519.Ed25519PrivateKey.generate()
     name = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, 'ed.test')])
-    cert = (x509.CertificateBuilder()
-            .subject_name(name).issuer_name(name)
-            .public_key(key.public_key())
-            .serial_number(x509.random_serial_number())
-            .not_valid_before(datetime.datetime(2024, 1, 1))
-            .not_valid_after(datetime.datetime(2030, 1, 1))
-            .sign(key, None))  # Ed25519 signs with no separate hash
+    # Ed25519 signs with no separate hash.
+    cert = build_self_signed(key, name, sign_hash=None)
     return cert.public_bytes(serialization.Encoding.DER)
 
 
@@ -171,7 +144,7 @@ class TestCertFieldExtraction(unittest.TestCase):
 
 class TestParseCertificates(unittest.TestCase):
     def setUp(self):
-        self.database = _mem_db()
+        self.database = mem_db()
         self.cursor = self.database.cursor()
 
     def tearDown(self):
@@ -185,7 +158,7 @@ class TestParseCertificates(unittest.TestCase):
             cert_parsers.parse_certificates('cap.cap', self.database, verbose)
 
     def test_lines_cover_all_branches(self):
-        good = _hex(_rich_cert_der())
+        good = colon_hex(_rich_cert_der())
         lines = [
             "\t\t\t",                                       # empty cert col
             # A chain with a trailing empty element exercises the skip-empty

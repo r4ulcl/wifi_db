@@ -12,33 +12,15 @@ from unittest import mock
 
 from utils import cap_common, cap_runner, cap_parsers
 from utils import beacon_parsers, security_parsers, eap_parsers
-from utils import database_utils
 
 from fake_packets import Field, FakeLayer, FakePkt, capture_patch
+from test_base import MemDBTempFile, colon_hex
 
 
-def _mem_db():
-    database = database_utils.connectDatabase(':memory:', False)
-    database_utils.createDatabase(database, False)
-    return database
-
-
-class CapGapBase(unittest.TestCase):
-    def setUp(self):
-        self.database = _mem_db()
-        self.cursor = self.database.cursor()
-        # Some inserts (handshake, hcxpcapngtool) hash the capture path, so it
-        # must be a real file on disk.
-        handle = tempfile.NamedTemporaryFile(
-            suffix='.cap', delete=False)
-        handle.write(b'capture-bytes')
-        handle.close()
-        self.capture = handle.name
-
-    def tearDown(self):
-        self.database.close()
-        if os.path.exists(self.capture):
-            os.remove(self.capture)
+class CapGapBase(MemDBTempFile):
+    # Some inserts (handshake, hcxpcapngtool) hash the capture path, so
+    # MemDBTempFile writes a real .cap file on disk at self.path.
+    temp_suffix = '.cap'
 
 
 # --------------------------------------------------------------------------
@@ -110,7 +92,7 @@ class TestCapRunnerVerboseError(CapGapBase):
         for verbose in (True, False):
             with capture_patch([FakePkt({})]):
                 errors = cap_runner.run_cap_parse(
-                    self.database, self.capture, verbose, "X", "flt", boom,
+                    self.database, self.path, verbose, "X", "flt", boom,
                     catch_pkt_errors=True)
             self.assertEqual(errors, 1)
 
@@ -133,7 +115,7 @@ def _mfp_pkt(rsn_caps, ta='AA:BB:CC:00:00:01'):
 
 
 def _wps_pkt(sa='AA:BB:CC:DD:EE:FF'):
-    ssid_hex = ':'.join('%02x' % b for b in b'TestAP')
+    ssid_hex = colon_hex(b'TestAP')
     mgt = FakeLayer(attrs={
         'wlan_ssid': ssid_hex, 'wps_ext_version2': '20',
         'wps_device_name': 'Router1', 'wps_model_name': 'ModelX',
@@ -145,7 +127,7 @@ def _wps_pkt(sa='AA:BB:CC:DD:EE:FF'):
 class TestParseCapDispatch(CapGapBase):
     def test_parse_cap_no_tools_is_noop(self):
         # tshark False and hcxpcapngtool False: neither branch runs.
-        cap_parsers.parse_cap(self.capture, self.database, False,
+        cap_parsers.parse_cap(self.path, self.database, False,
                               hcxpcapngtool=False, tshark=False)
 
 
@@ -173,7 +155,7 @@ class TestParseHandshakes(CapGapBase):
                        'key_info_10a'),
         ]
         _both_verbose(cap_parsers.parse_handshakes, packets,
-                      self.database, self.capture)
+                      self.database, self.path)
         row = self.cursor.execute(
             "SELECT bssid, mac FROM Handshake").fetchone()
         self.assertEqual(row, (ap, client))
@@ -187,7 +169,7 @@ class TestParseMFP(CapGapBase):
             _mfp_pkt('0x00c0'),    # MFPC+MFPR set -> verbose + insertMFP
         ]
         _both_verbose(cap_parsers.parse_MFP, packets,
-                      self.database, self.capture)
+                      self.database, self.path)
         row = self.cursor.execute(
             "SELECT mfpc, mfpr FROM AP WHERE bssid = ?",
             ('AA:BB:CC:00:00:01',)).fetchone()
@@ -203,7 +185,7 @@ class TestParseWPS(CapGapBase):
                      'wlan.mgt': FakeLayer(attrs={'wlan_ssid': ''})}),
         ]
         _both_verbose(cap_parsers.parse_WPS, packets,
-                      self.database, self.capture)
+                      self.database, self.path)
         row = self.cursor.execute(
             "SELECT wps_device_name, wps_version FROM AP WHERE bssid = ?",
             ('AA:BB:CC:DD:EE:FF',)).fetchone()
@@ -237,7 +219,7 @@ class TestBeaconParsers(CapGapBase):
         packets = [cap_pkt('AA:BB:CC:00:0F:01'), no_cap,
                    cap_pkt('AA:BB:CC:00:0F:01')]
         _both_verbose(beacon_parsers.parse_capabilities, packets,
-                      self.database, self.capture)
+                      self.database, self.path)
         row = self.cursor.execute(
             "SELECT ft_80211r FROM AP WHERE bssid = ?",
             ('AA:BB:CC:00:0F:01',)).fetchone()
@@ -257,7 +239,7 @@ class TestBeaconParsers(CapGapBase):
         packets = [empty, revealed('AA:BB:CC:00:0E:02'),
                    revealed('AA:BB:CC:00:0E:02')]
         _both_verbose(beacon_parsers.parse_hidden_ssid, packets,
-                      self.database, self.capture)
+                      self.database, self.path)
         row = self.cursor.execute(
             "SELECT ssid FROM AP WHERE bssid = ?",
             ('AA:BB:CC:00:0E:02',)).fetchone()
@@ -288,7 +270,7 @@ class TestSecurityParsers(CapGapBase):
             'wlan.mgt': FakeLayer(attrs={})})
         _both_verbose(security_parsers.parse_security,
                       [valid, dup, no_mfp, no_akm],
-                      self.database, self.capture)
+                      self.database, self.path)
         row = self.cursor.execute(
             "SELECT wpa_version FROM AP WHERE bssid = ?",
             ('AA:BB:CC:00:5E:01',)).fetchone()
@@ -321,11 +303,11 @@ class TestEapParsers(CapGapBase):
                                     'sa': 'AA:BB:CC:00:1D:02'})})
         with capture_patch([request, pkt]):
             errors = eap_parsers.parse_identities(
-                self.capture, self.database, True)
+                self.path, self.database, True)
         self.assertEqual(errors, 1)
         # verbose=False takes the other branch of the same error path.
         with capture_patch([request, pkt]):
-            eap_parsers.parse_identities(self.capture, self.database, False)
+            eap_parsers.parse_identities(self.path, self.database, False)
 
     def test_eap_md5_pair_verbose(self):
         request = FakePkt({
@@ -339,7 +321,7 @@ class TestEapParsers(CapGapBase):
             'wlan': FakeLayer(attrs={'sa': 'AA:BB:CC:00:4D:0C',
                                     'da': 'AA:BB:CC:00:4D:0A'})})
         _both_verbose(eap_parsers.parse_eap_md5, [request, response],
-                      self.database, self.capture)
+                      self.database, self.path)
         row = self.cursor.execute(
             "SELECT challenge, response FROM EAPMD5").fetchone()
         self.assertEqual(row, ('aabb', 'ccdd'))
@@ -351,7 +333,7 @@ class TestEapParsers(CapGapBase):
         pkt = FakePkt({'wlan': FakeLayer(attrs={'sa': 'AA:BB:CC:00:9B:01'}),
                        'wlan.mgt': mgt})
         _both_verbose(eap_parsers.parse_probe_fingerprint, [pkt],
-                      self.database, self.capture)
+                      self.database, self.path)
         row = self.cursor.execute(
             "SELECT ie_order FROM Probe WHERE mac = ?",
             ('AA:BB:CC:00:9B:01',)).fetchone()
@@ -371,7 +353,7 @@ class TestExecHcxpcapngtool(CapGapBase):
                 with mock.patch.object(eap_parsers.subprocess, 'Popen',
                                        popen_factory):
                     eap_parsers.exec_hcxpcapngtool(
-                        self.capture, self.database, verbose)
+                        self.path, self.database, verbose)
             finally:
                 os.chdir(prev)
 

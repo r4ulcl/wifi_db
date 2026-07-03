@@ -12,11 +12,7 @@ from unittest import mock
 from utils import database_utils, db_inserts, db_files, db_maintenance
 from utils.db_rows import APRow, ClientRow
 
-
-def _mem_db():
-    database = database_utils.connectDatabase(':memory:', False)
-    database_utils.createDatabase(database, False)
-    return database
+from test_base import MemDBTempFile
 
 
 class RaisingCursor:
@@ -64,19 +60,10 @@ def _operational():
     return sqlite3.OperationalError("no such table")
 
 
-class DBGapBase(unittest.TestCase):
-    def setUp(self):
-        self.database = _mem_db()
-        self.cursor = self.database.cursor()
-        handle = tempfile.NamedTemporaryFile(delete=False)
-        handle.write(b'capture')
-        handle.close()
-        self.file = handle.name
-
-    def tearDown(self):
-        self.database.close()
-        if os.path.exists(self.file):
-            os.remove(self.file)
+class DBGapBase(MemDBTempFile):
+    # Inherits an in-memory database (self.database / self.cursor) plus a real
+    # on-disk file at self.path that the file-hashing inserts need.
+    pass
 
 
 # --------------------------------------------------------------------------
@@ -84,19 +71,19 @@ class DBGapBase(unittest.TestCase):
 # --------------------------------------------------------------------------
 class TestDbFiles(DBGapBase):
     def test_insert_file_verbose(self):
-        self.assertEqual(db_files.insertFile(self.cursor, True, self.file), 0)
+        self.assertEqual(db_files.insertFile(self.cursor, True, self.path), 0)
 
     def test_insert_file_integrity_error(self):
         self.assertEqual(
-            db_files.insertFile(RaisingCursor(_integrity()), False, self.file),
+            db_files.insertFile(RaisingCursor(_integrity()), False, self.path),
             1)
 
     def test_set_file_processed_verbose_and_error(self):
         self.assertEqual(
-            db_files.setFileProcessed(self.cursor, True, self.file), 0)
+            db_files.setFileProcessed(self.cursor, True, self.path), 0)
         self.assertEqual(
             db_files.setFileProcessed(RaisingCursor(_integrity()), False,
-                                      self.file), 1)
+                                      self.path), 1)
 
     def test_check_file_processed_missing_verbose(self):
         self.assertEqual(
@@ -105,7 +92,7 @@ class TestDbFiles(DBGapBase):
     def test_check_file_processed_integrity_error(self):
         self.assertEqual(
             db_files.checkFileProcessed(RaisingCursor(_integrity()), False,
-                                        self.file), 2)
+                                        self.path), 2)
 
 
 # --------------------------------------------------------------------------
@@ -220,7 +207,7 @@ class TestDatabaseUtils(DBGapBase):
         self.assertEqual(
             database_utils.setHashcat(
                 self.cursor, True, "AA:BB:CC:00:00:0B", "55:44:33:22:11:0B",
-                self.file, " WPA*02*hash "), 0)
+                self.path, " WPA*02*hash "), 0)
 
     def test_set_hashcat_integrity_error(self):
         # A cursor that fails the final Handshake INSERT; the earlier
@@ -236,7 +223,7 @@ class TestDatabaseUtils(DBGapBase):
         self.assertEqual(
             database_utils.setHashcat(_HandshakeFails(), False,
                                       "AA:BB:CC:00:00:0C", "55:44:33:22:11:0C",
-                                      self.file, "hash"), 1)
+                                      self.path, "hash"), 1)
 
 
 if __name__ == '__main__':

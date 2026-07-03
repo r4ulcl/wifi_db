@@ -6,19 +6,12 @@ import tempfile
 import unittest
 from unittest import mock
 
-import wifi_db
 from utils import capture_pipeline
+
+from test_base import run_main
 
 
 class TestMainBranches(unittest.TestCase):
-    def _run_main(self, argv):
-        with mock.patch("wifi_db.sys.argv", ["wifi_db.py"] + argv), \
-                mock.patch("wifi_db.update.check_for_update"), \
-                mock.patch("wifi_db.oui.load_vendors", return_value={}), \
-                mock.patch("wifi_db.detect_tools",
-                           return_value=(False, False)):
-            wifi_db.main()
-
     def test_verbose_no_debug_no_obfuscate_no_trailing_slash(self):
         with tempfile.TemporaryDirectory() as workdir:
             db_path = os.path.join(workdir, "out.db")
@@ -27,7 +20,7 @@ class TestMainBranches(unittest.TestCase):
             # -v (verbose) without --debug, without -o, and a capture path that
             # does not end in '/': the complementary branch of every guard the
             # existing --debug/-o/trailing-slash test takes.
-            self._run_main(["-v", "-d", db_path, captures])
+            run_main(["-v", "-d", db_path, captures])
             self.assertTrue(os.path.exists(db_path))
 
 

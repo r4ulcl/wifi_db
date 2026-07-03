@@ -8,6 +8,8 @@ import unittest
 
 from utils import log_parsers, text_parsers, netxml_parser, decode
 
+from test_base import mem_db
+
 
 class CursorRaisingDB:
     '''A database whose cursor() raises, to trip the parsers' outer
@@ -77,7 +79,7 @@ class TestLogParsers(unittest.TestCase):
         content = ("LocalTime,a,b,c,d,e,f,g,h,i,j\n"
                    "2023-10-20 14:33:06,,,,,,,,,,Other\n")
         path = _tmpfile(content, ".log.csv")
-        database = _mem_db()
+        database = mem_db()
         try:
             log_parsers.parse_log_csv({}, path, database, False, "", "")
         finally:
@@ -111,13 +113,6 @@ class TestTextParsers(unittest.TestCase):
 # --------------------------------------------------------------------------
 # netxml_parser
 # --------------------------------------------------------------------------
-def _mem_db():
-    from utils import database_utils
-    database = database_utils.connectDatabase(':memory:', False)
-    database_utils.createDatabase(database, False)
-    return database
-
-
 _FULL_NETXML = '''<detection-run>
   <wireless-network type="infrastructure">
     <SSID first-time="Fri Oct 20 14:33:06 2023">
@@ -169,7 +164,7 @@ _TRUNCATED_NETXML = ('<detection-run>\n'
 class TestNetxmlParser(unittest.TestCase):
     def test_full_netxml_probe_infra_and_unknown_verbose(self):
         path = _tmpfile(_FULL_NETXML, ".kismet.netxml")
-        database = _mem_db()
+        database = mem_db()
         try:
             netxml_parser.parse_netxml({}, path, database, True)
             row = database.cursor().execute(
@@ -185,7 +180,7 @@ class TestNetxmlParser(unittest.TestCase):
         # is still parsed without raising. Both verbosities hit the repair.
         for verbose in (True, False):
             path = _tmpfile(_TRUNCATED_NETXML, ".kismet.netxml")
-            database = _mem_db()
+            database = mem_db()
             try:
                 netxml_parser.parse_netxml({}, path, database, verbose)
             finally:
@@ -195,7 +190,7 @@ class TestNetxmlParser(unittest.TestCase):
     def test_parse_netxml_missing_file(self):
         # A working database but a non-existent file reaches the "missing"
         # branch (the cursor is opened before the file is checked).
-        database = _mem_db()
+        database = mem_db()
         try:
             netxml_parser.parse_netxml({}, "/no/such/file.kismet.netxml",
                                        database, False)

@@ -1,28 +1,16 @@
-import os
-import unittest
-
-from utils import database_utils
 from utils import oui
 from utils import capture_pipeline
 
 import nest_asyncio
 
+from test_base import DBTestBase
 
-class TestFunctionsRealData(unittest.TestCase):
+
+class TestFunctionsRealData(DBTestBase):
     def setUp(self):
-        self.verbose = False
-        self.database_name = 'test_database.db'
-        self.database = database_utils.connectDatabase(self.database_name,
-                                                       self.verbose)
-        database_utils.createDatabase(self.database, self.verbose)
-        database_utils.createViews(self.database, self.verbose)
-        self.c = self.database.cursor()
-        self.bssid = "00:11:22:33:44:55"
-        self.mac = "55:44:33:22:11:00"
-        self.test_database_name = 'test_database.db'
-        self.test_database_conn = None
-
-        # Load real data
+        # DBTestBase builds the on-disk test database (self.database / self.c);
+        # then load the real sample captures on top of it.
+        super().setUp()
         nest_asyncio.apply()
 
         tshark = True
@@ -44,13 +32,6 @@ class TestFunctionsRealData(unittest.TestCase):
             hcxpcapngtool=hcxpcapngtool, tshark=tshark, force=force)
         for capture in captures:
             capture_pipeline.process_capture(ctx, capture)
-
-    def tearDown(self):
-        self.database.close()
-        if self.test_database_conn:
-            self.test_database_conn.close()
-        if os.path.exists(self.test_database_name):
-            os.remove(self.test_database_name)
 
     def testRealAP(self):
 

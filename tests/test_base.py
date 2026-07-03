@@ -1,8 +1,12 @@
 import os
 import datetime
+import tempfile
 import unittest
+from unittest import mock
 
 from utils import database_utils
+
+import wifi_db
 
 from cryptography import x509
 from cryptography.x509.oid import NameOID
@@ -12,6 +16,72 @@ from cryptography.hazmat.primitives.asymmetric import rsa
 # Repo root (tests/ lives one level below it). Used to locate real files the
 # suite hashes as sample inputs, e.g. README.md, regardless of cwd.
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+# Fixed validity window shared by every test certificate.
+_CERT_NOT_BEFORE = datetime.datetime(2024, 1, 1)
+_CERT_NOT_AFTER = datetime.datetime(2030, 1, 1)
+
+
+def mem_db():
+    '''A fresh in-memory database with the schema applied, for tests that need
+    a real database but not the on-disk DBTestBase lifecycle.'''
+    database = database_utils.connectDatabase(':memory:', False)
+    database_utils.createDatabase(database, False)
+    return database
+
+
+def colon_hex(data):
+    '''Colon-separated hex of a byte string (b'\\xaa\\xbb' -> 'aa:bb'): the
+    form tshark prints certificate DER and SSID octet fields in.'''
+    return ':'.join('%02x' % b for b in data)
+
+
+def build_self_signed(key, name, extensions=(), *, sign_hash):
+    '''Build a self-signed certificate (issuer == subject) over the shared
+    validity window and return the cryptography Certificate. `extensions` is an
+    iterable of (extension, critical) pairs; `sign_hash` is the signature hash
+    (None for Ed25519, which signs without one).'''
+    builder = (x509.CertificateBuilder()
+               .subject_name(name).issuer_name(name)
+               .public_key(key.public_key())
+               .serial_number(x509.random_serial_number())
+               .not_valid_before(_CERT_NOT_BEFORE)
+               .not_valid_after(_CERT_NOT_AFTER))
+    for extension, critical in extensions:
+        builder = builder.add_extension(extension, critical)
+    return builder.sign(key, sign_hash)
+
+
+def run_main(argv):
+    '''Invoke wifi_db.main() with argv (minus the program name), patching out
+    the update check and vendor download and forcing tool detection off, so the
+    CLI runs offline. Shared by the CLI tests.'''
+    with mock.patch("wifi_db.sys.argv", ["wifi_db.py"] + argv), \
+            mock.patch("wifi_db.update.check_for_update"), \
+            mock.patch("wifi_db.oui.load_vendors", return_value={}), \
+            mock.patch("wifi_db.detect_tools", return_value=(False, False)):
+        wifi_db.main()
+
+
+class MemDBTempFile(unittest.TestCase):
+    '''In-memory database plus a throwaway on-disk file. Some inserts hash the
+    capture/file path, so it must really exist on disk. Subclasses set
+    `temp_suffix` and read self.database, self.cursor and self.path.'''
+    temp_suffix = ''
+
+    def setUp(self):
+        self.database = mem_db()
+        self.cursor = self.database.cursor()
+        handle = tempfile.NamedTemporaryFile(suffix=self.temp_suffix,
+                                             delete=False)
+        handle.write(b'capture')
+        handle.close()
+        self.path = handle.name
+
+    def tearDown(self):
+        self.database.close()
+        if os.path.exists(self.path):
+            os.remove(self.path)
 
 
 def sample_cert():
@@ -120,12 +190,5 @@ class DBTestBase(unittest.TestCase):
         DER, exactly as `tshark -e tls.handshake.certificate` emits it.'''
         key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
         name = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, cn)])
-        cert = (x509.CertificateBuilder()
-                .subject_name(name).issuer_name(name)
-                .public_key(key.public_key())
-                .serial_number(x509.random_serial_number())
-                .not_valid_before(datetime.datetime(2024, 1, 1))
-                .not_valid_after(datetime.datetime(2030, 1, 1))
-                .sign(key, hashes.SHA256()))
-        der = cert.public_bytes(serialization.Encoding.DER)
-        return ':'.join('%02x' % b for b in der)
+        cert = build_self_signed(key, name, sign_hash=hashes.SHA256())
+        return colon_hex(cert.public_bytes(serialization.Encoding.DER))

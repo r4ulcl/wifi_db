@@ -11,6 +11,8 @@ from unittest import mock
 
 import wifi_db
 
+from test_base import run_main
+
 
 class TestSmallHelpers(unittest.TestCase):
     def test_banner_and_version(self):
@@ -65,23 +67,16 @@ class TestToolDetection(unittest.TestCase):
 
 class TestMain(unittest.TestCase):
     '''main() end to end with a real temporary database and an (empty)
-    capture folder; the update check and vendor download are patched out.'''
-
-    def _run_main(self, argv):
-        with mock.patch("wifi_db.sys.argv", ["wifi_db.py"] + argv), \
-                mock.patch("wifi_db.update.check_for_update"), \
-                mock.patch("wifi_db.oui.load_vendors", return_value={}), \
-                mock.patch("wifi_db.detect_tools",
-                           return_value=(False, False)):
-            wifi_db.main()
+    capture folder; the update check and vendor download are patched out
+    (see test_base.run_main).'''
 
     def test_version_exits(self):
         with self.assertRaises(SystemExit):
-            self._run_main(["--version"])
+            run_main(["--version"])
 
     def test_missing_capture_exits(self):
         with self.assertRaises(SystemExit):
-            self._run_main([])
+            run_main([])
 
     def test_full_run(self):
         with tempfile.TemporaryDirectory() as workdir:
@@ -89,8 +84,7 @@ class TestMain(unittest.TestCase):
             captures = os.path.join(workdir, "captures")
             os.mkdir(captures)
             # Trailing slash and doubled slash both get normalised.
-            self._run_main(["--debug", "-o", "-d", db_path,
-                            captures + "//"])
+            run_main(["--debug", "-o", "-d", db_path, captures + "//"])
             self.assertTrue(os.path.exists(db_path))
 
 
