@@ -82,6 +82,21 @@ class TestOui(unittest.TestCase):
         copy.assert_not_called()
         self.assertTrue(vendors)
 
+    def test_redownload_when_cache_is_stale(self):
+        # The cached CSV exists but is older than 2h, so a re-download is
+        # attempted. The network call is stubbed to fail (no real request,
+        # copyfile untouched), exercising the "stale cache" branch that is
+        # otherwise only reached when the shipped CSV happens to be old.
+        with mock.patch("utils.oui.os.path.exists", return_value=True), \
+                mock.patch("utils.oui.os.path.getmtime", return_value=0), \
+                mock.patch("requests.get",
+                           side_effect=requests.exceptions.RequestException(
+                               "offline")), \
+                mock.patch("utils.oui.copyfile") as copy:
+            vendors = oui.load_vendors()
+        copy.assert_not_called()
+        self.assertTrue(vendors)
+
     def test_get_vendor_prefix_walk(self):
         # The lookup shortens the MAC until a prefix matches; verbose prints
         # each attempt.
