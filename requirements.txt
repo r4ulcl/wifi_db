@@ -1,7 +1,7 @@
 cryptography>=48.0.1
 defusedxml==0.7.1
+nest_asyncio==1.6.0
 ftfy>=6.3.1
-nest_asyncio>=1.6.0
 pyshark==0.6
 Requests==2.34.2
 pytest>=9.0.3
