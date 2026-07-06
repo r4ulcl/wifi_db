@@ -1,0 +1,29 @@
+---
+# Codacy configuration for wifi_db
+#
+# Exclusions below remove noise and false positives so the dashboard reflects
+# real issues only.
+exclude_paths:
+  # Local virtualenv committed in the repo: not project source code.
+  - 'wifi_db_env/**'
+  # Generated / cache directories.
+  - '__pycache__/**'
+  - '**/__pycache__/**'
+  - '.pytest_cache/**'
+  # Empty package marker (0 statements). Codacy renders its 0/0 coverage as a
+  # misleading 0%; there is nothing to analyse or cover, so exclude it.
+  - 'utils/__init__.py'
+  # Vendor data dump (OUI MAC vendor list), not hand-written code.
+  - 'utils/mac-vendors-export.csv'
+  # pip requirements file, not Python. Codacy routes it to Bandit, which
+  # AST-parses it and fails on the version specifiers ("syntax error while
+  # parsing AST from file", e.g. `cryptography>=48.0.1`). Dependency/CVE
+  # scanning is a separate Codacy feature and is unaffected by this exclusion.
+  - 'requirements.txt'
+  # Static, trusted SQLite schema/view definitions. These are plain SQLite DDL
+  # shipped with the project and executed via sqlite3.executescript(). Codacy's
+  # SQL analysis parses them with a SQL Server (T-SQL) dialect, which produces
+  # false positives ("syntax error near NOT/CONSTRAINT", "SET ANSI_NULLS",
+  # "queries must target RAC_* tables", etc.) that do not apply to SQLite.
+  - 'utils/view.sql'
+  - 'utils/wifi_db_database.sql'

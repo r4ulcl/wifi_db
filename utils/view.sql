@@ -36,10 +36,38 @@ SELECT Identity.bssid, AP.ssid, Identity.mac, Client.manuf, Identity.identity, I
 FROM Identity JOIN AP ON Identity.bssid = AP.bssid  JOIN Client ON Identity.mac = Client.mac
 ORDER BY Identity.bssid;
 
+DROP VIEW IF EXISTS CertificateAP;
+CREATE VIEW IF NOT EXISTS CertificateAP AS
+SELECT Certificate.bssid, AP.ssid, Certificate.cert_type, Certificate.subject_cn, Certificate.issuer_cn, Certificate.subject, Certificate.issuer, Certificate.not_before, Certificate.not_after, Certificate.public_key_algorithm, Certificate.public_key_size, Certificate.self_signed, Certificate.sha256_fingerprint
+FROM Certificate JOIN AP ON Certificate.bssid = AP.bssid
+ORDER BY Certificate.bssid;
+
+DROP VIEW IF EXISTS SecurityAP;
+CREATE VIEW IF NOT EXISTS SecurityAP AS
+SELECT AP.bssid, AP.ssid, AP.wpa_version, AP.akm_suites, AP.pairwise_ciphers, AP.group_cipher, AP.enterprise, AP.pmf, AP.rsn_capabilities, AP.rsn_capabilities_text, AP.mfpc, AP.mfpr
+FROM AP
+WHERE AP.wpa_version IS NOT NULL
+ORDER BY AP.bssid;
+
+DROP VIEW IF EXISTS CapabilitiesAP;
+CREATE VIEW IF NOT EXISTS CapabilitiesAP AS
+SELECT AP.bssid, AP.ssid, AP.ft_80211r, AP.mobility_domain_id, AP.rrm_80211k, AP.bss_transition_80211v, AP.mbssid, AP.max_bssid_indicator, AP.csa, AP.csa_new_channel
+FROM AP
+WHERE AP.ft_80211r = 'True' OR AP.rrm_80211k = 'True' OR AP.bss_transition_80211v = 'True' OR AP.mbssid = 'True' OR AP.csa = 'True'
+ORDER BY AP.bssid;
+
 DROP VIEW IF EXISTS SummaryAP;
 CREATE VIEW IF NOT EXISTS SummaryAP AS
-SELECT AP.ssid, COUNT(DISTINCT AP.bssid) as "APs count", AP.encryption, AP.manuf, AP.cloaked, count(DISTINCT Connected.mac) as "Clients count"
-FROM AP LEFT JOIN Connected ON AP.bssid = Connected.bssid 
+SELECT
+    AP.ssid,
+    COUNT(DISTINCT AP.bssid) AS "APs count",
+    AP.encryption,
+    GROUP_CONCAT(DISTINCT AP.wpa_version) AS wpa_version,
+    GROUP_CONCAT(DISTINCT AP.pmf) AS pmf,
+    GROUP_CONCAT(DISTINCT AP.manuf) AS manuf,
+    AP.cloaked,
+    COUNT(DISTINCT Connected.mac) AS "Clients count"
+FROM AP LEFT JOIN Connected ON AP.bssid = Connected.bssid
 WHERE AP.encryption != ""
-group by AP.ssid
-ORDER BY "APs count" DESC;
+GROUP BY AP.ssid, AP.encryption
+ORDER BY "APs count" DESC, AP.ssid;
