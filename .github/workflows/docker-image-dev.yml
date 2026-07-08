@@ -10,45 +10,77 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Set up QEMU
-        uses: docker/setup-qemu-action@v1
-        
+        # v3 ships a recent QEMU; old QEMU emulation crashes arm64 apt-get
+        # (exit code 100). Required for the linux/arm64 build below.
+        uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130 # v3.7.0
+
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v1
+        uses: docker/setup-buildx-action@f7ce87c1d6bead3e36075b2ce75da1f6cc28aaca # v3.9.0
 
       - name: Checkout
-        uses: actions/checkout@v3   
+        uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744 # v3
+
+      # Build the amd64 image locally first and run the test suite against it.
+      # The image is test-free; test_docker.sh mounts the fixtures and runs
+      # pytest with the image's own Python/tshark/hcxtools. Nothing is pushed
+      # until this passes, so a failing build never reaches a registry.
+      - name: Build image for testing
+        uses: docker/build-push-action@ac9327eae2b366085ac7f6a2d02df8aa8ead720a # v2
+        with:
+          context: .
+          file: ./Dockerfile
+          platforms: linux/amd64
+          load: true
+          push: false
+          tags: wifi_db:test
+
+      - name: Test the built image
+        run: |
+          chmod +x ./test_docker.sh
+          ./test_docker.sh wifi_db:test
+
+      # test_docker.sh leaves the Cobertura report at ./coverage.xml. Upload it
+      # so the Codacy dashboard reflects the coverage of the code just built,
+      # instead of freezing on whatever was last sent by hand. This workflow
+      # only runs on push to dev, so the CODACY_PROJECT_TOKEN secret is always
+      # available here.
+      - name: Upload coverage to Codacy
+        uses: codacy/codacy-coverage-reporter-action@89d6c85cfafaec52c72b6c5e8b2878d33104c699 # v1.3.0
+        with:
+          project-token: ${{ secrets.CODACY_PROJECT_TOKEN }}
+          coverage-reports: coverage.xml
 
       # manager docker
       - name: Extract metadata (tags, labels) for Docker
         id: meta
-        uses: docker/metadata-action@v5
+        uses: docker/metadata-action@c299e40c65443455700f0fdfc63efafe5b349051 # v5
         with:
-          images: ${{ github.actor }}/wifi_db
+          images: ${{ github.repository }}
 
       - name: Login to DockerHub
-        uses: docker/login-action@v1 
+        uses: docker/login-action@dd4fa0671be5250ee6f50aedf4cb05514abda2c7 # v1 
         with:
           username: ${{ github.actor }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
       - name: Build and push docker
         id: docker_build
-        uses: docker/build-push-action@v2
+        uses: docker/build-push-action@ac9327eae2b366085ac7f6a2d02df8aa8ead720a # v2
         with:
           context: .
           file: ./Dockerfile
           platforms: linux/amd64,linux/arm64
           push: true
-          tags: ${{ secrets.DOCKERHUB_USERNAME }}/wifi_db:dev
+          tags: ${{ github.repository }}:dev
 
       - name: Login to GitHub Container Registry
         run: echo ${{ secrets.GITHUB_TOKEN }} | docker login ghcr.io -u ${{ github.actor }} --password-stdin
 
       - name: Build and push docker
         id: docker_build_ghcr
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@ca052bb54ab0790a636c9b5f226502c73d547a25 # v5
         with:
           context: .
           file: ./Dockerfile
           platforms: linux/amd64,linux/arm64
           push: true
-          tags: ghcr.io/${{ github.actor }}/wifi_db:dev
+          tags: ghcr.io/${{ github.repository }}:dev

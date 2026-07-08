@@ -1,0 +1,44 @@
+# Keep the build context (and the COPY layer) small. Anything not needed to
+# run wifi_db inside the container is excluded here. Tests are not run during
+# the build; they run against the finished image (see test_docker.sh).
+
+# VCS / CI
+.git
+.github
+.gitignore
+
+# Local virtualenv and Python caches
+wifi_db_env
+__pycache__
+**/__pycache__
+*.pyc
+.pytest_cache
+
+# Coverage artifacts (regenerated inside the image when running the suite)
+.coverage
+.coverage.*
+coverage.xml
+.coverage_out.*
+htmlcov
+
+# Test fixtures: not baked into the image. The release pipeline / test_docker.sh
+# mounts this directory into the built container to run the suite against it.
+test_data
+
+# README image assets and the roadmap/changelog are not needed at runtime.
+# README.md itself is kept: the test suite hashes it as a sample input file.
+resources
+ROADMAP*.md
+CHANGELOG.md
+
+# Local databases / editor / tooling
+*.sqlite
+*.SQLITE
+*.sqlite-journal
+.vscode
+.codacy.yaml
+.flake8
+
+# Docker files themselves
+Dockerfile
+.dockerignore
