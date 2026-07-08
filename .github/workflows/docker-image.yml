@@ -1,9 +1,13 @@
 name: Docker Image
 
+# Release build. Fires only on a version tag so a single run builds the image
+# once and pushes every tag (vX.Y, latest, master) from that one build, so they
+# are guaranteed to be the same image on both Docker Hub and GHCR. Pushing to
+# master no longer triggers a separate build (the 'dev' branch provides the
+# rolling image), which is what previously left ':master' as a different, stale
+# build from ':latest'/':vX.Y'.
 on:
   push:
-    branches:
-      - 'master'
     tags:
       - 'v*'
 
@@ -44,47 +48,50 @@ jobs:
       # test_docker.sh leaves the Cobertura report at ./coverage.xml. Upload it
       # so the Codacy dashboard reflects the coverage of the code just built,
       # instead of freezing on whatever was last sent by hand. This workflow
-      # only runs on push to master / tags, so the CODACY_PROJECT_TOKEN secret
-      # is always available here.
+      # only runs on tags, so the CODACY_PROJECT_TOKEN secret is always
+      # available here.
       - name: Upload coverage to Codacy
         uses: codacy/codacy-coverage-reporter-action@89d6c85cfafaec52c72b6c5e8b2878d33104c699 # v1.3.0
         with:
           project-token: ${{ secrets.CODACY_PROJECT_TOKEN }}
           coverage-reports: coverage.xml
 
-      # manager docker
+      # One metadata step drives both registries so the pushed tags are
+      # identical. latest=false disables the action's automatic 'latest'; we
+      # add latest (and master) explicitly so all three point at this one build.
       - name: Extract metadata (tags, labels) for Docker
         id: meta
         uses: docker/metadata-action@c299e40c65443455700f0fdfc63efafe5b349051 # v5
         with:
-          images: ${{ github.repository }}
+          images: |
+            ${{ github.repository }}
+            ghcr.io/${{ github.repository }}
+          flavor: |
+            latest=false
+          tags: |
+            type=ref,event=tag
+            type=raw,value=latest
+            type=raw,value=master
 
       - name: Login to DockerHub
-        uses: docker/login-action@dd4fa0671be5250ee6f50aedf4cb05514abda2c7 # v1 
+        uses: docker/login-action@dd4fa0671be5250ee6f50aedf4cb05514abda2c7 # v1
         with:
           username: ${{ github.actor }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
-      - name: Build and push docker
-        id: docker_build
-        uses: docker/build-push-action@ac9327eae2b366085ac7f6a2d02df8aa8ead720a # v2
-        with:
-          context: .
-          file: ./Dockerfile
-          platforms: linux/amd64,linux/arm64
-          push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
 
       - name: Login to GitHub Container Registry
         run: echo ${{ secrets.GITHUB_TOKEN }} | docker login ghcr.io -u ${{ github.actor }} --password-stdin
 
-      - name: Build and push github
-        id: docker_build_ghcr
+      # Single multi-arch build pushed to both registries with the full tag set
+      # from the metadata step. Because it is one build, vX.Y, latest and master
+      # resolve to the same digest everywhere.
+      - name: Build and push
+        id: docker_build
         uses: docker/build-push-action@ca052bb54ab0790a636c9b5f226502c73d547a25 # v5
         with:
           context: .
           file: ./Dockerfile
           platforms: linux/amd64,linux/arm64
           push: true
-          tags: ghcr.io/${{ github.repository }}:latest, ghcr.io/${{ steps.meta.outputs.tags }}
+          tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
