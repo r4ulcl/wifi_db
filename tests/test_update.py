@@ -76,6 +76,14 @@ class TestParseVersions(unittest.TestCase):
         self.assertIsNone(update._parse_versions("nonsense", "v1.2"))
         self.assertIsNone(update._parse_versions("v1.2", "nonsense"))
 
+    def test_padding_equal_precision(self):
+        # The "1.6.0" build and the "v1.6" release tag are the same version:
+        # the shorter tuple is zero-padded so they compare equal instead of
+        # (1, 6) < (1, 6, 0) making the build look newer than the release.
+        parsed = update._parse_versions("1.6.0", "v1.6")
+        self.assertEqual(parsed, ((1, 6, 0), (1, 6, 0), "1.6"))
+        self.assertEqual(parsed[0], parsed[1])
+
 
 class TestPromptAndUpdate(unittest.TestCase):
     def test_decline(self):
@@ -86,13 +94,35 @@ class TestPromptAndUpdate(unittest.TestCase):
         popen.assert_not_called()
 
     def test_accept(self):
-        # Empty answer defaults to yes: git pull + pip install, then exit.
+        # Empty answer defaults to yes: git pull (checkout + pull, via run)
+        # then pip install (via Popen), then exit.
         with mock.patch("builtins.input", return_value=""), \
+                mock.patch("utils.update.subprocess.run") as run, \
                 mock.patch("utils.update.subprocess.Popen") as popen:
             popen.return_value = mock.Mock(wait=mock.Mock(return_value=0))
             with self.assertRaises(SystemExit):
-                update._prompt_and_update("/repo", "1.9")
-        self.assertEqual(popen.call_count, 2)
+                update._prompt_and_update("/repo/utils", "1.9")
+        self.assertEqual(run.call_count, 2)
+        self.assertEqual(popen.call_count, 1)
+
+
+class TestGitPull(unittest.TestCase):
+    def test_discards_csv_then_pulls_with_autostash(self):
+        with mock.patch("utils.update.subprocess.run") as run:
+            update._git_pull("/repo/utils")
+        self.assertEqual(run.call_count, 2)
+        checkout_cmd = run.call_args_list[0].args[0]
+        pull_cmd = run.call_args_list[1].args[0]
+        # First: discard the throwaway, always-dirty local OUI database so it
+        # cannot block the pull.
+        self.assertIn("checkout", checkout_cmd)
+        self.assertTrue(
+            any("mac-vendors-export.csv" in part for part in checkout_cmd))
+        # Then: pull with autostash so any other stray local edit is shelved
+        # across the pull instead of aborting it.
+        self.assertIn("pull", pull_cmd)
+        self.assertIn("rebase.autostash=true", pull_cmd)
+        self.assertIn("merge.autostash=true", pull_cmd)
 
 
 class TestCheckForUpdate(unittest.TestCase):
@@ -135,6 +165,12 @@ class TestCheckForUpdate(unittest.TestCase):
 
     def test_up_to_date(self):
         prompt = self._run("v1.6.0", tag="v1.6.0")
+        prompt.assert_not_called()
+
+    def test_up_to_date_mixed_precision(self):
+        # Regression: a "1.6.0" build against the "v1.6" release tag is up to
+        # date, not a "future/dev version" and not an available update.
+        prompt = self._run("1.6.0", tag="v1.6")
         prompt.assert_not_called()
 
 
