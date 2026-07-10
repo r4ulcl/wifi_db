@@ -130,8 +130,9 @@ class TestCheckForUpdate(unittest.TestCase):
     comparison outcomes. The helpers it calls are patched per test.'''
 
     def _run(self, version, installed=True, repo=True, tag="v1.6.0"):
-        with mock.patch("utils.update.is_git_installed",
-                        return_value=installed), \
+        with mock.patch("utils.update.is_docker", return_value=False), \
+                mock.patch("utils.update.is_git_installed",
+                           return_value=installed), \
                 mock.patch("utils.update.is_git_repo", return_value=repo), \
                 mock.patch("utils.update.get_latest_github_release",
                            return_value=tag), \
@@ -172,6 +173,55 @@ class TestCheckForUpdate(unittest.TestCase):
         # date, not a "future/dev version" and not an available update.
         prompt = self._run("1.6.0", tag="v1.6")
         prompt.assert_not_called()
+
+
+class TestIsDocker(unittest.TestCase):
+    '''is_docker() honours the WIFI_DB_DOCKER env var and the /.dockerenv
+    marker, and is False when neither is present.'''
+
+    def test_env_var(self):
+        with mock.patch.dict("utils.update.os.environ",
+                             {"WIFI_DB_DOCKER": "1"}):
+            self.assertTrue(update.is_docker())
+
+    def test_dockerenv_marker(self):
+        with mock.patch.dict("utils.update.os.environ", {}, clear=True), \
+                mock.patch("utils.update.os.path.exists", return_value=True):
+            self.assertTrue(update.is_docker())
+
+    def test_not_docker(self):
+        with mock.patch.dict("utils.update.os.environ", {}, clear=True), \
+                mock.patch("utils.update.os.path.exists", return_value=False):
+            self.assertFalse(update.is_docker())
+
+
+class TestCheckDockerUpdate(unittest.TestCase):
+    '''In Docker, check_for_update skips the git paths and, when a newer
+    release exists, prints the docker pull instructions instead of prompting to
+    git pull.'''
+
+    def _run(self, version, tag="v1.6.0"):
+        with mock.patch("utils.update.is_docker", return_value=True), \
+                mock.patch("utils.update.get_latest_github_release",
+                           return_value=tag), \
+                mock.patch("utils.update._prompt_and_update") as prompt, \
+                mock.patch("builtins.print") as printed:
+            update.check_for_update(version)
+        return prompt, printed
+
+    def test_newer_available_says_docker_pull(self):
+        prompt, printed = self._run("v1.0", tag="v1.6.0")
+        prompt.assert_not_called()
+        output = " ".join(str(c.args[0]) for c in printed.call_args_list
+                          if c.args)
+        self.assertIn("docker pull r4ulcl/wifi_db:latest", output)
+
+    def test_up_to_date(self):
+        prompt, printed = self._run("v1.6.0", tag="v1.6.0")
+        prompt.assert_not_called()
+        output = " ".join(str(c.args[0]) for c in printed.call_args_list
+                          if c.args)
+        self.assertIn("latest version", output)
 
 
 if __name__ == "__main__":
