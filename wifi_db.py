@@ -20,7 +20,7 @@ from utils.capture_pipeline import Context, handle_capture
 # import nest_asyncio ; nest_asyncio.apply() ->
 # Fix RuntimeError: This event loop is already running
 
-VERSION = '1.6.0'
+VERSION = '1.6.1'
 
 
 def banner():

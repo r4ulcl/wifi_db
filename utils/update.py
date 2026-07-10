@@ -60,7 +60,44 @@ def _parse_versions(version, latest_release_tag):
     current_number = current_match.group(1)
     latest_tuple = tuple(int(part) for part in latest_number.split('.'))
     current_tuple = tuple(int(part) for part in current_number.split('.'))
+    # Pad the shorter version with trailing zeros so 1.6 and 1.6.0 compare
+    # equal. Without this, Python compares (1, 6) < (1, 6, 0), so the release
+    # tag "v1.6" looks OLDER than the code's "1.6.0" and the tool wrongly
+    # reports "You are using a future/dev version".
+    max_len = max(len(latest_tuple), len(current_tuple))
+    latest_tuple += (0,) * (max_len - len(latest_tuple))
+    current_tuple += (0,) * (max_len - len(current_tuple))
     return latest_tuple, current_tuple, latest_number
+
+
+def _git_pull(script_dir):
+    '''Pull the latest code, tolerating the always-dirty bundled OUI database.
+
+    utils/mac-vendors-export.csv is tracked in git, but oui.load_vendors()
+    overwrites it at runtime with a fresh download, so after any real use the
+    working tree is dirty on that one file. Those local edits are throwaway
+    (the file is re-downloaded on the next run), yet left alone they block the
+    update: a rebase pull aborts with "cannot pull with rebase: You have
+    unstaged changes", and once upstream also refreshes the CSV a merge pull
+    hits "Your local changes would be overwritten by merge". This is exactly
+    what bites users who update months later, when the bundled vendor list has
+    moved on both locally and upstream.
+
+    So discard the local CSV first, then pull with autostash configured, which
+    shelves any *other* stray local edit across the pull instead of aborting.
+    Both settings are passed with -c so they apply for this one command without
+    touching the user's git config, and are silently ignored by Git versions
+    that predate them.'''
+    csv_path = os.path.join(script_dir, "mac-vendors-export.csv")
+    # Drop the disposable local OUI database so it can never block the pull.
+    # Fixed command, absolute paths, no shell or user input. check=False: a
+    # missing/unmodified file is fine, we just want a clean tree for the pull.
+    subprocess.run(["/usr/bin/git", "checkout", "--", csv_path],  # nosec B603
+                   cwd=script_dir, check=False)
+    subprocess.run(["/usr/bin/git",  # nosec B603
+                    "-c", "rebase.autostash=true",
+                    "-c", "merge.autostash=true",
+                    "pull"], cwd=script_dir, check=False)
 
 
 def _prompt_and_update(script_dir, latest_release_tag_number):
@@ -73,15 +110,14 @@ def _prompt_and_update(script_dir, latest_release_tag_number):
         print("You chose not to update. Running the current version.")
         return
     print("Updating...")
-    # Fixed command, absolute path, no shell or user input.
-    update_process = subprocess.Popen(["/usr/bin/git", "pull"],
-                                      cwd=script_dir)  # nosec B603
-    # Wait for the Git pull operation to complete
-    update_process.wait()
-    # Install required packages using pip
+    _git_pull(script_dir)
+    # Install required packages using pip. requirements.txt lives at the repo
+    # root (script_dir is utils/), so run from there rather than from wherever
+    # the user launched wifi_db.py.
+    repo_root = os.path.dirname(script_dir)
     install_process = subprocess.Popen(  # nosec B603
         ["/usr/bin/python3", "-m", "pip", "install", "-r",
-         "requirements.txt"])
+         "requirements.txt"], cwd=repo_root)
     install_process.wait()  # Wait for the installation
     print("Update complete. Please run again the script.")
     sys.exit()
