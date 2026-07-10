@@ -36,6 +36,17 @@ def get_latest_github_release(repo_url):
         return None
 
 
+def is_docker():
+    '''True when running inside the wifi_db Docker image.
+
+    The Dockerfile sets WIFI_DB_DOCKER=1; fall back to the /.dockerenv marker
+    Docker creates in every container, in case the image was built without the
+    env var.'''
+    if os.environ.get("WIFI_DB_DOCKER"):
+        return True
+    return os.path.exists("/.dockerenv")
+
+
 # Check if the user downloaded the repo using git or the ZIP.
 def is_git_repo():
     script_path = os.path.abspath(__file__)
@@ -60,10 +71,7 @@ def _parse_versions(version, latest_release_tag):
     current_number = current_match.group(1)
     latest_tuple = tuple(int(part) for part in latest_number.split('.'))
     current_tuple = tuple(int(part) for part in current_number.split('.'))
-    # Pad the shorter version with trailing zeros so 1.6 and 1.6.0 compare
-    # equal. Without this, Python compares (1, 6) < (1, 6, 0), so the release
-    # tag "v1.6" looks OLDER than the code's "1.6.0" and the tool wrongly
-    # reports "You are using a future/dev version".
+    # Pad with trailing zeros so 1.6 and 1.6.0 compare equal.
     max_len = max(len(latest_tuple), len(current_tuple))
     latest_tuple += (0,) * (max_len - len(latest_tuple))
     current_tuple += (0,) * (max_len - len(current_tuple))
@@ -73,25 +81,11 @@ def _parse_versions(version, latest_release_tag):
 def _git_pull(script_dir):
     '''Pull the latest code, tolerating the always-dirty bundled OUI database.
 
-    utils/mac-vendors-export.csv is tracked in git, but oui.load_vendors()
-    overwrites it at runtime with a fresh download, so after any real use the
-    working tree is dirty on that one file. Those local edits are throwaway
-    (the file is re-downloaded on the next run), yet left alone they block the
-    update: a rebase pull aborts with "cannot pull with rebase: You have
-    unstaged changes", and once upstream also refreshes the CSV a merge pull
-    hits "Your local changes would be overwritten by merge". This is exactly
-    what bites users who update months later, when the bundled vendor list has
-    moved on both locally and upstream.
-
-    So discard the local CSV first, then pull with autostash configured, which
-    shelves any *other* stray local edit across the pull instead of aborting.
-    Both settings are passed with -c so they apply for this one command without
-    touching the user's git config, and are silently ignored by Git versions
-    that predate them.'''
+    oui.load_vendors() overwrites the tracked mac-vendors-export.csv at
+    runtime, so it is almost always modified and would block the pull. Discard
+    that throwaway copy first, then pull with autostash for any other edits.'''
     csv_path = os.path.join(script_dir, "mac-vendors-export.csv")
-    # Drop the disposable local OUI database so it can never block the pull.
-    # Fixed command, absolute paths, no shell or user input. check=False: a
-    # missing/unmodified file is fine, we just want a clean tree for the pull.
+    # nosec B603: fixed command, absolute paths, no shell or user input.
     subprocess.run(["/usr/bin/git", "checkout", "--", csv_path],  # nosec B603
                    cwd=script_dir, check=False)
     subprocess.run(["/usr/bin/git",  # nosec B603
@@ -111,9 +105,7 @@ def _prompt_and_update(script_dir, latest_release_tag_number):
         return
     print("Updating...")
     _git_pull(script_dir)
-    # Install required packages using pip. requirements.txt lives at the repo
-    # root (script_dir is utils/), so run from there rather than from wherever
-    # the user launched wifi_db.py.
+    # Install required packages using pip (requirements.txt is at repo root).
     repo_root = os.path.dirname(script_dir)
     install_process = subprocess.Popen(  # nosec B603
         ["/usr/bin/python3", "-m", "pip", "install", "-r",
@@ -123,9 +115,52 @@ def _prompt_and_update(script_dir, latest_release_tag_number):
     sys.exit()
 
 
+def _latest_release_status(version, repo_url):
+    '''Compare the running version to the latest GitHub release.
+
+    Returns (status, latest_number) where status is one of "update", "future"
+    or "latest". Returns (None, None) after printing the reason when the latest
+    release or either version number cannot be determined.'''
+    latest_release_tag = get_latest_github_release(repo_url)
+    if not latest_release_tag:
+        print("Unable to check for updates.")
+        return None, None
+
+    parsed = _parse_versions(version, latest_release_tag)
+    if parsed is None:
+        print("Unable to parse version numbers.")
+        return None, None
+    latest_version, current_version, latest_number = parsed
+
+    if latest_version > current_version:
+        return "update", latest_number
+    if latest_version < current_version:
+        return "future", latest_number
+    return "latest", latest_number
+
+
+def _check_docker_update(version, repo_url):
+    '''Version check for the Docker image. There is no git repo inside the
+    container, so an old version is fixed by pulling a fresh image rather than
+    git pull.'''
+    status, latest_number = _latest_release_status(version, repo_url)
+    if status == "update":
+        print("A new version is available (v" + latest_number +
+              "). You are running wifi_db in Docker; update the image with:")
+        print("    docker pull r4ulcl/wifi_db:latest\n")
+    elif status == "future":
+        print("You are using a future/dev version ;) ("+version+").\n")
+    elif status == "latest":
+        print("You are using the latest version ("+version+").\n")
+
+
 def check_for_update(version):
     repo_url = "https://api.github.com/repos/r4ulcl/wifi_db"
     script_dir = os.path.dirname(os.path.abspath(__file__))
+
+    if is_docker():
+        _check_docker_update(version, repo_url)
+        return
 
     if not is_git_installed():
         print("Git is not installed on your system. Please install Git.")
@@ -136,22 +171,12 @@ def check_for_update(version):
                Update manually from GitHub.")
         return
 
-    latest_release_tag = get_latest_github_release(repo_url)
-    if not latest_release_tag:
-        print("Unable to check for updates.")
-        return
-
-    parsed = _parse_versions(version, latest_release_tag)
-    if parsed is None:
-        print("Unable to parse version numbers.")
-        return
-    latest_version, current_version, latest_release_tag_number = parsed
-
-    if latest_version > current_version:
-        _prompt_and_update(script_dir, latest_release_tag_number)
-    elif latest_version < current_version:
+    status, latest_number = _latest_release_status(version, repo_url)
+    if status == "update":
+        _prompt_and_update(script_dir, latest_number)
+    elif status == "future":
         print("You are using a future/dev version ;) ("+version+").\n")
-    else:
+    elif status == "latest":
         print("You are using the latest version ("+version+").\n")
 
 

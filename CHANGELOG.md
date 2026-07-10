@@ -2,6 +2,9 @@
 
 ## v1.6.1
 
+### Changed
+- The self-update check now works inside Docker: it detects the container (via `WIFI_DB_DOCKER`, set in the image, or the `/.dockerenv` marker), compares the running version to the latest GitHub release, and when out of date tells you to `docker pull r4ulcl/wifi_db:latest` instead of the generic "not in a Git folder" message.
+
 ### Fixed
 - Self-update no longer gets stuck on the bundled OUI database. `utils/mac-vendors-export.csv` is refreshed at runtime, so it is almost always locally modified; the update now discards that throwaway copy and pulls with autostash, instead of aborting with "cannot pull with rebase: You have unstaged changes" (and, once upstream has also refreshed the CSV, the equivalent merge conflict) — the failure that showed up when updating months later.
 - Version check no longer misreads the current build as a "future/dev version": `1.6.0` and the `v1.6` release tag now compare equal (trailing `.0` segments are padded) instead of `(1, 6) < (1, 6, 0)` making the code look newer than the release.

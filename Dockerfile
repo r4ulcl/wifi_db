@@ -41,7 +41,8 @@ WORKDIR /app
 
 ENV PIP_NO_CACHE_DIR=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1 \
-    PYTHONDONTWRITEBYTECODE=1
+    PYTHONDONTWRITEBYTECODE=1 \
+    WIFI_DB_DOCKER=1
 
 # Runtime dependencies only: tshark for pyshark, and the shared libraries the
 # hcxpcapngtool binary links against (the -dev packages and their headers stay
