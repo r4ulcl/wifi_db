@@ -2,13 +2,15 @@
 
 ## v1.6.1
 
-### Changed
-- The self-update check now works inside Docker: it detects the container (via `WIFI_DB_DOCKER`, set in the image, or the `/.dockerenv` marker), compares the running version to the latest GitHub release, and when out of date tells you to `docker pull r4ulcl/wifi_db:latest` instead of the generic "not in a Git folder" message.
+### Added
+- Self-update check inside Docker, suggesting `docker pull r4ulcl/wifi_db:latest` when outdated.
 
 ### Fixed
-- Self-update no longer gets stuck on the bundled OUI database. `utils/mac-vendors-export.csv` is refreshed at runtime, so it is almost always locally modified; the update now discards that throwaway copy and pulls with autostash, instead of aborting with "cannot pull with rebase: You have unstaged changes" (and, once upstream has also refreshed the CSV, the equivalent merge conflict) — the failure that showed up when updating months later.
-- Version check no longer misreads the current build as a "future/dev version": `1.6.0` and the `v1.6` release tag now compare equal (trailing `.0` segments are padded) instead of `(1, 6) < (1, 6, 0)` making the code look newer than the release.
-- `pip install -r requirements.txt` during self-update now runs from the repo root, so it works regardless of the directory `wifi_db.py` was launched from.
+- Hidden networks are now flagged `cloaked` from their beacons in the `.cap`, and stay cloaked after the real SSID is recovered (probe response, (re)association or another capture file); wildcard SSIDs are no longer read as `SSID: <MISSING>`.
+- Self-update: no longer blocked by the runtime-refreshed OUI database, `v1.6` and `1.6.0` now compare equal (no false "future/dev version"), and `pip install` runs from the repo root.
+
+### Updated
+- Release images built once per version tag, so `vX.Y`, `latest` and `master` are the same image on Docker Hub and GHCR.
 
 ## v1.6.0
 
