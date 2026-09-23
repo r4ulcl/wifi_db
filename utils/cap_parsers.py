@@ -1,6 +1,7 @@
 ''' Parse .cap/.pcap capture files into the SQLite DB: EAPOL handshakes, MFP and
 WPS. `parse_cap` dispatches to every .cap parser (including the EAP, certificate,
-security, capability and hidden-SSID parsers that live in their own modules). '''
+security, capability, cloaked and hidden-SSID parsers that live in their own
+modules). '''
 # -*- coding: utf-8 -*-
 import binascii
 
@@ -8,7 +9,8 @@ from utils import database_utils
 from utils.cap_common import _safe
 from utils.cap_runner import run_cap_parse
 from utils.cert_parsers import parse_certificates
-from utils.beacon_parsers import parse_capabilities, parse_hidden_ssid
+from utils.beacon_parsers import (parse_capabilities, parse_cloaked,
+                                  parse_hidden_ssid)
 from utils.security_parsers import parse_security
 from utils.eap_parsers import (parse_identities, parse_eap_md5,
                                parse_probe_fingerprint, exec_hcxpcapngtool)
@@ -23,6 +25,7 @@ def parse_cap(name, database, verbose, hcxpcapngtool, tshark):
         parse_certificates(name, database, verbose)
         parse_security(name, database, verbose)
         parse_capabilities(name, database, verbose)
+        parse_cloaked(name, database, verbose)
         parse_hidden_ssid(name, database, verbose)
         parse_eap_md5(name, database, verbose)
         parse_probe_fingerprint(name, database, verbose)

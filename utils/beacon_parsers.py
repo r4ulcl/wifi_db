@@ -1,6 +1,7 @@
 ''' Parse AP-advertised details from beacons / probe responses in a .cap file:
 RSN/WPA security (AKM suites, ciphers, PMF), 802.11r/k/v + MBSSID/CSA
-management capabilities, and recovered hidden (cloaked) SSIDs. '''
+management capabilities, cloaked (hidden-SSID) APs and their recovered
+SSIDs. '''
 # -*- coding: utf-8 -*-
 from utils import database_utils
 from utils.cap_common import (
@@ -81,6 +82,34 @@ def parse_capabilities(name, database, verbose):
         database, name, verbose, "Capabilities",
         "wlan.fc.type_subtype == 0x08 || wlan.fc.type_subtype == 0x05",
         per_pkt)
+
+
+# Detect cloaked (hidden) APs: a beacon whose SSID element is empty or only
+# NUL padding. This is the only reliable signal, since airodump/Kismet report
+# cloaked="false" once they have recovered the name.
+def _cloaked_for_pkt(cursor, verbose, pkt, seen):
+    '''Flag one AP as cloaked if this beacon hides its SSID. Returns insert
+    errors (0/1); `seen` tracks the BSSIDs already flagged and is mutated in
+    place.'''
+    bssid = pkt.wlan.bssid
+    if bssid is None or bssid.upper() in seen:
+        return 0
+    if _ssid_from_mgt(pkt['wlan.mgt']):
+        return 0
+    seen.add(bssid.upper())
+    if verbose:
+        print("Cloaked AP " + str(bssid))
+    return database_utils.insertCloaked(cursor, verbose, bssid)
+
+
+def parse_cloaked(name, database, verbose):
+    seen = set()
+    # Beacons (0x08) that carry an SSID element; whether it is hidden is
+    # decided per packet, as tshark exposes the SSID either decoded or as hex.
+    return run_cap_parse(
+        database, name, verbose, "Cloaked",
+        "wlan.fc.type_subtype == 0x08 && wlan.ssid",
+        lambda cursor, pkt: _cloaked_for_pkt(cursor, verbose, pkt, seen))
 
 
 # Recover cloaked (hidden) SSIDs from probe responses and (re)association

@@ -10,7 +10,7 @@ import types
 import unittest
 from unittest import mock
 
-from utils import cap_common, cap_runner, cap_parsers
+from utils import cap_common, cap_runner, cap_parsers, database_utils
 from utils import beacon_parsers, security_parsers, eap_parsers
 
 from fake_packets import Field, FakeLayer, FakePkt, capture_patch
@@ -244,6 +244,45 @@ class TestBeaconParsers(CapGapBase):
             "SELECT ssid FROM AP WHERE bssid = ?",
             ('AA:BB:CC:00:0E:02',)).fetchone()
         self.assertEqual(row, ('RevealedNet',))
+
+    def test_cloaked_beacon_sticky_after_reveal(self):
+        empty, padded, visible = ('AA:BB:CC:00:0D:01', 'AA:BB:CC:00:0D:02',
+                                  'AA:BB:CC:00:0D:03')
+
+        def frame(bssid, ssid):
+            return FakePkt({
+                'wlan': FakeLayer(attrs={'bssid': bssid}),
+                'wlan.mgt': FakeLayer(attrs={'wlan_ssid': ssid})})
+
+        # An airodump .csv parsed before the .cap already knows `padded`'s
+        # recovered name and reports it as not cloaked.
+        database_utils.insertAP(self.cursor, False, database_utils.APRow(
+            bssid=padded, essid='CsvNet', manuf='', channel='6', freqmhz='',
+            carrier='', encryption='WPA2', packets_total='1', lat='0.0',
+            lon='0.0', cloaked='False', mfpc='False', mfpr='False',
+            firstTimeSeen=0))
+
+        # Hidden beacons (empty and NUL-padded SSID) flag the AP; a visible
+        # beacon does not, and the repeated BSSID is skipped by `seen`.
+        beacons = [frame(empty, ''), frame(empty, ''),
+                   frame(padded, colon_hex(b'\x00' * 9)),
+                   frame(visible, colon_hex(b'VisibleNet'))]
+        _both_verbose(beacon_parsers.parse_cloaked, beacons,
+                      self.database, self.path)
+        # The real SSID is then recovered from a probe response ...
+        _both_verbose(beacon_parsers.parse_hidden_ssid,
+                      [frame(empty, 'SecretNet')], self.database, self.path)
+        # ... and a later capture file merges the AP as not cloaked.
+        database_utils.insertAP(self.cursor, False, database_utils.APRow(
+            bssid=empty, essid='SecretNet', manuf='', channel='6', freqmhz='',
+            carrier='', encryption='WPA2', packets_total='1', lat='0.0',
+            lon='0.0', cloaked='False', mfpc='False', mfpr='False',
+            firstTimeSeen=0))
+
+        rows = self.cursor.execute(
+            "SELECT bssid, ssid, cloaked FROM AP ORDER BY bssid").fetchall()
+        self.assertEqual(rows, [(empty, 'SecretNet', 'True'),
+                                (padded, 'CsvNet', 'True')])
 
 
 # --------------------------------------------------------------------------
