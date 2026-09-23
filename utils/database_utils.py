@@ -33,7 +33,8 @@ __all__ = [
     'insertCapabilities', 'insertEAPMD5', 'insertSeenClient', 'insertSeenAP',
     # defined in this module
     'connectDatabase', 'createDatabase', 'createViews', 'insertProbe',
-    'insertCertificate', 'insertHiddenSSID', 'insertConnected', 'insertMFP',
+    'insertCertificate', 'insertHiddenSSID', 'insertCloaked',
+    'insertConnected', 'insertMFP',
     'insertHandshake', 'insertIdentity', 'insertProbeFingerprint',
     'setHashcat', 'insertFile', 'getHash', 'setFileProcessed',
     'checkFileProcessed', 'obfuscateDB', 'clearWhitelist',
@@ -194,6 +195,20 @@ def insertHiddenSSID(cursor, verbose, bssid, ssid):
         '''UPDATE AP SET ssid = (?), ssid_revealed = 'True'
            WHERE bssid = (?) AND (ssid IS NULL OR ssid = '')''',
         (ssid, bssid.upper()))
+    return int(0)
+
+
+@safe_insert
+def insertCloaked(cursor, verbose, bssid):
+    '''Flag an AP as cloaked because one of its beacons hid the SSID (empty or
+    NUL-padded SSID element). The flag is sticky: insertAP's merge never resets
+    'True', so the AP stays cloaked even after its real SSID is recovered from
+    a probe response, a (re)association request or another capture file.'''
+    # Ensure the AP row exists, then set the flag.
+    insertAPConstraint(cursor, verbose, bssid)
+
+    cursor.execute('''UPDATE AP SET cloaked = 'True' WHERE bssid = (?)''',
+                   (bssid.upper(),))
     return int(0)
 
 

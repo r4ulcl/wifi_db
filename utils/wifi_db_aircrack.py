@@ -12,8 +12,9 @@ each file small:
                                  (no pyshark needed).
 * :mod:`utils.cert_parsers`   -- X.509 certificate extraction (fields in
                                  :mod:`utils.cert_fields`).
-* :mod:`utils.beacon_parsers` -- RSN/WPA security, 11r/k/v capabilities and
-                                 hidden-SSID recovery from beacons.
+* :mod:`utils.beacon_parsers` -- RSN/WPA security, 11r/k/v capabilities,
+                                 cloaked-AP detection and hidden-SSID
+                                 recovery from beacons.
 * :mod:`utils.cap_parsers`    -- handshakes, MFP, WPS, identities, EAP-MD5,
                                  probe fingerprints, hcxpcapngtool and the
                                  ``parse_cap`` dispatcher.
@@ -26,7 +27,8 @@ from utils.netxml_parser import parse_netxml
 from utils.text_parsers import parse_csv
 from utils.log_parsers import parse_kismet_csv, parse_log_csv
 from utils.cert_parsers import parse_certificates
-from utils.beacon_parsers import parse_capabilities, parse_hidden_ssid
+from utils.beacon_parsers import (parse_capabilities, parse_cloaked,
+                                  parse_hidden_ssid)
 from utils.security_parsers import parse_security
 from utils.cap_parsers import (
     parse_cap, parse_handshakes, parse_MFP, parse_WPS, parse_identities,
@@ -35,7 +37,7 @@ from utils.cap_parsers import (
 __all__ = [
     "parse_netxml", "parse_kismet_csv", "parse_csv", "parse_log_csv",
     "parse_certificates", "parse_security", "parse_capabilities",
-    "parse_hidden_ssid", "parse_cap", "parse_handshakes", "parse_MFP",
-    "parse_WPS", "parse_identities", "parse_eap_md5",
+    "parse_cloaked", "parse_hidden_ssid", "parse_cap", "parse_handshakes",
+    "parse_MFP", "parse_WPS", "parse_identities", "parse_eap_md5",
     "parse_probe_fingerprint", "exec_hcxpcapngtool",
 ]

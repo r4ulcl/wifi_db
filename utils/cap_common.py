@@ -133,11 +133,22 @@ def _mgt_tag_numbers(mgt):
     return {i for i in (_to_int(v) for v in values) if i is not None}
 
 
+def _ssid_raw(mgt):
+    '''Return the wlan.ssid value exactly as tshark printed it. For a
+    zero-length (wildcard) SSID `show` is empty and pyshark's
+    get_default_value() falls back to the display label "SSID: <MISSING>",
+    which would read as a real SSID, so use `show` when the field has one.'''
+    try:
+        return mgt.get_field('wlan_ssid').show or ''
+    except Exception:
+        return _field_value(mgt, 'wlan_ssid')
+
+
 def _ssid_from_mgt(mgt):
     '''Decode the SSID element of a management frame, returning '' for a
     hidden/wildcard SSID (empty or NUL padding). tshark may expose wlan.ssid
     either already decoded or as colon-separated hex bytes.'''
-    raw = _field_value(mgt, 'wlan_ssid')
+    raw = _ssid_raw(mgt)
     if not raw:
         return ''
     candidate = raw

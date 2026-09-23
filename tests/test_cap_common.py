@@ -116,6 +116,20 @@ class TestSsidDecoding(unittest.TestCase):
         layer = _Layer({"wlan_ssid": _Field(raw)})
         self.assertEqual(cap_common._ssid_from_mgt(layer), "AP")
 
+    def test_zero_length_ignores_display_label(self):
+        # A zero-length SSID has an empty `show`, and pyshark's
+        # get_default_value() then falls back to the display label.
+        field = _Field("SSID: <MISSING>")
+        field.show = ""
+        layer = _Layer({"wlan_ssid": field})
+        self.assertEqual(cap_common._ssid_from_mgt(layer), "")
+
+    def test_show_preferred_when_present(self):
+        field = _Field("ignored")
+        field.show = ":".join("%02x" % b for b in b"ShowNet")
+        layer = _Layer({"wlan_ssid": field})
+        self.assertEqual(cap_common._ssid_from_mgt(layer), "ShowNet")
+
 
 class _Pkt:
     def __init__(self, sa=None, mgt=None):

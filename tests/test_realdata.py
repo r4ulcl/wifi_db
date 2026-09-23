@@ -1,5 +1,6 @@
 from utils import oui
 from utils import capture_pipeline
+from utils import beacon_parsers
 
 import nest_asyncio
 
@@ -193,3 +194,14 @@ class TestFunctionsRealData(DBTestBase):
         self.c.execute(query)
         for (wps_version,) in self.c.fetchall():
             self.assertIn(wps_version, ('1.0', '2.0'))
+
+
+class TestCloakedRealData(DBTestBase):
+    def testRealCloakedFromCap(self):
+        # The .cap alone flags the hidden AP (its beacon carries a 9-byte
+        # NUL-padded SSID) and none of the APs whose beacons show their SSID.
+        nest_asyncio.apply()
+        beacon_parsers.parse_cloaked("./test_data/test-01.cap", self.database,
+                                     self.verbose)
+        self.c.execute("SELECT bssid FROM AP WHERE cloaked = 'True'")
+        self.assertEqual(self.c.fetchall(), [('F0:9F:C2:6A:88:26',)])
